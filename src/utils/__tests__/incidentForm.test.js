@@ -31,22 +31,22 @@ describe("minutesBetween", () => {
 describe("calculateTimeDifferences", () => {
   it("derives both duration fields", () => {
     const result = calculateTimeDifferences({
-      timeSpotted: "10:00",
-      timeOnSite: "10:20",
-      timeCleared: "11:00",
+      time: "10:00",
+      timeOfArrival: "10:20",
+      timeCompleted: "11:00",
     });
     expect(result.timeSpottedToOn).toBe("20 mins");
     expect(result.timeOnsiteToCleared).toBe("40 mins");
   });
 
   it("leaves duration fields unset when inputs are incomplete", () => {
-    const result = calculateTimeDifferences({ timeSpotted: "10:00" });
+    const result = calculateTimeDifferences({ time: "10:00" });
     expect(result.timeSpottedToOn).toBeUndefined();
     expect(result.timeOnsiteToCleared).toBeUndefined();
   });
 
   it("preserves the original data", () => {
-    const result = calculateTimeDifferences({ scheme: "M3", timeSpotted: "10:00", timeOnSite: "10:05" });
+    const result = calculateTimeDifferences({ scheme: "M3", time: "10:00", timeOfArrival: "10:05" });
     expect(result.scheme).toBe("M3");
     expect(result.timeSpottedToOn).toBe("5 mins");
   });

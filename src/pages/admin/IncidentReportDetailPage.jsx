@@ -5,6 +5,7 @@ import { ArrowLeft, Download, FileText, Calendar, User, MapPin, AlertTriangle } 
 import { staffService } from '../../services/staffService';
 import AdminSidebarLayout from '../../components/layout/AdminSidebarLayout';
 import { generateReportPDF } from '../../utils/pdfGenerator';
+import { SERVICE_ACCEPTANCE_STATEMENTS, VEHICLE_CONDITION_SECTIONS, CHECK_ITEMS } from '../../utils/incidentForm';
 import chellanlogo from "../../assets/chellanpng.png";
 
 const IncidentReportDetailPage = () => {
@@ -92,7 +93,7 @@ const IncidentReportDetailPage = () => {
               <ArrowLeft className="w-6 h-6 text-gray-600" />
             </button>
             <div>
-              <h3 className="text-2xl font-bold text-gray-800">Incident Report Details</h3>
+              <h3 className="text-2xl font-bold text-gray-800">Job Sheet Details</h3>
               <p className="text-sm text-gray-500 mt-1">Reference: {report.referenceId || 'N/A'}</p>
             </div>
           </div>
@@ -112,213 +113,268 @@ const IncidentReportDetailPage = () => {
             <img src={chellanlogo} alt="Company Logo" className="h-25 w-auto" />
           </div>
 
-          {/* Basic Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 pb-8 border-b">
-            <div>
-              <label className="text-sm font-semibold text-gray-500 uppercase">Scheme</label>
-              <p className="text-lg font-medium text-gray-800 mt-1">{report.scheme || 'N/A'}</p>
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-gray-500 uppercase">Section</label>
-              <p className="text-lg font-medium text-gray-800 mt-1">{report.section || 'N/A'}</p>
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-gray-500 uppercase">Date</label>
-              <p className="text-lg font-medium text-gray-800 mt-1">{report.date || 'N/A'}</p>
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-gray-500 uppercase">Submitted By</label>
-              <p className="text-lg font-medium text-gray-800 mt-1">
-                {report.firstName} {report.lastName}
-              </p>
-            </div>
-          </div>
-
-          {/* Weather & Log Information */}
+          {/* Arrival Details */}
           <div className="mb-8 pb-8 border-b">
-            <h4 className="text-lg font-bold text-gray-800 mb-4">Conditions & Log Information</h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label className="text-sm font-semibold text-gray-500 uppercase">Weather Conditions</label>
-                <p className="text-base text-gray-800 mt-1">{report.weatherConditions || 'N/A'}</p>
-              </div>
-              <div>
-                <label className="text-sm font-semibold text-gray-500 uppercase">NH Log</label>
-                <p className="text-base text-gray-800 mt-1">{report.nhLog || 'N/A'}</p>
-              </div>
-              <div>
-                <label className="text-sm font-semibold text-gray-500 uppercase">Collar Number</label>
-                <p className="text-base text-gray-800 mt-1">{report.collarNumber || 'N/A'}</p>
-              </div>
+            <h4 className="text-lg font-bold text-gray-800 mb-4">Arrival Details</h4>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {[
+                ["driverOnScene", "Driver on scene"],
+                ["policeOnScene", "Police on scene"],
+                ["nhOnScene", "NH on scene"],
+                ["ripvOnScene", "RIPV on scene"],
+              ]
+                .filter(([key]) => report[key])
+                .map(([key, label]) => (
+                  <span key={key} className="badge badge-lg bg-teal-100 text-teal-700">
+                    {label}
+                  </span>
+                ))}
             </div>
-          </div>
-
-          {/* Incident Details */}
-          <div className="mb-8 pb-8 border-b">
-            <h4 className="text-lg font-bold text-gray-800 mb-4">Incident Details</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="text-sm font-semibold text-gray-500 uppercase">Incursion</label>
-                <p className="text-base text-gray-800 mt-1">{report.incursion || 'NO'}</p>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Operator</label>
+                <p className="text-lg font-medium text-gray-800 mt-1">{report.firstName || 'N/A'}</p>
               </div>
               <div>
-                <label className="text-sm font-semibold text-gray-500 uppercase">Reported By</label>
-                <p className="text-base text-gray-800 mt-1">{report.reportedBy || 'N/A'}</p>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Scheme</label>
+                <p className="text-lg font-medium text-gray-800 mt-1">{report.scheme || 'N/A'}</p>
               </div>
               <div>
-                <label className="text-sm font-semibold text-gray-500 uppercase">Camera Number</label>
-                <p className="text-base text-gray-800 mt-1">{report.cameraNumber || 'N/A'}</p>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Job Source/Customer</label>
+                <p className="text-base text-gray-800 mt-1">{report.jobSource || 'N/A'}</p>
               </div>
               <div>
-                <label className="text-sm font-semibold text-gray-500 uppercase">Traffic Conditions</label>
-                <p className="text-base text-gray-800 mt-1">{report.trafficConditions || 'N/A'}</p>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Customer Log No.</label>
+                <p className="text-base text-gray-800 mt-1">{report.customerLogNo || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Date of Receipt</label>
+                <p className="text-base text-gray-800 mt-1">{report.date || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Time</label>
+                <p className="text-base text-gray-800 mt-1">{formatTime(report.time)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Vehicle Details */}
+          <div className="mb-8 pb-8 border-b">
+            <h4 className="text-lg font-bold text-gray-800 mb-4">Vehicle Details</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Reg. No.</label>
+                <p className="text-base text-gray-800 mt-1">{report.vehicleRegNo || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Make / Model</label>
+                <p className="text-base text-gray-800 mt-1">{report.vehicleMakeModel || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Colour</label>
+                <p className="text-base text-gray-800 mt-1">{report.vehicleColour || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Petrol / Diesel</label>
+                <p className="text-base text-gray-800 mt-1">{report.fuelType || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Manual / Auto</label>
+                <p className="text-base text-gray-800 mt-1">{report.manualOrAuto || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Transmission</label>
+                <p className="text-base text-gray-800 mt-1">{report.transmission || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">No. Passengers</label>
+                <p className="text-base text-gray-800 mt-1">{report.noOfPassengers || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Speedo</label>
+                <p className="text-base text-gray-800 mt-1">{report.speedo || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Motorcycle Solo / Combo</label>
+                <p className="text-base text-gray-800 mt-1">{report.motorcycleType || 'N/A'}</p>
+              </div>
+              {report.hasCaravanTrailer && (
+                <div>
+                  <label className="text-sm font-semibold text-gray-500 uppercase">Trailer Number</label>
+                  <p className="text-base text-gray-800 mt-1">{report.trailerNumber || 'N/A'}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Fault & Location */}
+          <div className="mb-8 pb-8 border-b">
+            <h4 className="text-lg font-bold text-gray-800 mb-4">Fault & Location</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Fault Reported</label>
+                <p className="text-base text-gray-800 mt-1">{report.faultReported || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Actual Fault</label>
+                <p className="text-base text-gray-800 mt-1">{report.actualFault || 'N/A'}</p>
               </div>
               <div>
                 <label className="text-sm font-semibold text-gray-500 uppercase">Marker Post</label>
                 <p className="text-base text-gray-800 mt-1">{report.markerPost || 'N/A'}</p>
               </div>
-              <div>
-                <label className="text-sm font-semibold text-gray-500 uppercase">Track</label>
-                <p className="text-base text-gray-800 mt-1">{report.track || 'N/A'}</p>
-              </div>
-              <div>
-                <label className="text-sm font-semibold text-gray-500 uppercase">Incident Type</label>
-                <p className="text-base text-gray-800 mt-1">{report.incidentType || 'N/A'}</p>
-              </div>
-              <div>
-                <label className="text-sm font-semibold text-gray-500 uppercase">Fault</label>
-                <p className="text-base text-gray-800 mt-1">{report.fault || 'N/A'}</p>
-              </div>
             </div>
           </div>
-
-          {/* Affected Lanes */}
-          <div className="mb-8 pb-8 border-b">
-            <h4 className="text-lg font-bold text-gray-800 mb-4">Affected Lanes</h4>
-            {report.affectedLanes && report.affectedLanes.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {report.affectedLanes.map((lane, index) => (
-                  <span key={index} className="badge badge-lg bg-teal-100 text-teal-700">
-                    {lane}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500">No affected lanes specified</p>
-            )}
-          </div>
-
-          {/* Emergency Services */}
-          <div className="mb-8 pb-8 border-b">
-            <h4 className="text-lg font-bold text-gray-800 mb-4">Emergency Services</h4>
-            {report.emergencyServices && report.emergencyServices.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {report.emergencyServices.map((service, index) => (
-                  <span key={index} className="badge badge-lg bg-orange-100 text-orange-700">
-                    {service}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500">No emergency services specified</p>
-            )}
-          </div>
-
-          {/* Recovery Requested */}
-          {report.recoveryRequested && (
-            <div className='mb-8 pb-8 border-b'>
-              <h4 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">
-                Recovery Requested
-              </h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="text-sm font-semibold text-gray-600">Light</label>
-                  <p className="text-gray-800">{report.recoveryRequested.light || 0}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-gray-600">Heavy</label>
-                  <p className="text-gray-800">{report.recoveryRequested.heavy || 0}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-gray-600">IPV</label>
-                  <p className="text-gray-800">{report.recoveryRequested.ipv || 0}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-gray-600">HETOS</label>
-                  <p className="text-gray-800">{report.recoveryRequested.hetos || 0}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          
 
           {/* Time Information */}
           <div className="mb-8 pb-8 border-b">
             <h4 className="text-lg font-bold text-gray-800 mb-4">Time Information</h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="text-sm font-semibold text-gray-500 uppercase">Time Spotted</label>
-                <p className="text-base text-gray-800 mt-1">{formatTime(report.timeSpotted)}</p>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Time of Arrival</label>
+                <p className="text-base text-gray-800 mt-1">{formatTime(report.timeOfArrival)}</p>
               </div>
               <div>
-                <label className="text-sm font-semibold text-gray-500 uppercase">Time On Site</label>
-                <p className="text-base text-gray-800 mt-1">{formatTime(report.timeOnSite)}</p>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Time Completed</label>
+                <p className="text-base text-gray-800 mt-1">{formatTime(report.timeCompleted)}</p>
               </div>
-              <div>
-                <label className="text-sm font-semibold text-gray-500 uppercase">Time Cleared</label>
-                <p className="text-base text-gray-800 mt-1">{formatTime(report.timeCleared)}</p>
-              </div>
+              {report.timeSpottedToOn && (
+                <div>
+                  <label className="text-sm font-semibold text-gray-500 uppercase">Response Time</label>
+                  <p className="text-base text-gray-800 mt-1">{report.timeSpottedToOn}</p>
+                </div>
+              )}
+              {report.timeOnsiteToCleared && (
+                <div>
+                  <label className="text-sm font-semibold text-gray-500 uppercase">Job Duration</label>
+                  <p className="text-base text-gray-800 mt-1">{report.timeOnsiteToCleared}</p>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Closed Log Information */}
+          {/* Completion Details */}
           <div className="mb-8 pb-8 border-b">
-            <h4 className="text-lg font-bold text-gray-800 mb-4">Closed Log Information</h4>
-            <div>
-              <label className="text-sm font-semibold text-gray-500 uppercase">Closed Log Collar Number</label>
-              <p className="text-base text-gray-800 mt-1">{report.closedLogCollar || 'N/A'}</p>
+            <h4 className="text-lg font-bold text-gray-800 mb-4">Completion Details</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Recovery Destination</label>
+                <p className="text-base text-gray-800 mt-1">{report.recoveryDestination || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Property Removed</label>
+                <p className="text-base text-gray-800 mt-1">{report.propertyRemoved || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Vehicle Outcome</label>
+                <p className="text-base text-gray-800 mt-1">{report.vehicleOutcome || 'N/A'}</p>
+              </div>
+              {(report.storageName || report.storageAddress || report.storageContactNo) && (
+                <>
+                  <div>
+                    <label className="text-sm font-semibold text-gray-500 uppercase">Storage Name</label>
+                    <p className="text-base text-gray-800 mt-1">{report.storageName || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-gray-500 uppercase">Storage Address</label>
+                    <p className="text-base text-gray-800 mt-1">{report.storageAddress || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-gray-500 uppercase">Storage Contact No.</label>
+                    <p className="text-base text-gray-800 mt-1">{report.storageContactNo || 'N/A'}</p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
-
-          {/* Vehicles Involved */}
-          {report.vehicles && report.vehicles.length > 0 && (
+          {/* Checks */}
+          {report.checks && (
             <div className="mb-8 pb-8 border-b">
-              <h4 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">
-                Vehicles Involved
-              </h4>
-              <div className="overflow-x-auto">
-                <table className="table w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="text-left text-sm font-semibold text-gray-600 px-4 py-2">Type</th>
-                      <th className="text-left text-sm font-semibold text-gray-600 px-4 py-2">Make</th>
-                      <th className="text-left text-sm font-semibold text-gray-600 px-4 py-2">Model</th>
-                      <th className="text-left text-sm font-semibold text-gray-600 px-4 py-2">VIN</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.vehicles.map((vehicle, index) => (
-                      <tr key={index} className="border-b">
-                        <td className="px-4 py-2">{vehicle.type || 'N/A'}</td>
-                        <td className="px-4 py-2">{vehicle.make || 'N/A'}</td>
-                        <td className="px-4 py-2">{vehicle.model || 'N/A'}</td>
-                        <td className="px-4 py-2">{vehicle.vin || 'N/A'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <h4 className="text-lg font-bold text-gray-800 mb-4">Checks</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {CHECK_ITEMS.map(({ key, label }) => (
+                  <div key={key}>
+                    <label className="text-sm font-semibold text-gray-600">{label}</label>
+                    <p className="text-gray-800">{report.checks[key] || 'N/A'}</p>
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Description */}
+          {/* Vehicle Condition */}
+          {report.vehicleCondition && (
+            <div className="mb-8 pb-8 border-b">
+              <h4 className="text-lg font-bold text-gray-800 mb-4">Vehicle Condition</h4>
+              <div className="space-y-2">
+                {VEHICLE_CONDITION_SECTIONS.map(({ key, label }) => {
+                  const section = report.vehicleCondition[key] || {};
+                  return (
+                    <div key={key} className="flex items-center gap-3">
+                      <span className="text-sm font-semibold text-gray-600 w-40 shrink-0">{label}</span>
+                      <span className="text-gray-800">
+                        {section.damage ? `Damaged — ${section.note || 'no note'}` : 'No damage'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Customer/Driver Service Acceptance */}
+          {report.serviceAcceptance && (
+            <div className="mb-8 pb-8 border-b">
+              <h4 className="text-lg font-bold text-gray-800 mb-4">Customer/Driver Service Acceptance</h4>
+              <div className="space-y-2">
+                {SERVICE_ACCEPTANCE_STATEMENTS.map((statement, index) => (
+                  <div key={index} className="flex items-start gap-3">
+                    <span
+                      className={`badge shrink-0 ${
+                        report.serviceAcceptance[index] ? 'badge-success' : 'badge-ghost'
+                      }`}
+                    >
+                      {report.serviceAcceptance[index] ? 'Accepted' : 'Not accepted'}
+                    </span>
+                    <span className="text-sm text-gray-700">{index + 1}. {statement}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Sign Off */}
+          <div className="mb-8 pb-8 border-b">
+            <h4 className="text-lg font-bold text-gray-800 mb-4">Sign Off</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Name</label>
+                <p className="text-base text-gray-800 mt-1">{report.name || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Satisfaction Confirmed</label>
+                <p className="text-base text-gray-800 mt-1">{report.satisfactionConfirmed ? 'Yes' : 'No'}</p>
+              </div>
+            </div>
+            {report.signatureUrl && (
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Signature</label>
+                <img
+                  src={report.signatureUrl}
+                  alt="Signature"
+                  className="mt-1 border border-gray-200 rounded-lg bg-white h-32 object-contain"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Notes */}
           <div className="mb-8">
-            <h4 className="text-lg font-bold text-gray-800 mb-4">Description of Incident</h4>
+            <h4 className="text-lg font-bold text-gray-800 mb-4">Notes</h4>
             <div className="bg-gray-50 rounded-lg p-4">
               <p className="text-gray-800 whitespace-pre-wrap">
-                {report.description || 'No description provided'}
+                {report.notes || 'No notes provided'}
               </p>
             </div>
           </div>

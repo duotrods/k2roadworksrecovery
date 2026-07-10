@@ -1,6 +1,11 @@
 import { jsPDF } from "jspdf";
 import lenselogo from "../assets/chellanpng.png";
 import { SCHEMES } from "./schemes";
+import {
+  SERVICE_ACCEPTANCE_STATEMENTS,
+  VEHICLE_CONDITION_SECTIONS,
+  CHECK_ITEMS,
+} from "./incidentForm";
 
 // Cache for compressed logo to avoid re-processing
 let cachedCompressedLogo = null;
@@ -37,6 +42,39 @@ const getCompressedLogo = () => {
       resolve(lenselogo);
     };
     img.src = lenselogo;
+  });
+};
+
+/**
+ * Fetch a (same-origin-CORS-enabled) image URL and convert it to a PNG data
+ * URL so jsPDF can embed it. Resolves null on any failure so callers can fall
+ * back to a text field instead of breaking PDF generation.
+ */
+const loadImageAsDataUrl = (url) => {
+  return new Promise((resolve) => {
+    if (!url) {
+      resolve(null);
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvas.getContext("2d").drawImage(img, 0, 0);
+        resolve({
+          dataUrl: canvas.toDataURL("image/png"),
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+        });
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
   });
 };
 
@@ -148,7 +186,7 @@ export const generateReportPDF = async (
 
   // Report Title Section
   const reportTitles = {
-    incident: "Incident Report",
+    incident: "K2 Vehicle Recovery Job Sheet",
     "asset-damage": "Asset Damage Report",
     "daily-occurrence": "Daily Occurrence Report",
     "cctv-check": "CCTV Check Report",
@@ -314,79 +352,154 @@ export const generateReportPDF = async (
   }
 
   switch (reportType) {
-    case "incident":
-      // Incident Details
-      if (report.section) addField("Section", report.section);
-      if (report.weatherConditions)
-        addField("Weather Conditions", report.weatherConditions);
-      if (report.trafficConditions)
-        addField("Traffic Conditions", report.trafficConditions);
-      if (report.nhLog) addField("NH Log", report.nhLog);
-      if (report.collarNumber) addField("Collar Number", report.collarNumber);
-      if (report.incursion) addField("Incursion", report.incursion);
-      addField("Asset Damage?", report.propertyDamage ? "Yes" : "No");
-      if (report.propertyDamage && report.assetType) addField("Asset Type", report.assetType);
-      if (report.propertyDamage && report.damageType) addField("Damage Type", report.damageType);
-      if (report.reportedBy) addField("Reported By", report.reportedBy);
-      if (report.cameraNumber) addField("Camera Number", report.cameraNumber);
+    case "incident": {
+      // Arrival Details
+      const onScene = [
+        report.driverOnScene && "Driver",
+        report.policeOnScene && "Police",
+        report.nhOnScene && "NH",
+        report.ripvOnScene && "RIPV",
+      ].filter(Boolean);
+      addField("On Scene", onScene.length > 0 ? onScene.join(", ") : "None");
+      if (report.firstName) addField("Operator", report.firstName);
+      if (report.jobSource) addField("Job Source/Customer", report.jobSource);
+      if (report.customerLogNo)
+        addField("Customer Log No.", report.customerLogNo);
+      if (report.time) addField("Time", report.time);
+      if (report.timeOfArrival)
+        addField("Time of Arrival", report.timeOfArrival);
+
+      // Vehicle Details
+      yPosition += 3;
+      addSectionHeader("VEHICLE DETAILS");
+      if (report.vehicleRegNo) addField("Reg. No.", report.vehicleRegNo, true);
+      if (report.vehicleMakeModel)
+        addField("Make / Model", report.vehicleMakeModel);
+      if (report.vehicleColour) addField("Colour", report.vehicleColour);
+      if (report.fuelType) addField("Petrol / Diesel", report.fuelType);
+      if (report.manualOrAuto) addField("Manual / Auto", report.manualOrAuto);
+      if (report.transmission) addField("Transmission", report.transmission);
+      if (report.noOfPassengers)
+        addField("No. Passengers", report.noOfPassengers);
+      if (report.speedo) addField("Speedo", report.speedo);
+      if (report.hasCaravanTrailer)
+        addField(
+          "Caravan / Trailer",
+          report.trailerNumber
+            ? `Yes — Trailer No. ${report.trailerNumber}`
+            : "Yes",
+        );
+      if (report.motorcycleType)
+        addField("Motorcycle Solo / Combo", report.motorcycleType);
+
+      // Fault & Location
+      yPosition += 3;
+      addSectionHeader("FAULT & LOCATION");
+      if (report.faultReported) addField("Fault Reported", report.faultReported);
+      if (report.actualFault) addField("Actual Fault", report.actualFault);
       if (report.markerPost) addField("Marker Post", report.markerPost);
-      if (report.track) addField("Track", report.track);
-      if (report.incidentType)
-        addField("Incident Type", report.incidentType, true);
-      if (report.fault) addField("Fault", report.fault);
-
-      // Affected Lanes
-      if (report.affectedLanes && report.affectedLanes.length > 0) {
-        addField("Affected Lanes", report.affectedLanes.join(", "), true);
-      }
-
-      // Emergency Services
-      if (report.emergencyServices && report.emergencyServices.length > 0) {
-        addField("Emergency Services", report.emergencyServices.join(", "));
-      }
-
-      // Recovery Requested
-      if (report.recoveryRequested) {
-        const r = report.recoveryRequested;
-        const recoveryParts = [];
-        if (r.light) recoveryParts.push(`Light: ${r.light}`);
-        if (r.heavy) recoveryParts.push(`Heavy: ${r.heavy}`);
-        if (r.ipv) recoveryParts.push(`IPV: ${r.ipv}`);
-        if (r.hetos) recoveryParts.push(`HETOS: ${r.hetos}`);
-        if (recoveryParts.length > 0)
-          addField("Recovery Requested", recoveryParts.join(", "));
-      }
+      if (report.notes) addField("Notes", report.notes);
 
       // Time Information
       yPosition += 3;
       addSectionHeader("TIME INFORMATION");
-      if (report.timeSpotted) addField("Time Spotted", report.timeSpotted);
-      if (report.timeOnSite) addField("Time On Site", report.timeOnSite);
-      if (report.timeCleared) addField("Time Cleared", report.timeCleared);
-      if (report.closedLogCollar)
-        addField("Closed Log Collar Number", report.closedLogCollar);
+      if (report.timeOfArrival)
+        addField("Time of Arrival", report.timeOfArrival);
+      if (report.timeCompleted)
+        addField("Time Completed", report.timeCompleted);
+      if (report.timeSpottedToOn)
+        addField("Response Time", report.timeSpottedToOn);
+      if (report.timeOnsiteToCleared)
+        addField("Job Duration", report.timeOnsiteToCleared);
 
-      // Vehicles Involved
-      if (report.vehicles && report.vehicles.length > 0) {
+      // Completion Details
+      yPosition += 3;
+      addSectionHeader("COMPLETION DETAILS");
+      if (report.recoveryDestination)
+        addField("Recovery Destination", report.recoveryDestination);
+      if (report.storageName || report.storageAddress || report.storageContactNo) {
+        if (report.storageName) addField("Storage Name", report.storageName);
+        if (report.storageAddress)
+          addField("Storage Address", report.storageAddress);
+        if (report.storageContactNo)
+          addField("Storage Contact No.", report.storageContactNo);
+      }
+      if (report.propertyRemoved)
+        addField("Property Removed", report.propertyRemoved);
+      if (report.vehicleOutcome)
+        addField("Vehicle Outcome", report.vehicleOutcome, true);
+
+      // Checks
+      if (report.checks) {
         yPosition += 3;
-        addSectionHeader("VEHICLES INVOLVED");
-        report.vehicles.forEach((v, i) => {
-          if (v.type || v.make || v.model || v.vin) {
-            const vehicleStr = [v.type, v.make, v.model, v.vin]
-              .filter(Boolean)
-              .join(" | ");
-            addField(`Vehicle ${i + 1}`, vehicleStr);
-          }
+        addSectionHeader("CHECKS");
+        CHECK_ITEMS.forEach(({ key, label }) => {
+          if (report.checks[key]) addField(label, report.checks[key]);
         });
       }
 
-      // Description
-      if (report.description) {
+      // Vehicle Condition
+      if (report.vehicleCondition) {
         yPosition += 3;
-        addSectionHeader("DESCRIPTION");
-        addField("Description", report.description);
+        addSectionHeader("VEHICLE CONDITION");
+        VEHICLE_CONDITION_SECTIONS.forEach(({ key, label }) => {
+          const section = report.vehicleCondition[key];
+          if (!section) return;
+          addField(
+            label,
+            section.damage ? `Damaged — ${section.note || "no note"}` : "No damage",
+          );
+        });
+      }
+
+      // Customer/Driver Service Acceptance
+      if (report.serviceAcceptance) {
+        yPosition += 3;
+        addSectionHeader("CUSTOMER/DRIVER SERVICE ACCEPTANCE");
+        SERVICE_ACCEPTANCE_STATEMENTS.forEach((statement, index) => {
+          addField(
+            `${index + 1}`,
+            report.serviceAcceptance[index] ? "Accepted" : "Not accepted",
+          );
+        });
+      }
+
+      // Sign Off
+      yPosition += 3;
+      addSectionHeader("SIGN OFF");
+      if (report.name) addField("Name", report.name);
+      addField(
+        "Confirmed Satisfaction",
+        report.satisfactionConfirmed ? "Yes" : "No",
+      );
+      if (report.signatureUrl) {
+        const signatureImage = await loadImageAsDataUrl(report.signatureUrl);
+        if (signatureImage) {
+          if (yPosition > 240) {
+            doc.addPage();
+            yPosition = 20;
+          }
+          const imgWidth = 70;
+          const imgHeight = (signatureImage.height / signatureImage.width) * imgWidth;
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(60, 60, 60);
+          doc.text("Signature:", margin, yPosition);
+          doc.addImage(
+            signatureImage.dataUrl,
+            "PNG",
+            margin + 50,
+            yPosition - 10,
+            imgWidth,
+            imgHeight,
+          );
+          yPosition += imgHeight + 5;
+        } else {
+          addField("Signature", "On file");
+        }
       }
       break;
+    }
 
     case "asset-damage":
       if (report.damageType) addField("Damage Type", report.damageType, true);

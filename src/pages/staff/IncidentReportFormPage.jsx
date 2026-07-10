@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { ArrowLeft, Upload, X, ChevronRight } from "lucide-react";
@@ -18,14 +18,64 @@ const r2Client = new S3Client({
 });
 import StaffSidebarLayout from "../../components/layout/StaffSidebarLayout";
 import StepIndicator from "../../components/staff/incident/StepIndicator";
+import SignaturePad from "../../components/staff/incident/SignaturePad";
 import { compressImage } from "../../utils/imageCompression";
 import { getSchemesForUser } from "../../utils/schemes";
 import {
   formatDateToBritish,
   calculateTimeDifferences,
+  SERVICE_ACCEPTANCE_STATEMENTS,
+  VEHICLE_CONDITION_SECTIONS,
+  CHECK_ITEMS,
+  createEmptyVehicleCondition,
+  createEmptyChecks,
 } from "../../utils/incidentForm";
 
-import chellanlogo from "../../assets/chellanpng.png";
+// Builds a fresh Job Sheet form: Part 1 (arrival) fields default to
+// "just met this job" state, Part 2 (completion) fields default empty.
+const emptyFormData = (userProfile) => ({
+  // Part 1 — Arrival
+  driverOnScene: false,
+  policeOnScene: false,
+  nhOnScene: false,
+  ripvOnScene: false,
+  firstName: userProfile?.displayName || "",
+  scheme: "",
+  jobSource: "",
+  customerLogNo: "",
+  date: formatDateToBritish(new Date()),
+  time: new Date().toTimeString().slice(0, 5),
+  timeOfArrival: "",
+  vehicleRegNo: "",
+  vehicleMakeModel: "",
+  vehicleColour: "",
+  fuelType: "",
+  manualOrAuto: "",
+  transmission: "",
+  noOfPassengers: "",
+  speedo: "",
+  hasCaravanTrailer: false,
+  trailerNumber: "",
+  motorcycleType: "",
+  faultReported: "",
+  actualFault: "",
+  markerPost: "",
+  notes: "",
+  // Part 2 — Completion
+  timeCompleted: "",
+  recoveryDestination: "",
+  storageName: "",
+  storageAddress: "",
+  storageContactNo: "",
+  propertyRemoved: "",
+  vehicleOutcome: "",
+  checks: createEmptyChecks(),
+  vehicleCondition: createEmptyVehicleCondition(),
+  serviceAcceptance: SERVICE_ACCEPTANCE_STATEMENTS.map(() => false),
+  name: "",
+  satisfactionConfirmed: false,
+  signatureUrl: "",
+});
 
 const IncidentReportFormPage = () => {
   const navigate = useNavigate();
@@ -37,42 +87,15 @@ const IncidentReportFormPage = () => {
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [files, setFiles] = useState([]);
 
-  // Step management: 1 = initial report, 2 = complete report
+  // Step management: 1 = arrival (Part 1), 2 = completion (Part 2)
   const [currentStep, setCurrentStep] = useState(1);
   const [isEditingLiveIncident, setIsEditingLiveIncident] = useState(false);
   const [liveIncidentId, setLiveIncidentId] = useState(null);
   const [existingReferenceId, setExistingReferenceId] = useState(null);
 
-  const [formData, setFormData] = useState({
-    scheme: "",
-    section: "",
-    date: formatDateToBritish(new Date()),
-    firstName: userProfile?.displayName || "",
-    time: new Date().toTimeString().slice(0, 5),
-    weatherConditions: "",
-    nhLog: "",
-    collarNumber: "",
-    incursion: "NO",
-    reportedBy: "",
-    cameraNumber: "",
-    trafficConditions: "",
-    markerPost: "",
-    track: "",
-    incidentType: "",
-    affectedLanes: [],
-    emergencyServices: [],
-    recoveryRequested: { light: 0, heavy: 0, ipv: 0, hetos: 0 },
-    timeSpotted: "",
-    timeOnSite: "",
-    timeCleared: "",
-    closedLogCollar: "",
-    fault: "",
-    propertyDamage: false,
-    assetType: "",
-    damageType: "",
-    vehicles: [{ type: "", make: "", model: "", vin: "" }],
-    description: "",
-  });
+  const [formData, setFormData] = useState(() => emptyFormData(userProfile));
+  const [isRedrawingSignature, setIsRedrawingSignature] = useState(false);
+  const signaturePadRef = useRef(null);
 
   useEffect(() => {
     if (editId) {
@@ -89,45 +112,54 @@ const IncidentReportFormPage = () => {
       if (report) {
         setExistingReferenceId(report.referenceId || null);
         setFormData({
-          scheme: report.scheme || "",
-          section: report.section || "",
-          date: report.date || "",
+          driverOnScene: report.driverOnScene || false,
+          policeOnScene: report.policeOnScene || false,
+          nhOnScene: report.nhOnScene || false,
+          ripvOnScene: report.ripvOnScene || false,
           firstName: report.firstName || "",
-          time: report.time || report.lastName || "",
-          weatherConditions: report.weatherConditions || "",
-          nhLog: report.nhLog || "",
-          collarNumber: report.collarNumber || "",
-          incursion: report.incursion || "NO",
-          reportedBy: report.reportedBy || "",
-          cameraNumber: report.cameraNumber || "",
-          trafficConditions: report.trafficConditions || "",
+          scheme: report.scheme || "",
+          jobSource: report.jobSource || "",
+          customerLogNo: report.customerLogNo || "",
+          date: report.date || "",
+          time: report.time || "",
+          timeOfArrival: report.timeOfArrival || "",
+          vehicleRegNo: report.vehicleRegNo || "",
+          vehicleMakeModel: report.vehicleMakeModel || "",
+          vehicleColour: report.vehicleColour || "",
+          fuelType: report.fuelType || "",
+          manualOrAuto: report.manualOrAuto || "",
+          transmission: report.transmission || "",
+          noOfPassengers: report.noOfPassengers || "",
+          speedo: report.speedo || "",
+          hasCaravanTrailer: report.hasCaravanTrailer || false,
+          trailerNumber: report.trailerNumber || "",
+          motorcycleType: report.motorcycleType || "",
+          faultReported: report.faultReported || "",
+          actualFault: report.actualFault || "",
           markerPost: report.markerPost || "",
-          track: report.track || "",
-          incidentType: report.incidentType || "",
-          affectedLanes: report.affectedLanes || [],
-          emergencyServices: report.emergencyServices || [],
-          recoveryRequested: report.recoveryRequested || {
-            light: 0,
-            heavy: 0,
-            ipv: 0,
-            hetos: 0,
+          notes: report.notes || "",
+          timeCompleted: report.timeCompleted || "",
+          recoveryDestination: report.recoveryDestination || "",
+          storageName: report.storageName || "",
+          storageAddress: report.storageAddress || "",
+          storageContactNo: report.storageContactNo || "",
+          propertyRemoved: report.propertyRemoved || "",
+          vehicleOutcome: report.vehicleOutcome || "",
+          checks: { ...createEmptyChecks(), ...(report.checks || {}) },
+          vehicleCondition: {
+            ...createEmptyVehicleCondition(),
+            ...(report.vehicleCondition || {}),
           },
-          timeSpotted: report.timeSpotted || "",
-          timeOnSite: report.timeOnSite || "",
-          timeCleared: report.timeCleared || "",
-          closedLogCollar: report.closedLogCollar || "",
-          fault: report.fault || "",
-          propertyDamage: report.propertyDamage || false,
-          assetType: report.assetType || "",
-          damageType: report.damageType || "",
-          vehicles: report.vehicles || [
-            { type: "", make: "", model: "", vin: "" },
-          ],
-          description: report.description || "",
+          serviceAcceptance:
+            report.serviceAcceptance || SERVICE_ACCEPTANCE_STATEMENTS.map(() => false),
+          name: report.name || "",
+          satisfactionConfirmed: report.satisfactionConfirmed || false,
+          signatureUrl: report.signatureUrl || "",
           files: report.files || [],
         });
+        setIsRedrawingSignature(false);
 
-        // If editing a live incident, go directly to Step 2
+        // If editing a live job, go directly to Part 2
         if (report.status === "live") {
           setCurrentStep(2);
           setIsEditingLiveIncident(true);
@@ -149,43 +181,29 @@ const IncidentReportFormPage = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleCheckbox = (field, value) => {
+  const handleCheckToggle = (key, value) => {
     setFormData((prev) => ({
       ...prev,
-      [field]: prev[field].includes(value)
-        ? prev[field].filter((v) => v !== value)
-        : [...prev[field], value],
+      checks: { ...prev.checks, [key]: value },
     }));
   };
 
-  const handleRecoveryChange = (type, count) => {
+  const handleConditionChange = (sectionKey, field, value) => {
     setFormData((prev) => ({
       ...prev,
-      recoveryRequested: {
-        ...prev.recoveryRequested,
-        [type]: parseInt(count) || 0,
+      vehicleCondition: {
+        ...prev.vehicleCondition,
+        [sectionKey]: { ...prev.vehicleCondition[sectionKey], [field]: value },
       },
     }));
   };
 
-  const handleVehicleChange = (index, field, value) => {
-    const updated = [...formData.vehicles];
-    updated[index][field] = value;
-    setFormData((prev) => ({ ...prev, vehicles: updated }));
-  };
-
-  const addVehicle = () => {
-    setFormData((prev) => ({
-      ...prev,
-      vehicles: [...prev.vehicles, { type: "", make: "", model: "", vin: "" }],
-    }));
-  };
-
-  const removeVehicle = (index) => {
-    setFormData((prev) => ({
-      ...prev,
-      vehicles: prev.vehicles.filter((_, i) => i !== index),
-    }));
+  const handleAcceptanceToggle = (index) => {
+    setFormData((prev) => {
+      const serviceAcceptance = [...prev.serviceAcceptance];
+      serviceAcceptance[index] = !serviceAcceptance[index];
+      return { ...prev, serviceAcceptance };
+    });
   };
 
   const handleFileSelect = (e) => {
@@ -272,18 +290,41 @@ const IncidentReportFormPage = () => {
     return uploadedFiles;
   };
 
-  // Step 1: Submit as Live Incident
+  // Uploads a freshly-drawn signature to R2 and returns its URL. If nothing
+  // new was drawn, keeps whatever signature URL is already on the form.
+  const uploadSignatureIfNeeded = async () => {
+    const pad = signaturePadRef.current;
+    if (!pad || pad.isEmpty()) return formData.signatureUrl || "";
+
+    const blob = await pad.toBlob();
+    if (!blob) return formData.signatureUrl || "";
+
+    const key = `incident-reports/${userProfile.uid}/${Date.now()}_signature.png`;
+    const arrayBuffer = await blob.arrayBuffer();
+
+    await r2Client.send(
+      new PutObjectCommand({
+        Bucket: import.meta.env.VITE_R2_BUCKET,
+        Key: key,
+        Body: new Uint8Array(arrayBuffer),
+        ContentType: "image/png",
+      }),
+    );
+
+    return `${import.meta.env.VITE_R2_PUBLIC_URL}/${key}`;
+  };
+
+  // Part 1: Submit as Live Job
   const handleStep1Submit = async (e) => {
     e.preventDefault();
 
     if (
       !formData.scheme ||
-      !formData.markerPost ||
       !formData.date ||
       !formData.firstName ||
-      !formData.timeSpotted
+      !formData.timeOfArrival
     ) {
-      toast.error("Please fill in all required fields for Step 1");
+      toast.error("Please fill in all required fields for Part 1");
       return;
     }
 
@@ -293,39 +334,13 @@ const IncidentReportFormPage = () => {
       const uploadedFiles = await uploadFiles();
 
       const step1Data = {
-        scheme: formData.scheme,
-        section: formData.section,
-        markerPost: formData.markerPost.trim(),
-        date: formData.date,
+        ...formData,
         firstName: formData.firstName.trim(),
-        timeSpotted: formData.timeSpotted,
+        markerPost: formData.markerPost.trim(),
         files: uploadedFiles,
-        // Initialize empty fields for Step 2
-        time: formData.time,
-        weatherConditions: "",
-        nhLog: "",
-        collarNumber: "",
-        incursion: "NO",
-        reportedBy: "",
-        cameraNumber: "",
-        trafficConditions: "",
-        track: "",
-        incidentType: "",
-        affectedLanes: [],
-        emergencyServices: [],
-        recoveryRequested: { light: 0, heavy: 0, ipv: 0, hetos: 0 },
-        timeOnSite: "",
-        timeCleared: "",
-        closedLogCollar: "",
-        fault: "",
-        propertyDamage: false,
-        assetType: "",
-        damageType: "",
-        vehicles: [{ type: "", make: "", model: "", vin: "" }],
-        description: "",
       };
 
-      // Submit as live incident
+      // Submit as live job
       const { id: newIncidentId, referenceId: newRefId } =
         await staffService.submitIncidentReport(
           step1Data,
@@ -334,22 +349,22 @@ const IncidentReportFormPage = () => {
           "live", // Status = live
         );
 
-      toast.success("Live Incident created! Please complete the full report.");
+      toast.success("Job Sheet started! Please complete it once the job is done.");
 
-      // Store the new incident ID and continue to Step 2
+      // Store the new job ID and continue to Part 2
       setLiveIncidentId(newIncidentId);
       setExistingReferenceId(newRefId);
       setIsEditingLiveIncident(true);
       setCurrentStep(2);
     } catch (error) {
-      console.error("Error submitting Step 1:", error);
-      toast.error("Failed to create live incident. Please try again.");
+      console.error("Error submitting Part 1:", error);
+      toast.error("Failed to start Job Sheet. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Save progress on Step 2 without completing — keeps status as "live"
+  // Save progress on Part 2 without completing — keeps status as "live"
   // Operator can return to the form later and find all fields already filled
   const handleSave = async () => {
     const incidentId = editId || liveIncidentId;
@@ -358,7 +373,8 @@ const IncidentReportFormPage = () => {
     setLoading(true);
     try {
       const uploadedFiles = await uploadFiles();
-      const updateData = { ...formData };
+      const signatureUrl = await uploadSignatureIfNeeded();
+      const updateData = { ...formData, signatureUrl };
 
       if (uploadedFiles.length > 0) {
         updateData.files = [...(formData.files || []), ...uploadedFiles];
@@ -376,7 +392,7 @@ const IncidentReportFormPage = () => {
         userProfile.displayName,
       );
 
-      toast.success("Progress saved! Incident is still live.");
+      toast.success("Progress saved! Job Sheet is still live.");
       navigate(basePath);
     } catch (error) {
       console.error("Error saving progress:", error);
@@ -386,7 +402,7 @@ const IncidentReportFormPage = () => {
     }
   };
 
-  // Step 2: Complete the report (or regular submit for non-live workflow)
+  // Part 2: Complete the Job Sheet (or regular submit for non-live workflow)
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -399,14 +415,23 @@ const IncidentReportFormPage = () => {
 
     try {
       const uploadedFiles = await uploadFiles();
+      const signatureUrl = await uploadSignatureIfNeeded();
       const trimmedData = {
         ...formData,
         firstName: formData.firstName.trim(),
         markerPost: formData.markerPost.trim(),
-        nhLog: formData.nhLog.trim(),
-        collarNumber: formData.collarNumber.trim(),
-        cameraNumber: formData.cameraNumber.trim(),
-        description: formData.description.trim(),
+        jobSource: formData.jobSource.trim(),
+        customerLogNo: formData.customerLogNo.trim(),
+        vehicleRegNo: formData.vehicleRegNo.trim(),
+        faultReported: formData.faultReported.trim(),
+        actualFault: formData.actualFault.trim(),
+        notes: formData.notes.trim(),
+        recoveryDestination: formData.recoveryDestination.trim(),
+        storageName: formData.storageName.trim(),
+        storageAddress: formData.storageAddress.trim(),
+        storageContactNo: formData.storageContactNo.trim(),
+        name: formData.name.trim(),
+        signatureUrl,
       };
       const dataWithTimings = calculateTimeDifferences(trimmedData);
 
@@ -423,7 +448,7 @@ const IncidentReportFormPage = () => {
           updateData.files = formData.files;
         }
 
-        // If completing a live incident, set status to completed
+        // If completing a live job, set status to completed
         if (isEditingLiveIncident) {
           updateData.status = "completed";
         }
@@ -446,13 +471,13 @@ const IncidentReportFormPage = () => {
             },
             false,
           );
-          toast.success("Incident Report completed successfully!");
+          toast.success("Job Sheet completed successfully!");
         } else {
-          toast.success("Incident Report updated successfully!");
+          toast.success("Job Sheet updated successfully!");
         }
         navigate(basePath);
       } else {
-        // Submit new form (regular flow - not using 2-step)
+        // Submit new form (regular flow - not using two-part)
         const { id: newIncidentId, referenceId: newReferenceId } =
           await staffService.submitIncidentReport(
             {
@@ -463,7 +488,6 @@ const IncidentReportFormPage = () => {
             userProfile.displayName,
             "submitted",
           );
-        // Send alert if incursion or asset damage
         await sendIncidentAlertNotification(
           {
             ...dataWithTimings,
@@ -474,39 +498,10 @@ const IncidentReportFormPage = () => {
           false,
         );
 
-        toast.success("Incident Report submitted successfully!");
+        toast.success("Job Sheet submitted successfully!");
 
         // Reset form
-        setFormData({
-          scheme: "",
-          section: "",
-          date: formatDateToBritish(new Date()),
-          firstName: userProfile?.displayName || "",
-          time: new Date().toTimeString().slice(0, 5),
-          weatherConditions: "",
-          nhLog: "",
-          collarNumber: "",
-          incursion: "NO",
-          reportedBy: "",
-          cameraNumber: "",
-          trafficConditions: "",
-          markerPost: "",
-          track: "",
-          incidentType: "",
-          affectedLanes: [],
-          emergencyServices: [],
-          recoveryRequested: { light: 0, heavy: 0, ipv: 0, hetos: 0 },
-          timeSpotted: "",
-          timeOnSite: "",
-          timeCleared: "",
-          closedLogCollar: "",
-          fault: "",
-          propertyDamage: false,
-          assetType: "",
-          damageType: "",
-          vehicles: [{ type: "", make: "", model: "", vin: "" }],
-          description: "",
-        });
+        setFormData(emptyFormData(userProfile));
         setFiles([]);
       }
     } catch (error) {
@@ -517,29 +512,161 @@ const IncidentReportFormPage = () => {
     }
   };
 
-  // Step Indicator Component
-  // Render Step 1 Form
+  // Reusable Yes/No radio pair for the Part 2 operational checks.
+  const YesNoField = ({ label, value, onChange }) => (
+    <div>
+      <label className="label">
+        <span className="label-text font-semibold mb-2">{label}</span>
+      </label>
+      <div className="flex gap-6">
+        {["Yes", "No"].map((option) => (
+          <label key={option} className="cursor-pointer flex items-center gap-2">
+            <input
+              type="radio"
+              checked={value === option}
+              onChange={() => onChange(option)}
+              className="radio"
+            />
+            <span>{option}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderFileUpload = (inputId) => (
+    <div>
+      <label className="label">
+        <span className="label-text font-semibold">Upload Files</span>
+      </label>
+      <div
+        className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-brand-400 transition-colors"
+        onDragOver={handleDragOver}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <input
+          type="file"
+          multiple
+          onChange={handleFileSelect}
+          className="hidden"
+          id={inputId}
+          accept="image/*,video/*,.pdf"
+        />
+        <label htmlFor={inputId} className="cursor-pointer">
+          <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-brand-600 font-semibold mb-1">Browse Files</p>
+          <p className="text-gray-500 text-sm">Drag and drop files here</p>
+        </label>
+
+        {formData.files?.length > 0 && (
+          <div className="mt-4 space-y-2">
+            <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Saved files</p>
+            {formData.files.map((file, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between bg-blue-50 p-2 rounded"
+              >
+                <span className="text-sm text-gray-700 truncate">{file.fileName}</span>
+                <button
+                  type="button"
+                  onClick={() => removeExistingFile(index)}
+                  className="text-red-500 hover:text-red-700 shrink-0 ml-2"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {files.length > 0 && (
+          <div className="mt-4 space-y-2">
+            {formData.files?.length > 0 && <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">New files</p>}
+            {files.map((file, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between bg-gray-50 p-2 rounded"
+              >
+                <span className="text-sm text-gray-700">{file.name}</span>
+                <button
+                  type="button"
+                  onClick={() => removeFile(index)}
+                  className="text-red-500 hover:text-red-700"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // Render Part 1 Form (Arrival)
   const renderStep1 = () => (
     <form
       onSubmit={handleStep1Submit}
       className="bg-white rounded-xl shadow-md p-8 space-y-6"
     >
-      <div className="flex justify-center items-center space-x-2 mb-8">
-        <img src={chellanlogo} alt="MyApp Logo" className="h-25 w-auto" />
-      </div>
-
       <StepIndicator currentStep={currentStep} />
 
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-        <p className="text-red-700 font-medium">Step 1: Create Live Incident</p>
-        <p className="text-red-600 text-sm mt-1">
-          Fill in the essential details to log a live incident. You can complete
-          the full report later.
+      <div className="bg-brand-50 border border-brand-200 rounded-lg p-4 mb-6">
+        <p className="text-brand-700 font-medium">Part 1: Arrival Details</p>
+        <p className="text-brand-600 text-sm mt-1">
+          Fill in the details on arrival at the scene. You can complete the
+          rest of the Job Sheet once the job is done.
         </p>
       </div>
 
-      {/* Scheme and Section */}
+      {/* On-scene checkboxes */}
+      <div>
+        <label className="label">
+          <span className="label-text font-semibold mb-2">On Scene</span>
+        </label>
+        <div className="flex flex-wrap gap-6">
+          {[
+            ["driverOnScene", "Driver on scene"],
+            ["policeOnScene", "Police on scene"],
+            ["nhOnScene", "NH on scene"],
+            ["ripvOnScene", "RIPV on scene"],
+          ].map(([key, label]) => (
+            <label key={key} className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                className="checkbox checkbox-sm border-gray-400"
+                checked={formData[key]}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, [key]: e.target.checked }))
+                }
+              />
+              <span className="text-sm">{label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Operator and Scheme */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label className="label">
+            <span className="label-text font-semibold mb-2">
+              Operator <span className="text-red-500">*</span>
+            </span>
+          </label>
+          <input
+            type="text"
+            name="firstName"
+            value={formData.firstName}
+            onChange={handleChange}
+            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+            maxLength={100}
+            required
+          />
+        </div>
+
         <div>
           <label className="label">
             <span className="label-text font-semibold mb-2">
@@ -561,47 +688,45 @@ const IncidentReportFormPage = () => {
             ))}
           </select>
         </div>
+      </div>
 
+      {/* Job Source / Customer Log */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="label">
-            <span className="label-text font-semibold mb-2">Section</span>
+            <span className="label-text font-semibold mb-2">Job Source/Customer</span>
           </label>
           <input
             type="text"
-            name="section"
-            value={formData.section}
+            name="jobSource"
+            value={formData.jobSource}
             onChange={handleChange}
             className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            placeholder="Enter section (e.g., M3, A33, A417)"
+            maxLength={100}
+          />
+        </div>
+
+        <div>
+          <label className="label">
+            <span className="label-text font-semibold mb-2">Customer Log No.</span>
+          </label>
+          <input
+            type="text"
+            name="customerLogNo"
+            value={formData.customerLogNo}
+            onChange={handleChange}
+            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+            maxLength={50}
           />
         </div>
       </div>
 
-      {/* Marker Post */}
-      <div>
-        <label className="label">
-          <span className="label-text font-semibold mb-2">
-            Marker Post <span className="text-red-500">*</span>
-          </span>
-        </label>
-        <input
-          type="text"
-          name="markerPost"
-          placeholder="e.g., 2.3"
-          value={formData.markerPost}
-          onChange={handleChange}
-          className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-          maxLength={50}
-          required
-        />
-      </div>
-
-      {/* Date, Name, Time Spotted */}
+      {/* Date of Receipt, Time, Time of Arrival */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div>
           <label className="label">
             <span className="label-text font-semibold mb-2">
-              Date (DD/MM/YYYY) <span className="text-red-500">*</span>
+              Date of Receipt (DD/MM/YYYY) <span className="text-red-500">*</span>
             </span>
           </label>
           <input
@@ -618,31 +743,27 @@ const IncidentReportFormPage = () => {
 
         <div>
           <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Name <span className="text-red-500">*</span>
-            </span>
+            <span className="label-text font-semibold mb-2">Time</span>
           </label>
           <input
-            type="text"
-            name="firstName"
-            value={formData.firstName}
+            type="time"
+            name="time"
+            value={formData.time}
             onChange={handleChange}
             className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            maxLength={100}
-            required
           />
         </div>
 
         <div>
           <label className="label">
             <span className="label-text font-semibold mb-2">
-              Time Spotted <span className="text-red-500">*</span>
+              Time of Arrival <span className="text-red-500">*</span>
             </span>
           </label>
           <input
             type="time"
-            name="timeSpotted"
-            value={formData.timeSpotted}
+            name="timeOfArrival"
+            value={formData.timeOfArrival}
             onChange={handleChange}
             className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
             required
@@ -650,75 +771,22 @@ const IncidentReportFormPage = () => {
         </div>
       </div>
 
-      {/* File Upload */}
+      {/* Notes */}
       <div>
         <label className="label">
-          <span className="label-text font-semibold">Upload Image</span>
+          <span className="label-text font-semibold mb-2">Notes</span>
         </label>
-        <div
-          className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-teal-400 transition-colors"
-          onDragOver={handleDragOver}
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <input
-            type="file"
-            multiple
-            onChange={handleFileSelect}
-            className="hidden"
-            id="file-upload"
-            accept="image/*,video/*"
-          />
-          <label htmlFor="file-upload" className="cursor-pointer">
-            <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-teal-600 font-semibold mb-1">Browse Files</p>
-            <p className="text-gray-500 text-sm">Drag and drop files here</p>
-          </label>
-
-          {formData.files?.length > 0 && (
-            <div className="mt-4 space-y-2">
-              <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Saved files</p>
-              {formData.files.map((file, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between bg-blue-50 p-2 rounded"
-                >
-                  <span className="text-sm text-gray-700 truncate">{file.fileName}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeExistingFile(index)}
-                    className="text-red-500 hover:text-red-700 shrink-0 ml-2"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {files.length > 0 && (
-            <div className="mt-4 space-y-2">
-              {formData.files?.length > 0 && <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">New files</p>}
-              {files.map((file, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between bg-gray-50 p-2 rounded"
-                >
-                  <span className="text-sm text-gray-700">{file.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeFile(index)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <textarea
+          name="notes"
+          value={formData.notes}
+          onChange={handleChange}
+          rows={4}
+          className="textarea bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+          maxLength={2000}
+        />
       </div>
+
+      {renderFileUpload("file-upload")}
 
       {/* Submit Buttons */}
       <div className="flex justify-between gap-4 mt-8 pt-6 border-t">
@@ -733,7 +801,7 @@ const IncidentReportFormPage = () => {
           <button
             type="submit"
             disabled={loading || uploadingFiles}
-            className="px-8 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 transition-colors font-semibold flex items-center gap-2"
+            className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors font-semibold flex items-center gap-2"
           >
             {loading ? (
               "Creating..."
@@ -741,7 +809,7 @@ const IncidentReportFormPage = () => {
               "Uploading..."
             ) : (
               <>
-                Create Live Incident
+                Create Job Sheet
                 <ChevronRight className="w-5 h-5" />
               </>
             )}
@@ -751,31 +819,42 @@ const IncidentReportFormPage = () => {
     </form>
   );
 
-  // Render Step 2 Form (Full Form)
+  // Render Part 2 Form (Completion)
   const renderStep2 = () => (
     <form
       onSubmit={handleSubmit}
       className="bg-white rounded-xl shadow-md p-8 space-y-6"
     >
-      <div className="flex justify-center items-center space-x-2 mb-8">
-        <img src={chellanlogo} alt="MyApp Logo" className="h-25 w-auto" />
-      </div>
-
       {isEditingLiveIncident && <StepIndicator currentStep={currentStep} />}
 
       {isEditingLiveIncident && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-          <p className="text-green-700 font-medium">
-            Step 2: Complete the Report
-          </p>
-          <p className="text-green-600 text-sm mt-1">
-            Fill in the remaining details to complete this incident report.
+        <div className="bg-brand-50 border border-brand-200 rounded-lg p-4 mb-6">
+          <p className="text-brand-800 font-medium">Part 2: Complete Job Sheet</p>
+          <p className="text-brand-600 text-sm mt-1">
+            Fill in the remaining details to complete this Job Sheet.
           </p>
         </div>
       )}
 
-      {/* Scheme and Section */}
+      {/* Operator and Scheme */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label className="label">
+            <span className="label-text font-semibold mb-2">
+              Operator <span className="text-red-500">*</span>
+            </span>
+          </label>
+          <input
+            type="text"
+            name="firstName"
+            value={formData.firstName}
+            onChange={handleChange}
+            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+            maxLength={100}
+            required
+          />
+        </div>
+
         <div>
           <label className="label">
             <span className="label-text font-semibold mb-2">
@@ -797,346 +876,218 @@ const IncidentReportFormPage = () => {
             ))}
           </select>
         </div>
-
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">Section</span>
-          </label>
-          <input
-            type="text"
-            name="section"
-            value={formData.section}
-            onChange={handleChange}
-            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            placeholder="Enter section (e.g., M3, A33, A417)"
-          />
-        </div>
       </div>
 
-      {/* Date and Name */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Date (DD/MM/YYYY) <span className="text-red-500">*</span>
-            </span>
-          </label>
-          <input
-            type="text"
-            name="date"
-            value={formData.date}
-            onChange={handleChange}
-            placeholder="DD/MM/YYYY"
-            pattern="\d{2}/\d{2}/\d{4}"
-            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            required
-          />
-        </div>
-
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">
-              First Name <span className="text-red-500">*</span>
-            </span>
-          </label>
-          <input
-            type="text"
-            name="firstName"
-            value={formData.firstName}
-            onChange={handleChange}
-            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            maxLength={100}
-            required
-          />
-        </div>
-
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Time <span className="text-red-500">*</span>
-            </span>
-          </label>
-          <input
-            type="time"
-            name="time"
-            value={formData.time}
-            onChange={handleChange}
-            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            required
-          />
-        </div>
-      </div>
-
-      {/* Weather and NH Log */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Weather Conditions <span className="text-red-500">*</span>
-            </span>
-          </label>
-          <select
-            name="weatherConditions"
-            value={formData.weatherConditions}
-            onChange={handleChange}
-            className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            required
-          >
-            <option value="">Please Select</option>
-            <option value="Dry">Dry</option>
-            <option value="Wet">Wet</option>
-            <option value="Raining">Raining</option>
-            <option value="Fog">Fog</option>
-            <option value="Snow">Snow</option>
-            <option value="Icy">Icy</option>
-            <option value="Sunny">Sunny</option>
-          </select>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
+      {/* Vehicle Details */}
+      <div>
+        <h3 className="font-semibold text-gray-800 mb-3">Vehicle Details</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
             <label className="label">
-              <span className="label-text font-semibold mb-2">
-                NH Log <span className="text-red-500">*</span>
-              </span>
+              <span className="label-text font-semibold mb-2">Reg. No.</span>
             </label>
             <input
               type="text"
-              name="nhLog"
-              placeholder="National Highways Log"
-              value={formData.nhLog}
+              name="vehicleRegNo"
+              value={formData.vehicleRegNo}
               onChange={handleChange}
               className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-              maxLength={50}
+              maxLength={20}
             />
           </div>
 
           <div>
             <label className="label">
-              <span className="label-text font-semibold mb-2">
-                Collar Number <span className="text-red-500">*</span>
-              </span>
+              <span className="label-text font-semibold mb-2">Make / Model</span>
             </label>
             <input
               type="text"
-              name="collarNumber"
-              placeholder="Collar Number"
-              value={formData.collarNumber}
+              name="vehicleMakeModel"
+              value={formData.vehicleMakeModel}
+              onChange={handleChange}
+              className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+              maxLength={100}
+            />
+          </div>
+
+          <div>
+            <label className="label">
+              <span className="label-text font-semibold mb-2">Colour</span>
+            </label>
+            <input
+              type="text"
+              name="vehicleColour"
+              value={formData.vehicleColour}
               onChange={handleChange}
               className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
               maxLength={50}
             />
           </div>
         </div>
-      </div>
 
-      {/* Incursion + Asset Damage */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Incursion? <span className="text-red-500">*</span>
-            </span>
-          </label>
-          <div className="flex gap-6">
-            <label className="cursor-pointer flex items-center gap-2">
-              <input
-                type="radio"
-                name="incursion"
-                value="YES"
-                checked={formData.incursion === "YES"}
-                onChange={handleChange}
-                className="radio radio-accent"
-              />
-              <span>YES</span>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+          <div>
+            <label className="label">
+              <span className="label-text font-semibold mb-2">Petrol / Diesel</span>
             </label>
-            <label className="cursor-pointer flex items-center gap-2">
-              <input
-                type="radio"
-                name="incursion"
-                value="NO"
-                checked={formData.incursion === "NO"}
-                onChange={handleChange}
-                className="radio radio-accent"
-              />
-              <span>NO</span>
+            <select
+              name="fuelType"
+              value={formData.fuelType}
+              onChange={handleChange}
+              className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+            >
+              <option value="">Please Select</option>
+              <option value="Petrol">Petrol</option>
+              <option value="Diesel">Diesel</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="label">
+              <span className="label-text font-semibold mb-2">Manual / Auto</span>
             </label>
+            <select
+              name="manualOrAuto"
+              value={formData.manualOrAuto}
+              onChange={handleChange}
+              className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+            >
+              <option value="">Please Select</option>
+              <option value="Manual">Manual</option>
+              <option value="Auto">Auto</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="label">
+              <span className="label-text font-semibold mb-2">Transmission</span>
+            </label>
+            <input
+              type="text"
+              name="transmission"
+              value={formData.transmission}
+              onChange={handleChange}
+              className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+              maxLength={50}
+            />
           </div>
         </div>
 
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">Asset Damage?</span>
-          </label>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+          <div>
+            <label className="label">
+              <span className="label-text font-semibold mb-2">No. Passengers</span>
+            </label>
+            <input
+              type="text"
+              name="noOfPassengers"
+              value={formData.noOfPassengers}
+              onChange={handleChange}
+              className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+              maxLength={10}
+            />
+          </div>
+
+          <div>
+            <label className="label">
+              <span className="label-text font-semibold mb-2">Speedo</span>
+            </label>
+            <input
+              type="text"
+              name="speedo"
+              value={formData.speedo}
+              onChange={handleChange}
+              className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+              maxLength={20}
+            />
+          </div>
+
+          <div>
+            <label className="label">
+              <span className="label-text font-semibold mb-2">Motorcycle Solo / Combo</span>
+            </label>
+            <select
+              name="motorcycleType"
+              value={formData.motorcycleType}
+              onChange={handleChange}
+              className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+            >
+              <option value="">Not applicable</option>
+              <option value="Solo">Solo</option>
+              <option value="Combo">Combo</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-6">
           <label className="cursor-pointer flex items-center gap-2">
             <input
               type="checkbox"
               className="checkbox checkbox-sm border-gray-400"
-              checked={formData.propertyDamage}
+              checked={formData.hasCaravanTrailer}
               onChange={(e) =>
                 setFormData((prev) => ({
                   ...prev,
-                  propertyDamage: e.target.checked,
-                  assetType: e.target.checked ? prev.assetType : "",
-                  damageType: e.target.checked ? prev.damageType : "",
+                  hasCaravanTrailer: e.target.checked,
+                  trailerNumber: e.target.checked ? prev.trailerNumber : "",
                 }))
               }
             />
-            <span>Yes</span>
+            <span className="label-text font-semibold">Caravan / Trailer</span>
           </label>
+
+          {formData.hasCaravanTrailer && (
+            <div className="mt-3 md:w-1/3">
+              <label className="label">
+                <span className="label-text font-semibold mb-2">Trailer Number</span>
+              </label>
+              <input
+                type="text"
+                name="trailerNumber"
+                value={formData.trailerNumber}
+                onChange={handleChange}
+                className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+                maxLength={50}
+              />
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Asset Damage dropdowns */}
-      {formData.propertyDamage && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="label">
-              <span className="label-text font-semibold mb-2">
-                Asset Type <span className="text-red-500">*</span>
-              </span>
-            </label>
-            <select
-              name="assetType"
-              value={formData.assetType}
-              onChange={handleChange}
-              className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-              required
-            >
-              <option value="">Please Select</option>
-              <option value="Barrier/Fence">Barrier/Fence</option>
-              <option value="Sign/Signage">Sign/Signage</option>
-              <option value="Road Surface">Road Surface</option>
-              <option value="Lighting">Lighting</option>
-              <option value="Drainage">Drainage</option>
-              <option value="Traffic Signal">Traffic Signal</option>
-              <option value="CCTV Camera">CCTV Camera</option>
-              <option value="Emergency Phone">Emergency Phone</option>
-              <option value="Vegetation">Vegetation</option>
-              <option value="Bridge/Structure">Bridge/Structure</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="label">
-              <span className="label-text font-semibold mb-2">
-                Damage Type <span className="text-red-500">*</span>
-              </span>
-            </label>
-            <select
-              name="damageType"
-              value={formData.damageType}
-              onChange={handleChange}
-              className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-              required
-            >
-              <option value="">Please Select</option>
-              <option value="Impact/Collision">Impact/Collision</option>
-              <option value="Vandalism">Vandalism</option>
-              <option value="Weather Damage">Weather Damage</option>
-              <option value="Wear and Tear">Wear and Tear</option>
-              <option value="Theft">Theft</option>
-              <option value="Fire Damage">Fire Damage</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-        </div>
-      )}
-
-      {/* Camera, Traffic, etc */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Fault Reported / Actual Fault / Location */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div>
           <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Reported By <span className="text-red-500">*</span>
-            </span>
-          </label>
-          <select
-            name="reportedBy"
-            value={formData.reportedBy}
-            onChange={handleChange}
-            className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-          >
-            <option value="">Please Select</option>
-            <option value="CCTV">CCTV</option>
-            <option value="TSCO">TSCO</option>
-            <option value="ROC">ROC</option>
-            <option value="Recovery">Recovery</option>
-            <option value="Traffic Management">Traffic Management</option>
-            <option value="Police">Police</option>
-            <option value="HETO">HETO</option>
-            <option value="Site Worker">Site Worker</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Camera Number <span className="text-red-500">*</span>
-            </span>
+            <span className="label-text font-semibold mb-2">Fault Reported</span>
           </label>
           <input
             type="text"
-            name="cameraNumber"
-            placeholder="e.g., 23"
-            value={formData.cameraNumber}
+            name="faultReported"
+            value={formData.faultReported}
             onChange={handleChange}
             className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            maxLength={50}
+            maxLength={200}
           />
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Traffic Conditions <span className="text-red-500">*</span>
-            </span>
+            <span className="label-text font-semibold mb-2">Actual Fault</span>
           </label>
-          <select
-            name="trafficConditions"
-            value={formData.trafficConditions}
+          <input
+            type="text"
+            name="actualFault"
+            value={formData.actualFault}
             onChange={handleChange}
-            className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-          >
-            <option value="">Please Select</option>
-            <option value="Light">Light</option>
-            <option value="Moderate">Moderate</option>
-            <option value="Heavy">Heavy</option>
-          </select>
+            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+            maxLength={200}
+          />
         </div>
 
         <div>
           <label className="label">
             <span className="label-text font-semibold mb-2">
-              Track <span className="text-red-500">*</span>
-            </span>
-          </label>
-          <select
-            name="track"
-            value={formData.track}
-            onChange={handleChange}
-            className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-          >
-            <option value="">Please Select</option>
-            <option value="A">A</option>
-            <option value="B">B</option>
-            <option value="J">J</option>
-            <option value="K">K</option>
-            <option value="L">L</option>
-            <option value="M">M</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Marker Post <span className="text-red-500">*</span>
+              Location / Marker Post <span className="text-red-500">*</span>
             </span>
           </label>
           <input
@@ -1147,154 +1098,21 @@ const IncidentReportFormPage = () => {
             onChange={handleChange}
             className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
             maxLength={50}
+            required
           />
         </div>
-
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Incident Type <span className="text-red-500">*</span>
-            </span>
-          </label>
-          <select
-            name="incidentType"
-            value={formData.incidentType}
-            onChange={handleChange}
-            className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-          >
-            <option value="">Please Select</option>
-            <option value="Free Recovery">Free Recovery</option>
-            <option value="Police Incident">Police Incident</option>
-            <option value="RTC">RTC</option>
-            <option value="Call Log">Call Log</option>
-            <option value="Drive Off">Drive Off</option>
-            <option value="Pedestrian">Pedestrian</option>
-            <option value="Medical Incident">Medical Incident</option>
-            <option value="Incursion">Incursion</option>
-            <option value="Footage Request">Footage Request</option>
-            <option value="Vehicle Fire">Vehicle Fire</option>
-            <option value="Fire">Fire</option>
-            <option value="Asset Damage">Asset Damage</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
       </div>
 
-      {/* Affected Lanes */}
-      <div>
-        <label className="label">
-          <span className="label-text font-semibold mb-4">
-            Affected Lanes <span className="text-red-500">*</span>
-          </span>
-        </label>
-        <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
-          {[
-            "HS",
-            "Lane 1",
-            "Lane 2",
-            "Lane 3",
-            "Lane 4",
-            "Works",
-            "Verge",
-            "Central Res",
-            "Slip Road",
-          ].map((lane) => (
-            <label
-              key={lane}
-              className="flex items-center gap-2 cursor-pointer"
-            >
-              <input
-                type="checkbox"
-                checked={formData.affectedLanes.includes(lane)}
-                onChange={() => handleCheckbox("affectedLanes", lane)}
-                className="checkbox checkbox-sm checkbox-neutral"
-              />
-              <span className="text-sm">{lane}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {/* Emergency Services */}
-      <div>
-        <label className="label">
-          <span className="label-text font-semibold mb-2">
-            Emergency Services <span className="text-red-500">*</span>
-          </span>
-        </label>
-        <div className="flex gap-6">
-          {["N/A", "Police", "Ambulance", "Fire", "HETO'S"].map((service) => (
-            <label
-              key={service}
-              className="flex items-center gap-2 cursor-pointer"
-            >
-              <input
-                type="checkbox"
-                checked={formData.emergencyServices.includes(service)}
-                onChange={() => handleCheckbox("emergencyServices", service)}
-                className="checkbox checkbox-sm checkbox-neutral"
-              />
-              <span className="text-sm">{service}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {/* Recovery Requested Matrix */}
-      <div>
-        <label className="label">
-          <span className="label-text font-semibold">
-            Recovery Requested <span className="text-red-500">*</span>
-          </span>
-        </label>
-        <div className="overflow-x-auto">
-          <table className="table table-bordered w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="text-center text-gray-700">LIGHT</th>
-                <th className="text-center text-gray-700">HEAVY</th>
-                <th className="text-center text-gray-700">IPV</th>
-                <th className="text-center text-gray-700">HETOS</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                {["light", "heavy", "ipv", "hetos"].map((type) => (
-                  <td key={type}>
-                    <div className="flex justify-center gap-2">
-                      {[0, 1, 2, 3].map((num) => (
-                        <label key={num} className="cursor-pointer">
-                          <input
-                            type="radio"
-                            name={`recovery_${type}`}
-                            checked={formData.recoveryRequested[type] === num}
-                            onChange={() => handleRecoveryChange(type, num)}
-                            className="radio radio-sm radio-neutral"
-                          />
-                          <span className="ml-1 text-sm">{num}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Time Fields */}
+      {/* Time Completed */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div>
           <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Time Spotted <span className="text-red-500">*</span>
-            </span>
+            <span className="label-text font-semibold mb-2">Time of Arrival</span>
           </label>
           <input
             type="time"
-            name="timeSpotted"
-            value={formData.timeSpotted}
+            name="timeOfArrival"
+            value={formData.timeOfArrival}
             onChange={handleChange}
             className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
           />
@@ -1302,263 +1120,282 @@ const IncidentReportFormPage = () => {
 
         <div>
           <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Time On Site <span className="text-red-500">*</span>
-            </span>
+            <span className="label-text font-semibold mb-2">Time Completed</span>
           </label>
           <input
             type="time"
-            name="timeOnSite"
-            value={formData.timeOnSite}
-            onChange={handleChange}
-            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-          />
-        </div>
-
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Time Cleared <span className="text-red-500">*</span>
-            </span>
-          </label>
-          <input
-            type="time"
-            name="timeCleared"
-            value={formData.timeCleared}
+            name="timeCompleted"
+            value={formData.timeCompleted}
             onChange={handleChange}
             className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
           />
         </div>
       </div>
 
-      {/* Closed Log and Fault */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Closed Log Collar Number <span className="text-red-500">*</span>
-            </span>
-          </label>
-          <input
-            type="text"
-            name="closedLogCollar"
-            placeholder="e.g., 23"
-            value={formData.closedLogCollar}
-            onChange={handleChange}
-            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-          />
-        </div>
-
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Fault <span className="text-red-500">*</span>
-            </span>
-          </label>
-          <select
-            name="fault"
-            value={formData.fault}
-            onChange={handleChange}
-            className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-          >
-            <option value="">Please Select</option>
-            <option value="Puncture">Puncture</option>
-            <option value="Fuel">Fuel</option>
-            <option value="Mechanical">Mechanical</option>
-            <option value="RTC">RTC</option>
-            <option value="Electrical">Electrical</option>
-            <option value="Abandoned">Abandoned</option>
-            <option value="Drive Off">Drive Off</option>
-            <option value="Medical">Medical</option>
-            <option value="Over Heated">Over Heated</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Vehicles Involved */}
+      {/* Recovery Destination */}
       <div>
         <label className="label">
-          <span className="label-text font-semibold">
-            Vehicles Involved <span className="text-red-500">*</span>
-          </span>
+          <span className="label-text font-semibold mb-2">Recovery Destination</span>
         </label>
-        <div className="space-y-4">
-          <div className="overflow-x-auto">
-            <table className="table table-bordered w-full mt-4">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="text-gray-700">Type</th>
-                  <th className="text-gray-700">Make</th>
-                  <th className="text-gray-700">Model</th>
-                  <th className="text-gray-700">VRN</th>
-                  <th className="w-16"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {formData.vehicles.map((vehicle, index) => (
-                  <tr key={index}>
-                    <td>
-                      <select
-                        value={vehicle.type}
-                        onChange={(e) =>
-                          handleVehicleChange(index, "type", e.target.value)
-                        }
-                        className="select select-sm bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-                      >
-                        <option value="">Please select</option>
-                        <option value="Car">Car</option>
-                        <option value="Car+ Trailer">Car+ Trailer</option>
-                        <option value="Van">Van</option>
-                        <option value="HGV">HGV</option>
-                        <option value="Motorbike">Motorbike</option>
-                        <option value="Coach/Bus">Coach/Bus</option>
-                      </select>
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        value={vehicle.make}
-                        onChange={(e) =>
-                          handleVehicleChange(index, "make", e.target.value)
-                        }
-                        className="input input-sm bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        value={vehicle.model}
-                        onChange={(e) =>
-                          handleVehicleChange(index, "model", e.target.value)
-                        }
-                        className="input input-sm bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        value={vehicle.vin}
-                        onChange={(e) =>
-                          handleVehicleChange(index, "vin", e.target.value)
-                        }
-                        className="input input-sm bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-                      />
-                    </td>
-                    <td>
-                      {formData.vehicles.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeVehicle(index)}
-                          className="btn btn-sm btn-ghost text-red-500"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <button
-            type="button"
-            onClick={addVehicle}
-            className="btn btn-sm btn-outline"
-          >
-            + Add Vehicle
-          </button>
-        </div>
-      </div>
-
-      {/* Description */}
-      <div>
-        <label className="label">
-          <span className="label-text font-semibold mb-2">
-            Description of Incident <span className="text-red-500">*</span>
-          </span>
-        </label>
-        <textarea
-          name="description"
-          value={formData.description}
+        <input
+          type="text"
+          name="recoveryDestination"
+          value={formData.recoveryDestination}
           onChange={handleChange}
-          rows={4}
-          className="textarea bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-          maxLength={2000}
-          required
+          className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+          maxLength={200}
         />
       </div>
 
-      {/* File Upload */}
+      {/* Storage details */}
       <div>
-        <label className="label">
-          <span className="label-text font-semibold">File Upload</span>
-        </label>
-        <div
-          className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-teal-400 transition-colors"
-          onDragOver={handleDragOver}
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <input
-            type="file"
-            multiple
-            onChange={handleFileSelect}
-            className="hidden"
-            id="file-upload-step2"
-            accept="image/*,video/*,.pdf"
-          />
-          <label htmlFor="file-upload-step2" className="cursor-pointer">
-            <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-teal-600 font-semibold mb-1">Browse Files</p>
-            <p className="text-gray-500 text-sm">Drag and drop files here</p>
+        <h3 className="font-semibold text-gray-800 mb-3">
+          Only complete if vehicle taken into storage
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <label className="label">
+              <span className="label-text font-semibold mb-2">Name</span>
+            </label>
+            <input
+              type="text"
+              name="storageName"
+              value={formData.storageName}
+              onChange={handleChange}
+              className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+              maxLength={100}
+            />
+          </div>
+
+          <div>
+            <label className="label">
+              <span className="label-text font-semibold mb-2">Address</span>
+            </label>
+            <input
+              type="text"
+              name="storageAddress"
+              value={formData.storageAddress}
+              onChange={handleChange}
+              className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+              maxLength={200}
+            />
+          </div>
+
+          <div>
+            <label className="label">
+              <span className="label-text font-semibold mb-2">Contact No.</span>
+            </label>
+            <input
+              type="text"
+              name="storageContactNo"
+              value={formData.storageContactNo}
+              onChange={handleChange}
+              className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+              maxLength={30}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Property Removed / Vehicle Outcome */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label className="label">
+            <span className="label-text font-semibold mb-2">Property Removed</span>
           </label>
+          <div className="flex gap-6">
+            {["At Scene", "At Depot"].map((option) => (
+              <label key={option} className="cursor-pointer flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="propertyRemoved"
+                  value={option}
+                  checked={formData.propertyRemoved === option}
+                  onChange={handleChange}
+                  className="radio"
+                />
+                <span>{option}</span>
+              </label>
+            ))}
+          </div>
+        </div>
 
-          {formData.files?.length > 0 && (
-            <div className="mt-4 space-y-2">
-              <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Saved files</p>
-              {formData.files.map((file, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between bg-blue-50 p-2 rounded"
-                >
-                  <span className="text-sm text-gray-700 truncate">{file.fileName}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeExistingFile(index)}
-                    className="text-red-500 hover:text-red-700 shrink-0 ml-2"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
+        <div>
+          <label className="label">
+            <span className="label-text font-semibold mb-2">Vehicle</span>
+          </label>
+          <div className="flex gap-6">
+            {["Repaired", "Recovered"].map((option) => (
+              <label key={option} className="cursor-pointer flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="vehicleOutcome"
+                  value={option}
+                  checked={formData.vehicleOutcome === option}
+                  onChange={handleChange}
+                  className="radio"
+                />
+                <span>{option}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Checks */}
+      <div>
+        <h3 className="font-semibold text-gray-800 mb-3">Checks</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {CHECK_ITEMS.map(({ key, label }) => (
+            <YesNoField
+              key={key}
+              label={label}
+              value={formData.checks[key]}
+              onChange={(value) => handleCheckToggle(key, value)}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Vehicle Condition */}
+      <div>
+        <h3 className="font-semibold text-gray-800 mb-3">
+          Vehicle Condition{" "}
+          <span className="text-gray-400 font-normal text-sm">
+            (dents, breaks & scratches)
+          </span>
+        </h3>
+        <div className="space-y-3">
+          {VEHICLE_CONDITION_SECTIONS.map(({ key, label }) => (
+            <div key={key} className="flex flex-col md:flex-row md:items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer md:w-48 shrink-0">
+                <input
+                  type="checkbox"
+                  className="checkbox checkbox-sm border-gray-400"
+                  checked={formData.vehicleCondition[key].damage}
+                  onChange={(e) =>
+                    handleConditionChange(key, "damage", e.target.checked)
+                  }
+                />
+                <span className="text-sm font-medium">{label}</span>
+              </label>
+              {formData.vehicleCondition[key].damage && (
+                <input
+                  type="text"
+                  placeholder="Describe the damage"
+                  value={formData.vehicleCondition[key].note}
+                  onChange={(e) => handleConditionChange(key, "note", e.target.value)}
+                  className="input input-sm bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+                  maxLength={200}
+                />
+              )}
             </div>
-          )}
+          ))}
+        </div>
+      </div>
 
-          {files.length > 0 && (
-            <div className="mt-4 space-y-2">
-              {formData.files?.length > 0 && <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">New files</p>}
-              {files.map((file, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between bg-gray-50 p-2 rounded"
-                >
-                  <span className="text-sm text-gray-700">{file.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeFile(index)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
+      {/* Customer/Driver Service Acceptance */}
+      <div>
+        <h3 className="font-semibold text-gray-800 mb-3">
+          Customer / Driver Service Acceptance Statements
+        </h3>
+        <div className="space-y-3">
+          {SERVICE_ACCEPTANCE_STATEMENTS.map((statement, index) => (
+            <label
+              key={index}
+              className="flex items-start gap-3 cursor-pointer p-3 bg-gray-50 rounded-lg"
+            >
+              <input
+                type="checkbox"
+                className="checkbox checkbox-sm border-gray-400 mt-1"
+                checked={formData.serviceAcceptance[index]}
+                onChange={() => handleAcceptanceToggle(index)}
+              />
+              <span className="text-sm text-gray-700">
+                {index + 1}. {statement}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Sign Off */}
+      <div>
+        <h3 className="font-semibold text-gray-800 mb-3">Sign Off</h3>
+        <p className="text-sm text-gray-600 mb-3">
+          I am totally satisfied with the recovery operator's assistance and
+          acceptance of damage-free recovery / repair, and I can confirm the
+          recovered vehicle(s) is parked to my satisfaction.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+          <div>
+            <label className="label">
+              <span className="label-text font-semibold mb-2">Name</span>
+            </label>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+              maxLength={100}
+            />
+          </div>
+          <div className="flex items-end">
+            <label className="cursor-pointer flex items-center gap-2">
+              <input
+                type="checkbox"
+                className="checkbox checkbox-sm border-gray-400"
+                checked={formData.satisfactionConfirmed}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    satisfactionConfirmed: e.target.checked,
+                  }))
+                }
+              />
+              <span className="label-text font-semibold">
+                Confirms satisfaction with the service
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label className="label">
+            <span className="label-text font-semibold mb-2">Signature</span>
+          </label>
+          {formData.signatureUrl && !isRedrawingSignature ? (
+            <div className="space-y-2">
+              <img
+                src={formData.signatureUrl}
+                alt="Signature"
+                className="border border-gray-300 rounded-lg bg-white h-40 object-contain"
+              />
+              <button
+                type="button"
+                onClick={() => setIsRedrawingSignature(true)}
+                className="text-sm text-brand-600 hover:text-brand-700 font-medium"
+              >
+                Redraw signature
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <SignaturePad ref={signaturePadRef} />
+              <button
+                type="button"
+                onClick={() => signaturePadRef.current?.clear()}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                Clear
+              </button>
             </div>
           )}
         </div>
       </div>
+
+      {renderFileUpload("file-upload-step2")}
 
       {/* Submit Buttons */}
       <div className="flex justify-between gap-4 mt-8 pt-6 border-t">
@@ -1573,16 +1410,16 @@ const IncidentReportFormPage = () => {
           }}
           className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
         >
-          {!editId && !isEditingLiveIncident ? "Back to Step 1" : "Cancel"}
+          {!editId && !isEditingLiveIncident ? "Back to Part 1" : "Cancel"}
         </button>
         <div className="flex gap-3">
-          {/* Save & Return — only shown on live incidents so operator can return later */}
+          {/* Save & Return — only shown on live jobs so operator can return later */}
           {(isEditingLiveIncident || editId) && (
             <button
               type="button"
               onClick={handleSave}
               disabled={loading || uploadingFiles}
-              className="px-6 py-3 border border-teal-500 text-teal-600 rounded-lg hover:bg-teal-50 disabled:opacity-50 transition-colors font-semibold"
+              className="px-6 py-3 border border-brand-500 text-brand-600 rounded-lg hover:bg-brand-50 disabled:opacity-50 transition-colors font-semibold"
             >
               {loading ? "Saving..." : "Save & Return"}
             </button>
@@ -1592,8 +1429,8 @@ const IncidentReportFormPage = () => {
             disabled={loading || uploadingFiles}
             className={`px-8 py-3 text-white rounded-lg disabled:opacity-50 transition-colors font-semibold ${
               isEditingLiveIncident
-                ? "bg-green-500 hover:bg-green-600"
-                : "bg-teal-500 hover:bg-teal-600"
+                ? "bg-brand-500 hover:bg-brand-700"
+                : "bg-brand-500 hover:bg-brand-600"
             }`}
           >
             {loading
@@ -1603,7 +1440,7 @@ const IncidentReportFormPage = () => {
               : uploadingFiles
                 ? "Uploading Files..."
                 : isEditingLiveIncident
-                  ? "Complete Incident Report"
+                  ? "Complete Job Sheet"
                   : editId
                     ? "Update"
                     : "Submit"}
@@ -1615,7 +1452,7 @@ const IncidentReportFormPage = () => {
 
   return (
     <StaffSidebarLayout basePath={basePath}>
-      <div className="max-w-5xl mx-auto">
+      <div>
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
           <button
@@ -1624,19 +1461,18 @@ const IncidentReportFormPage = () => {
           >
             <ArrowLeft className="w-6 h-6 text-gray-600" />
           </button>
-          <h3 className="text-2xl font-bold text-gray-800">
+          <h2 className="text-2xl font-bold text-gray-800">
             {editId
               ? isEditingLiveIncident
-                ? "Complete Live Incident"
-                : "Edit Incident Report"
-              : "Incident Report Log"}
-          </h3>
+                ? "Complete Job Sheet"
+                : "Edit Job Sheet"
+              : "Job Sheet"}
+          </h2>
         </div>
-
-        {/* Render appropriate step */}
+        {/* Render appropriate part */}
         {loading && !formData.scheme ? (
           <div className="flex justify-center py-12">
-            <span className="loading loading-spinner loading-lg text-teal-500"></span>
+            <span className="loading loading-spinner loading-lg text-brand-500"></span>
           </div>
         ) : currentStep === 1 && !editId ? (
           renderStep1()

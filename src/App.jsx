@@ -34,6 +34,7 @@
   const FormsSelectionPage = lazy(() => import("./pages/staff/FormsSelectionPage"));
   const CCTVCheckFormPage = lazy(() => import("./pages/staff/CCTVCheckFormPage"));
   const IncidentReportFormPage = lazy(() => import("./pages/staff/IncidentReportFormPage"));
+  const StaffReportsListPage = lazy(() => import("./pages/staff/StaffReportsListPage"));
   const DailyOccurrenceFormPage = lazy(() => import("./pages/staff/DailyOccurrenceFormPage"));
   const CCTVFaultsFormPage = lazy(() => import("./pages/staff/CCTVFaultsFormPage"));
   const CCTVFaultsLivePage = lazy(() => import("./pages/staff/CCTVFaultsLivePage"));
@@ -296,6 +297,15 @@
                 />
 
                 {/* Staff Reports and Uploads Routes */}
+                <Route
+                  path="/dashboard/staff/reports"
+                  element={
+                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
+                      <StaffReportsListPage />
+                    </ProtectedRoute>
+                  }
+                />
+
                 <Route
                   path="/dashboard/staff/reports/incident/:id"
                   element={

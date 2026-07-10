@@ -19,55 +19,55 @@
 }
 
 h1 {
-  font-size: clamp(40px, 6vw, 64px);
-  font-weight: 700;
-  line-height: 1.2em;
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.25;
 }
 
 h2 {
-  font-size: clamp(32px, 4.5vw, 48px);
+  font-size: 1.5rem;
   font-weight: 600;
+  line-height: 1.3;
 }
 
 h3 {
-  font-size: clamp(28px, 4vw, 40px);
+  font-size: 1.25rem;
   font-weight: 600;
+  line-height: 1.35;
 }
 
 h4 {
-  font-size: clamp(24px, 3vw, 32px);
-  font-weight: 500;
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 h5 {
-  font-size: clamp(20px, 2.5vw, 24px);
+  font-size: 1rem;
   font-weight: 600;
+  line-height: 1.4;
 }
 
 h6 {
-  font-size: clamp(18px, 2vw, 20px);
+  font-size: 0.875rem;
   font-weight: 600;
+  line-height: 1.4;
 }
 
-p,
-body {
-  font-size: clamp(16px, 1.8vw, 16px);
-}
 
 a {
-  font-size: clamp(16px, 1.8vw, 16px);
   font-weight: 500;
 }
 
 @theme {
-  --color-brand-50: #e8f7f4;
-  --color-brand-100: #b7e6de;
-  --color-brand-200: #94dacd;
-  --color-brand-300: #64c9b7;
-  --color-brand-400: #45bfa9;
-  --color-brand-500: #17af93;
-  --color-brand-600: #159f86;
-  --color-brand-700: #107c68;
-  --color-brand-800: #0d6051;
-  --color-brand-900: #0a4a3e;
+  --color-brand-50: #e6f0f7;
+  --color-brand-100: #b2cfe6;
+  --color-brand-200: #8db8d9;
+  --color-brand-300: #5a98c8;
+  --color-brand-400: #3984bd;
+  --color-brand-500: #0865ad;
+  --color-brand-600: #075c9d;
+  --color-brand-700: #06487b;
+  --color-brand-800: #04385f;
+  --color-brand-900: #032a49;
 }

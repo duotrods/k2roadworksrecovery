@@ -17,7 +17,9 @@ import {
   FolderOpen,
 } from "lucide-react";
 import headerLogo from "../../assets/headerlogo.svg";
+import k2logo from "../../assets/k2logo.svg";
 import logomark from "../../assets/Logomark.svg";
+import k2icon from "../../assets/k2iconlogo.svg";
 import CCTVCheckReminder from "../staff/CCTVCheckReminder";
 import { useCCTVReminder } from "../../hooks/useCCTVReminder";
 import { isDemoUser, getViewerSchemeScope } from "../../utils/schemes";
@@ -70,27 +72,9 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
       exact: true,
     },
     {
-      name: "Forms",
-      path: `${basePath}/forms`,
+      name: "Reports",
+      path: `${basePath}/reports`,
       icon: FileText,
-      hasSubmenu: true,
-      submenu: [
-        { name: "CCTV Check Sheet", path: `${basePath}/forms/cctv-check` },
-        { name: "Incident Report", path: `${basePath}/forms/incident-report` },
-        { name: "Daily Occurrence", path: `${basePath}/forms/daily-occurence` },
-        { name: "CCTV Faults", path: `${basePath}/forms/cctv-faults` },
-      ],
-    },
-    {
-      name: "CCTV Faults",
-      path: `${basePath}/cctv-faults`,
-      icon: CameraOff,
-      liveCount: liveFaults.length,
-    },
-    {
-      name: "Documents",
-      path: `${basePath}/documents`,
-      icon: FolderOpen,
     },
   ];
 
@@ -117,11 +101,11 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
         <div className="p-4 border-b flex items-center justify-center">
           {!collapsed ? (
             <Link to={basePath} className="flex items-center">
-              <img src={headerLogo} alt="Lens by Chellan" className="h-8" />
+              <img src={k2logo} alt="K2 Recovery" className="h-14 mt-2" />
             </Link>
           ) : (
             <Link to={basePath} className="flex items-center justify-center">
-              <img src={logomark} alt="L" className="h-8 w-8 object-contain" />
+              <img src={k2icon} alt="L" className="h-8 w-8 object-contain" />
             </Link>
           )}
         </div>
@@ -148,7 +132,7 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
                       title="Forms"
                       className={`flex items-center justify-center px-3 py-3 rounded-lg transition-colors ${
                         isActive(item.path, item.exact)
-                          ? "bg-teal-500 text-white"
+                          ? "bg-brand-500 text-white"
                           : "text-gray-700 hover:bg-gray-100"
                       }`}
                     >
@@ -160,7 +144,7 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
                         onClick={() => setFormsOpen(!formsOpen)}
                         className={`w-full flex items-center justify-between px-3 py-3 rounded-lg transition-colors ${
                           isActive(item.path, item.exact)
-                            ? "bg-teal-500 text-white"
+                            ? "bg-brand-500 text-white"
                             : "text-gray-700 hover:bg-gray-100"
                         }`}
                       >
@@ -181,7 +165,7 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
                               to={subItem.path}
                               className={`block px-4 py-2 rounded-lg text-sm transition-colors ${
                                 location.pathname === subItem.path
-                                  ? "bg-teal-50 text-teal-600 font-medium"
+                                  ? "bg-brand-50 text-brand-600 font-medium"
                                   : "text-gray-600 hover:bg-gray-50"
                               }`}
                             >
@@ -199,7 +183,7 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
                   title={collapsed ? item.name : undefined}
                   className={`flex items-center gap-3 px-3 py-3 rounded-lg transition-colors ${
                     isActive(item.path, item.exact)
-                      ? "bg-teal-500 text-white"
+                      ? "bg-brand-500 text-white"
                       : "text-gray-700 hover:bg-gray-100"
                   } ${collapsed ? 'justify-center' : ''}`}
                 >
@@ -233,7 +217,7 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
         <div className="border-t px-2 py-4">
           {!collapsed && (
             <div className="flex items-center gap-3 px-2 py-3 mb-2">
-              <div className="w-10 h-10 bg-teal-500 rounded-full flex items-center justify-center text-white font-semibold shrink-0">
+              <div className="w-10 h-10 bg-brand-500 rounded-full flex items-center justify-center text-white font-semibold shrink-0">
                 {userProfile?.displayName?.charAt(0) || "S"}
               </div>
               <div className="min-w-0">
@@ -246,7 +230,7 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
           )}
           {collapsed && (
             <div className="flex justify-center mb-2 py-1">
-              <div className="w-10 h-10 bg-teal-500 rounded-full flex items-center justify-center text-white font-semibold shrink-0">
+              <div className="w-10 h-10 bg-brand-500 rounded-full flex items-center justify-center text-white font-semibold shrink-0">
                 {userProfile?.displayName?.charAt(0) || "S"}
               </div>
             </div>
