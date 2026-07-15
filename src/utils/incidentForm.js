@@ -66,6 +66,9 @@ export const VEHICLE_CONDITION_SECTIONS = [
   { key: "bootLid", label: "Boot Lid" },
   { key: "rearBumper", label: "Rear Bumper" },
   { key: "wheels", label: "Wheels" },
+  { key: "doors", label: "Doors" },
+  { key: "Wing", label: "Wing" },
+  { key: "N/A", label: "N/A" },
 ];
 
 // Yes/No operational checks from the paper form.
@@ -77,6 +80,43 @@ export const CHECK_ITEMS = [
   { key: "keys", label: "Keys" },
   { key: "brakesWoundOff", label: "Brakes Wound Off" },
   { key: "brakesWoundBackIn", label: "Brakes Wound Back In" },
+];
+
+// Placeholder options for the Step 1 "Source of Call" drop-down. "Other"
+// reveals a free-text box in the form itself.
+export const SOURCE_OF_CALL_OPTIONS = [
+  "Police",
+  "Highways England",
+  "Customer",
+  "Control Room",
+];
+
+export const VEHICLE_ALLOCATED_OPTIONS = [
+  "Light Recovery",
+  "Heavy Recovery",
+  "IPV",
+  "Motorbike", 
+];
+
+export const VEHICLE_TRANSMISSION_OPTIONS = [
+  "Manual",
+  "Automatic",
+];
+
+export const INCIDENT_TYPE_OPTIONS = [
+"Free Recovery",
+"Police Incident",
+"RTC",
+"Call Log",
+"Drive Off",
+"Pedestrian",
+"Medical Incident",
+"Incursion",
+"Footage Request",
+"Vehicle Fire",
+"Fire",
+"Asset Damage",
+"Other"
 ];
 
 export const createEmptyVehicleCondition = () =>

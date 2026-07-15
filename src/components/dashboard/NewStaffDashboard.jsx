@@ -48,7 +48,14 @@ const NewStaffDashboard = () => {
       color: "from-amber-400 to-amber-500",
     },
     {
-      title: "HGV Recovery",
+      title: "IPV Recovery",
+      count: 0,
+      subtitle: "Total Submissions",
+      icon: Truck,
+      color: "from-blue-500 to-blue-600",
+    },
+    {
+      title: "Police Recovery",  
       count: 0,
       subtitle: "Total Submissions",
       icon: Truck,
@@ -96,7 +103,7 @@ const NewStaffDashboard = () => {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
               {statCards.map((card, index) => (
                 <div
                   key={index}

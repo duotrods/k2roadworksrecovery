@@ -27,50 +27,56 @@ import {
   SERVICE_ACCEPTANCE_STATEMENTS,
   VEHICLE_CONDITION_SECTIONS,
   CHECK_ITEMS,
+  SOURCE_OF_CALL_OPTIONS,
   createEmptyVehicleCondition,
   createEmptyChecks,
+  VEHICLE_ALLOCATED_OPTIONS,
+  VEHICLE_TRANSMISSION_OPTIONS,
+  INCIDENT_TYPE_OPTIONS,
 } from "../../utils/incidentForm";
 
-// Builds a fresh Job Sheet form: Part 1 (arrival) fields default to
-// "just met this job" state, Part 2 (completion) fields default empty.
+// Builds a fresh Job Sheet form. Step 1 (Start Job) fields default to
+// "just took this call" state, later-step fields default empty.
 const emptyFormData = (userProfile) => ({
-  // Part 1 — Arrival
-  driverOnScene: false,
-  policeOnScene: false,
-  nhOnScene: false,
-  ripvOnScene: false,
+  // Step 1 — Start Job
   firstName: userProfile?.displayName || "",
   scheme: "",
+  driverName: "",
+  vehicleAllocated: "",
   jobSource: "",
   customerLogNo: "",
   date: formatDateToBritish(new Date()),
   time: new Date().toTimeString().slice(0, 5),
+  notes: "",
+  // Step 2 — On Scene
+  driverOnScene: false,
+  policeOnScene: false,
+  nhOnScene: false,
+  ripvOnScene: false,
   timeOfArrival: "",
+  markerPost: "",
+  vehicleType: "",
+  timeCompleted: "",
+  // Step 3 — Drop-Off Sheet
   vehicleRegNo: "",
   vehicleMakeModel: "",
   vehicleColour: "",
-  fuelType: "",
-  manualOrAuto: "",
   transmission: "",
   noOfPassengers: "",
   speedo: "",
   hasCaravanTrailer: false,
   trailerNumber: "",
-  motorcycleType: "",
   faultReported: "",
   actualFault: "",
-  markerPost: "",
-  notes: "",
-  // Part 2 — Completion
-  timeCompleted: "",
+  checks: createEmptyChecks(),
+  vehicleCondition: createEmptyVehicleCondition(),
+  // Step 4 — Customer Page
   recoveryDestination: "",
   storageName: "",
   storageAddress: "",
   storageContactNo: "",
   propertyRemoved: "",
   vehicleOutcome: "",
-  checks: createEmptyChecks(),
-  vehicleCondition: createEmptyVehicleCondition(),
   serviceAcceptance: SERVICE_ACCEPTANCE_STATEMENTS.map(() => false),
   name: "",
   satisfactionConfirmed: false,
@@ -87,13 +93,14 @@ const IncidentReportFormPage = () => {
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [files, setFiles] = useState([]);
 
-  // Step management: 1 = arrival (Part 1), 2 = completion (Part 2)
+  // Step management: 1 = Start Job, 2 = On Scene, 3 = Drop-Off Sheet, 4 = Customer
   const [currentStep, setCurrentStep] = useState(1);
   const [isEditingLiveIncident, setIsEditingLiveIncident] = useState(false);
   const [liveIncidentId, setLiveIncidentId] = useState(null);
   const [existingReferenceId, setExistingReferenceId] = useState(null);
 
   const [formData, setFormData] = useState(() => emptyFormData(userProfile));
+  const [sourceOtherMode, setSourceOtherMode] = useState(false);
   const [isRedrawingSignature, setIsRedrawingSignature] = useState(false);
   const signaturePadRef = useRef(null);
 
@@ -118,6 +125,8 @@ const IncidentReportFormPage = () => {
           ripvOnScene: report.ripvOnScene || false,
           firstName: report.firstName || "",
           scheme: report.scheme || "",
+          driverName: report.driverName || "",
+          vehicleAllocated: report.vehicleAllocated || "",
           jobSource: report.jobSource || "",
           customerLogNo: report.customerLogNo || "",
           date: report.date || "",
@@ -126,14 +135,12 @@ const IncidentReportFormPage = () => {
           vehicleRegNo: report.vehicleRegNo || "",
           vehicleMakeModel: report.vehicleMakeModel || "",
           vehicleColour: report.vehicleColour || "",
-          fuelType: report.fuelType || "",
-          manualOrAuto: report.manualOrAuto || "",
+          vehicleType: report.vehicleType || "",
           transmission: report.transmission || "",
           noOfPassengers: report.noOfPassengers || "",
           speedo: report.speedo || "",
           hasCaravanTrailer: report.hasCaravanTrailer || false,
           trailerNumber: report.trailerNumber || "",
-          motorcycleType: report.motorcycleType || "",
           faultReported: report.faultReported || "",
           actualFault: report.actualFault || "",
           markerPost: report.markerPost || "",
@@ -158,8 +165,11 @@ const IncidentReportFormPage = () => {
           files: report.files || [],
         });
         setIsRedrawingSignature(false);
+        setSourceOtherMode(
+          Boolean(report.jobSource) && !SOURCE_OF_CALL_OPTIONS.includes(report.jobSource),
+        );
 
-        // If editing a live job, go directly to Part 2
+        // If editing a live job, resume where the operator left off (On Scene)
         if (report.status === "live") {
           setCurrentStep(2);
           setIsEditingLiveIncident(true);
@@ -314,58 +324,128 @@ const IncidentReportFormPage = () => {
     return `${import.meta.env.VITE_R2_PUBLIC_URL}/${key}`;
   };
 
-  // Part 1: Submit as Live Job
+  // Persists whatever is in formData/files right now against the existing
+  // incident doc, without navigating away. Used by the "Next" buttons on
+  // steps 2 and 3 so progress survives a refresh mid-job. Status is only
+  // forced to "live" for the live-job workflow — editing an already
+  // "completed" report should not resurrect it.
+  const persistProgress = async () => {
+    const incidentId = editId || liveIncidentId;
+    if (!incidentId) return;
+
+    const uploadedFiles = await uploadFiles();
+    const updateData = { ...formData };
+
+    if (uploadedFiles.length > 0) {
+      updateData.files = [...(formData.files || []), ...uploadedFiles];
+    }
+
+    if (!editId || isEditingLiveIncident) {
+      updateData.status = "live";
+    }
+
+    await staffService.updateIncidentReport(
+      incidentId,
+      updateData,
+      userProfile.uid,
+      userProfile.displayName,
+    );
+
+    if (uploadedFiles.length > 0) {
+      setFormData((prev) => ({ ...prev, files: updateData.files }));
+      setFiles([]);
+    }
+  };
+
+  // Step 1: Start Job — creates the live incident (new job), or updates the
+  // Start Job fields in place when editing an existing report.
   const handleStep1Submit = async (e) => {
     e.preventDefault();
 
-    if (
-      !formData.scheme ||
-      !formData.date ||
-      !formData.firstName ||
-      !formData.timeOfArrival
-    ) {
-      toast.error("Please fill in all required fields for Part 1");
+    if (!formData.scheme || !formData.date || !formData.firstName) {
+      toast.error("Please fill in all required fields for Start Job");
       return;
     }
 
     setLoading(true);
 
     try {
-      const uploadedFiles = await uploadFiles();
-
       const step1Data = {
         ...formData,
         firstName: formData.firstName.trim(),
-        markerPost: formData.markerPost.trim(),
-        files: uploadedFiles,
       };
 
-      // Submit as live job
-      const { id: newIncidentId, referenceId: newRefId } =
-        await staffService.submitIncidentReport(
+      if (editId) {
+        await staffService.updateIncidentReport(
+          editId,
           step1Data,
           userProfile.uid,
           userProfile.displayName,
-          "live", // Status = live
         );
+        setCurrentStep(2);
+      } else {
+        const { id: newIncidentId, referenceId: newRefId } =
+          await staffService.submitIncidentReport(
+            step1Data,
+            userProfile.uid,
+            userProfile.displayName,
+            "live", // Status = live
+          );
 
-      toast.success("Job Sheet started! Please complete it once the job is done.");
+        toast.success("Job Sheet started! Please complete it once the job is done.");
 
-      // Store the new job ID and continue to Part 2
-      setLiveIncidentId(newIncidentId);
-      setExistingReferenceId(newRefId);
-      setIsEditingLiveIncident(true);
-      setCurrentStep(2);
+        setLiveIncidentId(newIncidentId);
+        setExistingReferenceId(newRefId);
+        setIsEditingLiveIncident(true);
+        setCurrentStep(2);
+      }
     } catch (error) {
-      console.error("Error submitting Part 1:", error);
-      toast.error("Failed to start Job Sheet. Please try again.");
+      console.error("Error submitting Start Job:", error);
+      toast.error("Failed to save Job Sheet. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Save progress on Part 2 without completing — keeps status as "live"
-  // Operator can return to the form later and find all fields already filled
+  // Step 2: On Scene — save progress and continue to Drop-Off Sheet.
+  const handleStep2Next = async (e) => {
+    e.preventDefault();
+
+    if (!formData.timeOfArrival || !formData.markerPost) {
+      toast.error("Please fill in all required fields for On Scene");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await persistProgress();
+      setCurrentStep(3);
+    } catch (error) {
+      console.error("Error saving On Scene details:", error);
+      toast.error("Failed to save progress. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 3: Drop-Off Sheet — save progress and continue to the Customer page.
+  const handleStep3Next = async (e) => {
+    e.preventDefault();
+
+    setLoading(true);
+    try {
+      await persistProgress();
+      setCurrentStep(4);
+    } catch (error) {
+      console.error("Error saving Drop-Off Sheet details:", error);
+      toast.error("Failed to save progress. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Save progress on the current step without completing — keeps status as
+  // "live". Operator can return to the form later and find fields filled in.
   const handleSave = async () => {
     const incidentId = editId || liveIncidentId;
     if (!incidentId) return;
@@ -402,7 +482,8 @@ const IncidentReportFormPage = () => {
     }
   };
 
-  // Part 2: Complete the Job Sheet (or regular submit for non-live workflow)
+  // Step 4: Customer Page — complete the Job Sheet (or regular submit for
+  // the legacy non-staged workflow).
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -477,7 +558,7 @@ const IncidentReportFormPage = () => {
         }
         navigate(basePath);
       } else {
-        // Submit new form (regular flow - not using two-part)
+        // Submit new form (regular flow - not using the staged workflow)
         const { id: newIncidentId, referenceId: newReferenceId } =
           await staffService.submitIncidentReport(
             {
@@ -503,6 +584,7 @@ const IncidentReportFormPage = () => {
         // Reset form
         setFormData(emptyFormData(userProfile));
         setFiles([]);
+        setSourceOtherMode(false);
       }
     } catch (error) {
       console.error("Error submitting form:", error);
@@ -512,7 +594,7 @@ const IncidentReportFormPage = () => {
     }
   };
 
-  // Reusable Yes/No radio pair for the Part 2 operational checks.
+  // Reusable Yes/No radio pair for the Drop-Off Sheet's operational checks.
   const YesNoField = ({ label, value, onChange }) => (
     <div>
       <label className="label">
@@ -534,10 +616,10 @@ const IncidentReportFormPage = () => {
     </div>
   );
 
-  const renderFileUpload = (inputId) => (
+  const renderFileUpload = (inputId, label = "Upload Files") => (
     <div>
       <label className="label">
-        <span className="label-text font-semibold">Upload Files</span>
+        <span className="label-text font-semibold">{label}</span>
       </label>
       <div
         className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-brand-400 transition-colors"
@@ -605,7 +687,7 @@ const IncidentReportFormPage = () => {
     </div>
   );
 
-  // Render Part 1 Form (Arrival)
+  // Step 1 — Start Job
   const renderStep1 = () => (
     <form
       onSubmit={handleStep1Submit}
@@ -614,38 +696,11 @@ const IncidentReportFormPage = () => {
       <StepIndicator currentStep={currentStep} />
 
       <div className="bg-brand-50 border border-brand-200 rounded-lg p-4 mb-6">
-        <p className="text-brand-700 font-medium">Part 1: Arrival Details</p>
+        <p className="text-brand-700 font-medium">Step 1: Start Job</p>
         <p className="text-brand-600 text-sm mt-1">
-          Fill in the details on arrival at the scene. You can complete the
-          rest of the Job Sheet once the job is done.
+          Capture the initial call details. Submitting makes this a live
+          incident visible to admin and the client.
         </p>
-      </div>
-
-      {/* On-scene checkboxes */}
-      <div>
-        <label className="label">
-          <span className="label-text font-semibold mb-2">On Scene</span>
-        </label>
-        <div className="flex flex-wrap gap-6">
-          {[
-            ["driverOnScene", "Driver on scene"],
-            ["policeOnScene", "Police on scene"],
-            ["nhOnScene", "NH on scene"],
-            ["ripvOnScene", "RIPV on scene"],
-          ].map(([key, label]) => (
-            <label key={key} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                className="checkbox checkbox-sm border-gray-400"
-                checked={formData[key]}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, [key]: e.target.checked }))
-                }
-              />
-              <span className="text-sm">{label}</span>
-            </label>
-          ))}
-        </div>
       </div>
 
       {/* Operator and Scheme */}
@@ -690,16 +745,16 @@ const IncidentReportFormPage = () => {
         </div>
       </div>
 
-      {/* Job Source / Customer Log */}
+      {/* Driver Name and Vehicle Allocated */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="label">
-            <span className="label-text font-semibold mb-2">Job Source/Customer</span>
+            <span className="label-text font-semibold mb-2">Driver Name</span>
           </label>
           <input
             type="text"
-            name="jobSource"
-            value={formData.jobSource}
+            name="driverName"
+            value={formData.driverName}
             onChange={handleChange}
             className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
             maxLength={100}
@@ -708,21 +763,81 @@ const IncidentReportFormPage = () => {
 
         <div>
           <label className="label">
-            <span className="label-text font-semibold mb-2">Customer Log No.</span>
+            <span className="label-text font-semibold mb-2">Vehicle Allocated</span>
+          </label>
+          <select
+            name="vehicleAllocated"
+            value={formData.vehicleAllocated}
+            onChange={handleChange}
+            className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+          >
+            <option value="">Please Select</option>
+             {VEHICLE_ALLOCATED_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Source of Call and Recovery Log Number */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label className="label">
+            <span className="label-text font-semibold mb-2">Source of Call</span>
+          </label>
+          <select
+            value={sourceOtherMode ? "Other" : formData.jobSource}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === "Other") {
+                setSourceOtherMode(true);
+                setFormData((prev) => ({ ...prev, jobSource: "" }));
+              } else {
+                setSourceOtherMode(false);
+                setFormData((prev) => ({ ...prev, jobSource: value }));
+              }
+            }}
+            className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+          >
+            <option value="">Please Select</option>
+            {SOURCE_OF_CALL_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+            <option value="Other">Other</option>
+          </select>
+          {sourceOtherMode && (
+            <input
+              type="text"
+              placeholder="Enter source of call"
+              value={formData.jobSource}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, jobSource: e.target.value }))
+              }
+              className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full mt-3"
+              maxLength={100}
+            />
+          )}
+        </div>
+
+        <div>
+          <label className="label">
+            <span className="label-text font-semibold mb-2">Recovery Log Number</span>
           </label>
           <input
             type="text"
-            name="customerLogNo"
-            value={formData.customerLogNo}
-            onChange={handleChange}
-            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            maxLength={50}
+            value={existingReferenceId || "Will be assigned when created"}
+            disabled
+            className="input bg-gray-100 border-gray-300 rounded-lg w-full text-gray-500"
           />
         </div>
       </div>
 
-      {/* Date of Receipt, Time, Time of Arrival */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Date of Receipt, Time */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="label">
             <span className="label-text font-semibold mb-2">
@@ -753,40 +868,7 @@ const IncidentReportFormPage = () => {
             className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
           />
         </div>
-
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Time of Arrival <span className="text-red-500">*</span>
-            </span>
-          </label>
-          <input
-            type="time"
-            name="timeOfArrival"
-            value={formData.timeOfArrival}
-            onChange={handleChange}
-            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            required
-          />
-        </div>
       </div>
-
-      {/* Notes */}
-      <div>
-        <label className="label">
-          <span className="label-text font-semibold mb-2">Notes</span>
-        </label>
-        <textarea
-          name="notes"
-          value={formData.notes}
-          onChange={handleChange}
-          rows={4}
-          className="textarea bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-          maxLength={2000}
-        />
-      </div>
-
-      {renderFileUpload("file-upload")}
 
       {/* Submit Buttons */}
       <div className="flex justify-between gap-4 mt-8 pt-6 border-t">
@@ -804,12 +886,10 @@ const IncidentReportFormPage = () => {
             className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors font-semibold flex items-center gap-2"
           >
             {loading ? (
-              "Creating..."
-            ) : uploadingFiles ? (
-              "Uploading..."
+              editId ? "Saving..." : "Creating..."
             ) : (
               <>
-                Create Job Sheet
+                {editId ? "Next" : "Create Job Sheet"}
                 <ChevronRight className="w-5 h-5" />
               </>
             )}
@@ -819,63 +899,206 @@ const IncidentReportFormPage = () => {
     </form>
   );
 
-  // Render Part 2 Form (Completion)
-  const renderStep2 = () => (
-    <form
-      onSubmit={handleSubmit}
-      className="bg-white rounded-xl shadow-md p-8 space-y-6"
-    >
-      {isEditingLiveIncident && <StepIndicator currentStep={currentStep} />}
+  // Step 2 — On Scene: gated behind a "Click when on Scene" button, which
+  // auto-captures Time of Arrival as the moment it's tapped, matching the
+  // paper Job Sheet's "Time On Scene — auto-recorded when button pressed".
+  const handleClickOnScene = () => {
+    setFormData((prev) => ({
+      ...prev,
+      timeOfArrival: new Date().toTimeString().slice(0, 5),
+    }));
+  };
 
-      {isEditingLiveIncident && (
+  const renderStep2 = () => {
+    const hasClockedOnScene = Boolean(formData.timeOfArrival);
+
+    return (
+      <div className="bg-white rounded-xl shadow-md p-8 space-y-6">
+        <StepIndicator currentStep={currentStep} />
+
         <div className="bg-brand-50 border border-brand-200 rounded-lg p-4 mb-6">
-          <p className="text-brand-800 font-medium">Part 2: Complete Job Sheet</p>
+          <p className="text-brand-700 font-medium">Step 2: On Scene</p>
           <p className="text-brand-600 text-sm mt-1">
-            Fill in the remaining details to complete this Job Sheet.
+            Fill in the details on arrival at the scene.
           </p>
         </div>
-      )}
 
-      {/* Operator and Scheme */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Operator <span className="text-red-500">*</span>
-            </span>
-          </label>
-          <input
-            type="text"
-            name="firstName"
-            value={formData.firstName}
-            onChange={handleChange}
-            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            maxLength={100}
-            required
-          />
-        </div>
+        {!hasClockedOnScene ? (
+          <div className="flex flex-col items-center justify-center gap-4 py-16">
+            <button
+              type="button"
+              onClick={handleClickOnScene}
+              className="px-10 py-5 bg-brand-500 text-white rounded-xl hover:bg-brand-700 transition-colors font-bold text-lg"
+            >
+              Click when on Scene
+            </button>
+            <p className="text-sm text-gray-500">
+              Tap this the moment you arrive — it records your Time of Arrival.
+            </p>
+            <button
+              type="button"
+              onClick={() => setCurrentStep(1)}
+              className="mt-4 px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Back
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleStep2Next} className="space-y-6">
+            {/* On-scene checkboxes */}
+            <div>
+              <label className="label">
+                <span className="label-text font-semibold mb-2">On Scene</span>
+              </label>
+              <div className="flex flex-wrap gap-6">
+                {[
+                  ["driverOnScene", "Driver on scene"],
+                  ["policeOnScene", "Police on scene"],
+                  ["nhOnScene", "NH on scene"],
+                  ["ripvOnScene", "RIPV on scene"],
+                ].map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-sm border-gray-400"
+                      checked={formData[key]}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, [key]: e.target.checked }))
+                      }
+                    />
+                    <span className="text-sm">{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
 
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Scheme <span className="text-red-500">*</span>
-            </span>
-          </label>
-          <select
-            name="scheme"
-            value={formData.scheme}
-            onChange={handleChange}
-            className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            required
-          >
-            <option value="">Please Select</option>
-            {getSchemesForUser(userProfile).map((scheme) => (
-              <option key={scheme.id} value={scheme.fullName}>
-                {scheme.fullName}
-              </option>
-            ))}
-          </select>
-        </div>
+            {/* Time of Arrival, Marker Post */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="label">
+                  <span className="label-text font-semibold mb-2">
+                    Time of Arrival <span className="text-red-500">*</span>
+                  </span>
+                </label>
+                <input
+                  type="time"
+                  name="timeOfArrival"
+                  value={formData.timeOfArrival}
+                  onChange={handleChange}
+                  className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="label">
+                  <span className="label-text font-semibold mb-2">
+                    Marker Post <span className="text-red-500">*</span>
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  name="markerPost"
+                  placeholder="e.g., 2.3"
+                  value={formData.markerPost}
+                  onChange={handleChange}
+                  className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+                  maxLength={50}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="label">
+                  <span className="label-text font-semibold mb-2">Vehicle Type</span>
+                </label>
+                <select
+                  name="vehicleType"
+                  value={formData.vehicleType}
+                  onChange={handleChange}
+                  className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+                >
+                  <option value="">Please select</option>
+                  <option value="Car">Car</option>
+                  <option value="Car+ Trailer">Car+ Trailer</option>
+                  <option value="Van">Van</option>
+                  <option value="HGV">HGV</option>
+                  <option value="Motorbike">Motorbike</option>
+                  <option value="Coach/Bus">Coach/Bus</option>
+                </select>
+              </div>
+            </div>
+
+            {renderFileUpload("file-upload-step2", "Arrival Images/Videos")}
+
+            {/* Time Cleared */}
+            <div>
+              <label className="label">
+                <span className="label-text font-semibold mb-2">Time Cleared</span>
+              </label>
+              <input
+                type="time"
+                name="timeCompleted"
+                value={formData.timeCompleted}
+                onChange={handleChange}
+                className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full md:w-1/3"
+              />
+              <p className="text-xs text-gray-400 mt-1">Record when the scene is cleared.</p>
+            </div>
+
+            {/* Submit Buttons */}
+            <div className="flex justify-between gap-4 mt-8 pt-6 border-t">
+              <button
+                type="button"
+                onClick={() => setCurrentStep(1)}
+                className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Back
+              </button>
+              <div className="flex gap-3">
+                {(isEditingLiveIncident || editId) && (
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={loading || uploadingFiles}
+                    className="px-6 py-3 border border-brand-500 text-brand-600 rounded-lg hover:bg-brand-50 disabled:opacity-50 transition-colors font-semibold"
+                  >
+                    {loading ? "Saving..." : "Save & Return"}
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  disabled={loading || uploadingFiles}
+                  className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors font-semibold flex items-center gap-2"
+                >
+                  {loading ? "Saving..." : uploadingFiles ? "Uploading Files..." : (
+                    <>
+                      Next
+                      <ChevronRight className="w-5 h-5" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+      </div>
+    );
+  };
+
+  // Step 3 — Drop-Off Sheet
+  const renderStep3 = () => (
+    <form
+      onSubmit={handleStep3Next}
+      className="bg-white rounded-xl shadow-md p-8 space-y-6"
+    >
+      <StepIndicator currentStep={currentStep} />
+
+      <div className="bg-brand-50 border border-brand-200 rounded-lg p-4 mb-6">
+        <p className="text-brand-700 font-medium">Step 3: Drop-Off Sheet</p>
+        <p className="text-brand-600 text-sm mt-1">
+          Record the vehicle details, fault, and condition checks.
+        </p>
       </div>
 
       {/* Vehicle Details */}
@@ -928,52 +1151,23 @@ const IncidentReportFormPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
           <div>
             <label className="label">
-              <span className="label-text font-semibold mb-2">Petrol / Diesel</span>
-            </label>
-            <select
-              name="fuelType"
-              value={formData.fuelType}
-              onChange={handleChange}
-              className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            >
-              <option value="">Please Select</option>
-              <option value="Petrol">Petrol</option>
-              <option value="Diesel">Diesel</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="label">
-              <span className="label-text font-semibold mb-2">Manual / Auto</span>
-            </label>
-            <select
-              name="manualOrAuto"
-              value={formData.manualOrAuto}
-              onChange={handleChange}
-              className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            >
-              <option value="">Please Select</option>
-              <option value="Manual">Manual</option>
-              <option value="Auto">Auto</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="label">
               <span className="label-text font-semibold mb-2">Transmission</span>
             </label>
-            <input
-              type="text"
+              <select
               name="transmission"
               value={formData.transmission}
               onChange={handleChange}
-              className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-              maxLength={50}
-            />
-          </div>
-        </div>
+              className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+            >
+              <option value="">Please Select</option>
+              {VEHICLE_TRANSMISSION_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+            </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
           <div>
             <label className="label">
               <span className="label-text font-semibold mb-2">No. Passengers</span>
@@ -1000,22 +1194,6 @@ const IncidentReportFormPage = () => {
               className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
               maxLength={20}
             />
-          </div>
-
-          <div>
-            <label className="label">
-              <span className="label-text font-semibold mb-2">Motorcycle Solo / Combo</span>
-            </label>
-            <select
-              name="motorcycleType"
-              value={formData.motorcycleType}
-              onChange={handleChange}
-              className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            >
-              <option value="">Not applicable</option>
-              <option value="Solo">Solo</option>
-              <option value="Combo">Combo</option>
-            </select>
           </div>
         </div>
 
@@ -1054,88 +1232,200 @@ const IncidentReportFormPage = () => {
         </div>
       </div>
 
-      {/* Fault Reported / Actual Fault / Location */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Fault */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="label">
             <span className="label-text font-semibold mb-2">Fault Reported</span>
           </label>
-          <input
-            type="text"
-            name="faultReported"
-            value={formData.faultReported}
-            onChange={handleChange}
-            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            maxLength={200}
-          />
+           <select
+              name="faultReported"
+              value={sourceOtherMode ? "Other" : formData.faultReported}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === "Other") {
+                setSourceOtherMode(true);
+                setFormData((prev) => ({ ...prev, faultReported: "" }));
+              } else {
+                setSourceOtherMode(false);
+                setFormData((prev) => ({ ...prev, faultReported: value }));
+              }
+            }}
+              className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+            >
+              <option value="">Please Select</option>
+              {INCIDENT_TYPE_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+            {sourceOtherMode && (
+            <input
+              type="text"
+              placeholder="Enter Fault Reported"
+              value={formData.faultReported}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, faultReported: e.target.value }))
+              }
+              className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full mt-3"
+              maxLength={100}
+            />
+          )}
+
         </div>
 
         <div>
           <label className="label">
             <span className="label-text font-semibold mb-2">Actual Fault</span>
           </label>
-          <input
-            type="text"
-            name="actualFault"
-            value={formData.actualFault}
-            onChange={handleChange}
-            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            maxLength={200}
-          />
-        </div>
-
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Location / Marker Post <span className="text-red-500">*</span>
-            </span>
-          </label>
-          <input
-            type="text"
-            name="markerPost"
-            placeholder="e.g., 2.3"
-            value={formData.markerPost}
-            onChange={handleChange}
-            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            maxLength={50}
-            required
-          />
+          <select
+              name="actualFault"
+              value={sourceOtherMode ? "Other" : formData.actualFault}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === "Other") {
+                setSourceOtherMode(true);
+                setFormData((prev) => ({ ...prev, actualFault: "" }));
+              } else {
+                setSourceOtherMode(false);
+                setFormData((prev) => ({ ...prev, actualFault: value }));
+              }
+            }}
+              className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+            >
+              <option value="">Please Select</option>
+              {INCIDENT_TYPE_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+            {sourceOtherMode && (
+            <input
+              type="text"
+              placeholder="Enter Actual Fault"
+              value={formData.actualFault}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, actualFault: e.target.value }))
+              }
+              className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full mt-3"
+              maxLength={100}
+            />
+          )}
         </div>
       </div>
 
-      {/* Time Completed */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">Time of Arrival</span>
-          </label>
-          <input
-            type="time"
-            name="timeOfArrival"
-            value={formData.timeOfArrival}
-            onChange={handleChange}
-            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-          />
+      {/* Checks */}
+      <div>
+        <h3 className="font-semibold text-gray-800 mb-3">Checks</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {CHECK_ITEMS.map(({ key, label }) => (
+            <YesNoField
+              key={key}
+              label={label}
+              value={formData.checks[key]}
+              onChange={(value) => handleCheckToggle(key, value)}
+            />
+          ))}
         </div>
+      </div>
 
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">Time Completed</span>
-          </label>
-          <input
-            type="time"
-            name="timeCompleted"
-            value={formData.timeCompleted}
-            onChange={handleChange}
-            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-          />
+      {/* Vehicle Condition */}
+      <div>
+        <h3 className="font-semibold text-gray-800 mb-3">
+          Vehicle Condition Checks{" "}
+          <span className="text-gray-400 font-normal text-sm">
+            (dents, breaks & scratches, or mark N/A)
+          </span>
+        </h3>
+        <div className="space-y-3">
+          {VEHICLE_CONDITION_SECTIONS.map(({ key, label }) => (
+            <div key={key} className="flex flex-col md:flex-row md:items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer md:w-48 shrink-0">
+                <input
+                  type="checkbox"
+                  className="checkbox checkbox-sm border-gray-400"
+                  checked={formData.vehicleCondition[key].damage}
+                  onChange={(e) =>
+                    handleConditionChange(key, "damage", e.target.checked)
+                  }
+                />
+                <span className="text-sm font-medium">{label}</span>
+              </label>
+              {formData.vehicleCondition[key].damage && (
+                <input
+                  type="text"
+                  placeholder="Describe the damage"
+                  value={formData.vehicleCondition[key].note}
+                  onChange={(e) => handleConditionChange(key, "note", e.target.value)}
+                  className="input input-sm bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+                  maxLength={200}
+                />
+              )}
+            </div>
+          ))}
         </div>
+      </div>
+
+      {renderFileUpload("file-upload-step3")}
+
+      {/* Submit Buttons */}
+      <div className="flex justify-between gap-4 mt-8 pt-6 border-t">
+        <button
+          type="button"
+          onClick={() => setCurrentStep(2)}
+          className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          Back
+        </button>
+        <div className="flex gap-3">
+          {(isEditingLiveIncident || editId) && (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={loading || uploadingFiles}
+              className="px-6 py-3 border border-brand-500 text-brand-600 rounded-lg hover:bg-brand-50 disabled:opacity-50 transition-colors font-semibold"
+            >
+              {loading ? "Saving..." : "Save & Return"}
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={loading || uploadingFiles}
+            className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors font-semibold flex items-center gap-2"
+          >
+            {loading ? "Saving..." : uploadingFiles ? "Uploading Files..." : (
+              <>
+                Next
+                <ChevronRight className="w-5 h-5" />
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </form>
+  );
+
+  // Step 4 — Customer Page
+  const renderStep4 = () => (
+    <form
+      onSubmit={handleSubmit}
+      className="bg-white rounded-xl shadow-md p-8 space-y-6"
+    >
+      <StepIndicator currentStep={currentStep} />
+
+      <div className="bg-brand-50 border border-brand-200 rounded-lg p-4 mb-6">
+        <p className="text-brand-800 font-medium">Step 4: Customer Page</p>
+        <p className="text-brand-600 text-sm mt-1">
+          Finish the drop-off and collect the customer's sign-off.
+        </p>
       </div>
 
       {/* Recovery Destination */}
       <div>
         <label className="label">
-          <span className="label-text font-semibold mb-2">Recovery Destination</span>
+          <span className="label-text font-semibold mb-2">Drop-Off Destination</span>
         </label>
         <input
           type="text"
@@ -1150,7 +1440,7 @@ const IncidentReportFormPage = () => {
       {/* Storage details */}
       <div>
         <h3 className="font-semibold text-gray-800 mb-3">
-          Only complete if vehicle taken into storage
+          Is vehicle in Storage? Complete if so
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
@@ -1175,6 +1465,20 @@ const IncidentReportFormPage = () => {
               type="text"
               name="storageAddress"
               value={formData.storageAddress}
+              onChange={handleChange}
+              className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+              maxLength={200}
+            />
+          </div>
+
+           <div>
+            <label className="label">
+              <span className="label-text font-semibold mb-2">Email Address</span>
+            </label>
+            <input
+              type="email"
+              name="storageEmail"
+              value={formData.storageEmail}
               onChange={handleChange}
               className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
               maxLength={200}
@@ -1222,7 +1526,7 @@ const IncidentReportFormPage = () => {
 
         <div>
           <label className="label">
-            <span className="label-text font-semibold mb-2">Vehicle</span>
+            <span className="label-text font-semibold mb-2">Vehicle Repaired / Recovered</span>
           </label>
           <div className="flex gap-6">
             {["Repaired", "Recovered"].map((option) => (
@@ -1242,62 +1546,10 @@ const IncidentReportFormPage = () => {
         </div>
       </div>
 
-      {/* Checks */}
-      <div>
-        <h3 className="font-semibold text-gray-800 mb-3">Checks</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {CHECK_ITEMS.map(({ key, label }) => (
-            <YesNoField
-              key={key}
-              label={label}
-              value={formData.checks[key]}
-              onChange={(value) => handleCheckToggle(key, value)}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Vehicle Condition */}
-      <div>
-        <h3 className="font-semibold text-gray-800 mb-3">
-          Vehicle Condition{" "}
-          <span className="text-gray-400 font-normal text-sm">
-            (dents, breaks & scratches)
-          </span>
-        </h3>
-        <div className="space-y-3">
-          {VEHICLE_CONDITION_SECTIONS.map(({ key, label }) => (
-            <div key={key} className="flex flex-col md:flex-row md:items-center gap-3">
-              <label className="flex items-center gap-2 cursor-pointer md:w-48 shrink-0">
-                <input
-                  type="checkbox"
-                  className="checkbox checkbox-sm border-gray-400"
-                  checked={formData.vehicleCondition[key].damage}
-                  onChange={(e) =>
-                    handleConditionChange(key, "damage", e.target.checked)
-                  }
-                />
-                <span className="text-sm font-medium">{label}</span>
-              </label>
-              {formData.vehicleCondition[key].damage && (
-                <input
-                  type="text"
-                  placeholder="Describe the damage"
-                  value={formData.vehicleCondition[key].note}
-                  onChange={(e) => handleConditionChange(key, "note", e.target.value)}
-                  className="input input-sm bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-                  maxLength={200}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* Customer/Driver Service Acceptance */}
       <div>
         <h3 className="font-semibold text-gray-800 mb-3">
-          Customer / Driver Service Acceptance Statements
+          Customer Acceptance
         </h3>
         <div className="space-y-3">
           {SERVICE_ACCEPTANCE_STATEMENTS.map((statement, index) => (
@@ -1330,7 +1582,7 @@ const IncidentReportFormPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
           <div>
             <label className="label">
-              <span className="label-text font-semibold mb-2">Name</span>
+              <span className="label-text font-semibold mb-2">Full Name</span>
             </label>
             <input
               type="text"
@@ -1395,25 +1647,16 @@ const IncidentReportFormPage = () => {
         </div>
       </div>
 
-      {renderFileUpload("file-upload-step2")}
-
       {/* Submit Buttons */}
       <div className="flex justify-between gap-4 mt-8 pt-6 border-t">
         <button
           type="button"
-          onClick={() => {
-            if (!editId && !isEditingLiveIncident) {
-              setCurrentStep(1);
-            } else {
-              navigate(-1);
-            }
-          }}
+          onClick={() => setCurrentStep(3)}
           className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
         >
-          {!editId && !isEditingLiveIncident ? "Back to Part 1" : "Cancel"}
+          Back
         </button>
         <div className="flex gap-3">
-          {/* Save & Return — only shown on live jobs so operator can return later */}
           {(isEditingLiveIncident || editId) && (
             <button
               type="button"
@@ -1427,11 +1670,7 @@ const IncidentReportFormPage = () => {
           <button
             type="submit"
             disabled={loading || uploadingFiles}
-            className={`px-8 py-3 text-white rounded-lg disabled:opacity-50 transition-colors font-semibold ${
-              isEditingLiveIncident
-                ? "bg-brand-500 hover:bg-brand-700"
-                : "bg-brand-500 hover:bg-brand-600"
-            }`}
+            className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors font-semibold"
           >
             {loading
               ? editId
@@ -1449,6 +1688,13 @@ const IncidentReportFormPage = () => {
       </div>
     </form>
   );
+
+  const renderCurrentStep = () => {
+    if (currentStep === 1) return renderStep1();
+    if (currentStep === 2) return renderStep2();
+    if (currentStep === 3) return renderStep3();
+    return renderStep4();
+  };
 
   return (
     <StaffSidebarLayout basePath={basePath}>
@@ -1469,15 +1715,13 @@ const IncidentReportFormPage = () => {
               : "Job Sheet"}
           </h2>
         </div>
-        {/* Render appropriate part */}
+        {/* Render current step */}
         {loading && !formData.scheme ? (
           <div className="flex justify-center py-12">
             <span className="loading loading-spinner loading-lg text-brand-500"></span>
           </div>
-        ) : currentStep === 1 && !editId ? (
-          renderStep1()
         ) : (
-          renderStep2()
+          renderCurrentStep()
         )}
       </div>
     </StaffSidebarLayout>
