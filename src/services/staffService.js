@@ -958,6 +958,397 @@ class StaffService {
     }
   }
 
+  // ============================================
+  // CABIN HEALTH & SAFETY CHECKS
+  // ============================================
+
+  async submitCabinHealthSafetyCheck(formData, userId, userName) {
+    try {
+      const schemeId = extractSchemeId(formData.scheme);
+      const isDemo = schemeId === DEMO_SCHEME_ID;
+      const referenceId = await referenceIdService.generateReferenceId(
+        "cabinSafety",
+        isDemo,
+      );
+
+      const reportsRef = collection(db, "cabinHealthSafetyChecks");
+      const docRef = await addDoc(reportsRef, {
+        ...formData,
+        schemeId,
+        schemeIds: [schemeId],
+        referenceId,
+        submittedBy: { userId, name: userName },
+        status: "submitted",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      this._applyCountDelta("cabinHealthSafetyChecks", isDemo, 1);
+
+      await this.logActivity({
+        type: "form_submitted",
+        staffId: userId,
+        staffName: userName,
+        description: `${userName} submitted Cabin Health & Safety Check ${referenceId}`,
+        relatedFormId: docRef.id,
+        staffGroup: "internal",
+      });
+
+      return docRef.id;
+    } catch (error) {
+      console.error("Failed to submit cabin health & safety check:", error);
+      throw error;
+    }
+  }
+
+  async getCabinHealthSafetyChecks(userId = null, limitCount = null) {
+    try {
+      const reportsRef = collection(db, "cabinHealthSafetyChecks");
+      let q;
+
+      if (userId) {
+        q = limitCount
+          ? query(
+              reportsRef,
+              where("submittedBy.userId", "==", userId),
+              orderBy("createdAt", "desc"),
+              limit(limitCount),
+            )
+          : query(
+              reportsRef,
+              where("submittedBy.userId", "==", userId),
+              orderBy("createdAt", "desc"),
+            );
+      } else {
+        q = limitCount
+          ? query(reportsRef, orderBy("createdAt", "desc"), limit(limitCount))
+          : query(reportsRef, orderBy("createdAt", "desc"));
+      }
+
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error("Failed to get cabin health & safety checks:", error);
+      return [];
+    }
+  }
+
+  async getCabinHealthSafetyCheckById(formId) {
+    try {
+      const snap = await getDoc(doc(db, "cabinHealthSafetyChecks", formId));
+      return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+    } catch (error) {
+      console.error("Failed to get cabin health & safety check:", error);
+      throw error;
+    }
+  }
+
+  async updateCabinHealthSafetyCheck(reportId, formData, userId, userName) {
+    try {
+      const reportRef = doc(db, "cabinHealthSafetyChecks", reportId);
+      const reportDoc = await getDoc(reportRef);
+
+      if (!reportDoc.exists()) {
+        throw new Error("Report not found");
+      }
+
+      const currentData = reportDoc.data();
+      const editHistory = currentData.editHistory || [];
+      editHistory.push({
+        editedBy: { userId, name: userName },
+        editedAt: new Date(),
+        previousSubmittedBy: currentData.submittedBy,
+      });
+
+      const schemeId = formData.scheme
+        ? extractSchemeId(formData.scheme)
+        : currentData.schemeId;
+
+      await updateDoc(reportRef, {
+        ...formData,
+        schemeId,
+        schemeIds: [schemeId],
+        editHistory,
+        lastEditedBy: { userId, name: userName },
+        updatedAt: serverTimestamp(),
+      });
+
+      await this.logActivity({
+        type: "form_edited",
+        staffId: userId,
+        staffName: userName,
+        description: `${userName} edited Cabin Health & Safety Check ${currentData.referenceId}`,
+        relatedFormId: reportId,
+      });
+
+      return reportId;
+    } catch (error) {
+      console.error("Failed to update cabin health & safety check:", error);
+      throw error;
+    }
+  }
+
+  async deleteCabinHealthSafetyCheck(formId, userId, userName) {
+    try {
+      const formRef = doc(db, "cabinHealthSafetyChecks", formId);
+      const formDoc = await getDoc(formRef);
+
+      if (!formDoc.exists()) {
+        throw new Error("Form not found");
+      }
+
+      const currentData = formDoc.data();
+
+      await deleteDoc(formRef);
+
+      await this.logActivity({
+        type: "form_deleted",
+        staffId: userId,
+        staffName: userName,
+        description: `${userName} deleted Cabin Health & Safety Check ${currentData.referenceId}`,
+        relatedFormId: formId,
+      });
+
+      return formId;
+    } catch (error) {
+      console.error("Failed to delete cabin health & safety check:", error);
+      throw error;
+    }
+  }
+
+  // ============================================
+  // VEHICLE DAILY CHECKS
+  // ============================================
+
+  async submitVehicleDailyCheck(formData, userId, userName) {
+    try {
+      const schemeId = extractSchemeId(formData.scheme);
+      const isDemo = schemeId === DEMO_SCHEME_ID;
+      const referenceId = await referenceIdService.generateReferenceId(
+        "vehicleCheck",
+        isDemo,
+      );
+
+      const reportsRef = collection(db, "vehicleDailyChecks");
+      const docRef = await addDoc(reportsRef, {
+        ...formData,
+        schemeId,
+        schemeIds: [schemeId],
+        referenceId,
+        submittedBy: { userId, name: userName },
+        status: "submitted",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      this._applyCountDelta("vehicleDailyChecks", isDemo, 1);
+
+      await this.logActivity({
+        type: "form_submitted",
+        staffId: userId,
+        staffName: userName,
+        description: `${userName} submitted Vehicle Daily Check ${referenceId}`,
+        relatedFormId: docRef.id,
+        staffGroup: "internal",
+      });
+
+      return docRef.id;
+    } catch (error) {
+      console.error("Failed to submit vehicle daily check:", error);
+      throw error;
+    }
+  }
+
+  async getVehicleDailyChecks(userId = null, limitCount = null) {
+    try {
+      const reportsRef = collection(db, "vehicleDailyChecks");
+      let q;
+
+      if (userId) {
+        q = limitCount
+          ? query(
+              reportsRef,
+              where("submittedBy.userId", "==", userId),
+              orderBy("createdAt", "desc"),
+              limit(limitCount),
+            )
+          : query(
+              reportsRef,
+              where("submittedBy.userId", "==", userId),
+              orderBy("createdAt", "desc"),
+            );
+      } else {
+        q = limitCount
+          ? query(reportsRef, orderBy("createdAt", "desc"), limit(limitCount))
+          : query(reportsRef, orderBy("createdAt", "desc"));
+      }
+
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error("Failed to get vehicle daily checks:", error);
+      return [];
+    }
+  }
+
+  async getVehicleDailyCheckById(formId) {
+    try {
+      const snap = await getDoc(doc(db, "vehicleDailyChecks", formId));
+      return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+    } catch (error) {
+      console.error("Failed to get vehicle daily check:", error);
+      throw error;
+    }
+  }
+
+  async updateVehicleDailyCheck(reportId, formData, userId, userName) {
+    try {
+      const reportRef = doc(db, "vehicleDailyChecks", reportId);
+      const reportDoc = await getDoc(reportRef);
+
+      if (!reportDoc.exists()) {
+        throw new Error("Report not found");
+      }
+
+      const currentData = reportDoc.data();
+      const editHistory = currentData.editHistory || [];
+      editHistory.push({
+        editedBy: { userId, name: userName },
+        editedAt: new Date(),
+        previousSubmittedBy: currentData.submittedBy,
+      });
+
+      const schemeId = formData.scheme
+        ? extractSchemeId(formData.scheme)
+        : currentData.schemeId;
+
+      await updateDoc(reportRef, {
+        ...formData,
+        schemeId,
+        schemeIds: [schemeId],
+        editHistory,
+        lastEditedBy: { userId, name: userName },
+        updatedAt: serverTimestamp(),
+      });
+
+      await this.logActivity({
+        type: "form_edited",
+        staffId: userId,
+        staffName: userName,
+        description: `${userName} edited Vehicle Daily Check ${currentData.referenceId}`,
+        relatedFormId: reportId,
+      });
+
+      return reportId;
+    } catch (error) {
+      console.error("Failed to update vehicle daily check:", error);
+      throw error;
+    }
+  }
+
+  async deleteVehicleDailyCheck(formId, userId, userName) {
+    try {
+      const formRef = doc(db, "vehicleDailyChecks", formId);
+      const formDoc = await getDoc(formRef);
+
+      if (!formDoc.exists()) {
+        throw new Error("Form not found");
+      }
+
+      const currentData = formDoc.data();
+
+      await deleteDoc(formRef);
+
+      await this.logActivity({
+        type: "form_deleted",
+        staffId: userId,
+        staffName: userName,
+        description: `${userName} deleted Vehicle Daily Check ${currentData.referenceId}`,
+        relatedFormId: formId,
+      });
+
+      return formId;
+    } catch (error) {
+      console.error("Failed to delete vehicle daily check:", error);
+      throw error;
+    }
+  }
+
+  // ============================================
+  // DAILY ALLOCATIONS (admin-only weekly roster)
+  // ============================================
+
+  async submitDailyAllocation(formData, userId, userName) {
+    try {
+      const referenceId = await referenceIdService.generateReferenceId(
+        "dailyAllocation",
+        false,
+      );
+
+      const allocationsRef = collection(db, "dailyAllocations");
+      const docRef = await addDoc(allocationsRef, {
+        ...formData,
+        schemeIds: [formData.schemeId],
+        referenceId,
+        submittedBy: { userId, name: userName },
+        status: "submitted",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      return { id: docRef.id, referenceId };
+    } catch (error) {
+      console.error("Failed to submit daily allocation:", error);
+      throw error;
+    }
+  }
+
+  async updateDailyAllocation(allocationId, formData, userId, userName) {
+    try {
+      const allocationRef = doc(db, "dailyAllocations", allocationId);
+      const allocationDoc = await getDoc(allocationRef);
+
+      if (!allocationDoc.exists()) {
+        throw new Error("Allocation not found");
+      }
+
+      const currentData = allocationDoc.data();
+      const editHistory = currentData.editHistory || [];
+      editHistory.push({
+        editedBy: { userId, name: userName },
+        editedAt: new Date(),
+        previousSubmittedBy: currentData.submittedBy,
+      });
+
+      await updateDoc(allocationRef, {
+        ...formData,
+        schemeIds: [formData.schemeId],
+        editHistory,
+        lastEditedBy: { userId, name: userName },
+        updatedAt: serverTimestamp(),
+      });
+
+      return allocationId;
+    } catch (error) {
+      console.error("Failed to update daily allocation:", error);
+      throw error;
+    }
+  }
+
+  async getDailyAllocationById(allocationId) {
+    try {
+      const snap = await getDoc(doc(db, "dailyAllocations", allocationId));
+      return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+    } catch (error) {
+      console.error("Failed to get daily allocation:", error);
+      throw error;
+    }
+  }
+
+  async deleteDailyAllocation(allocationId) {
+    return this.deleteReport("dailyAllocations", allocationId);
+  }
+
   // ─── CCTV Faults ────────────────────────────────────────────────────────────
 
   async submitCCTVFaultsReport(formData, userId, userName) {
@@ -1631,6 +2022,8 @@ class StaffService {
         assetDamageReports,
         dailyOccurrenceReports,
         cctvFaultsReports,
+        cabinSafetyChecks,
+        vehicleDailyChecks,
       ] = await Promise.all([
         this.fetchPaginatedForms(
           "cctvCheckForms",
@@ -1662,6 +2055,18 @@ class StaffService {
           cursors.cctvFaults,
           schemeIds,
         ),
+        this.fetchPaginatedForms(
+          "cabinHealthSafetyChecks",
+          perTypeLimit,
+          cursors.cabinSafety,
+          schemeIds,
+        ),
+        this.fetchPaginatedForms(
+          "vehicleDailyChecks",
+          perTypeLimit,
+          cursors.vehicleCheck,
+          schemeIds,
+        ),
       ]);
 
       // Transform and combine all forms — tag each with its source for cursor tracking
@@ -1690,6 +2095,16 @@ class StaffService {
           ...f,
           type: "CCTV Faults",
           _source: "cctvFaults",
+        })),
+        ...cabinSafetyChecks.docs.map((f) => ({
+          ...f,
+          type: "Cabin H&S Check",
+          _source: "cabinSafety",
+        })),
+        ...vehicleDailyChecks.docs.map((f) => ({
+          ...f,
+          type: "Vehicle Daily Check",
+          _source: "vehicleCheck",
         })),
       ];
 
@@ -1724,7 +2139,9 @@ class StaffService {
           incidentReports.hasMore ||
           assetDamageReports.hasMore ||
           dailyOccurrenceReports.hasMore ||
-          cctvFaultsReports.hasMore,
+          cctvFaultsReports.hasMore ||
+          cabinSafetyChecks.hasMore ||
+          vehicleDailyChecks.hasMore,
       };
     } catch (error) {
       console.error("Failed to get paginated forms:", error);
@@ -1754,6 +2171,14 @@ class StaffService {
         label: "Daily Occurrence",
       },
       "cctv-faults": { collection: "cctvFaultsReports", label: "CCTV Faults" },
+      "cabin-safety": {
+        collection: "cabinHealthSafetyChecks",
+        label: "Cabin H&S Check",
+      },
+      "vehicle-check": {
+        collection: "vehicleDailyChecks",
+        label: "Vehicle Daily Check",
+      },
     };
     const config = configMap[formType];
     if (!config) return { forms: [], lastDoc: null, hasMore: false };
@@ -1849,16 +2274,26 @@ class StaffService {
         assetCount,
         dailyCount,
         cctvFaultsCount,
+        cabinSafetyCount,
+        vehicleCheckCount,
       ] = await Promise.all([
         countFn("cctvCheckForms"),
         countFn("incidentReports"),
         countFn("assetDamageReports"),
         countFn("dailyOccurrenceReports"),
         countFn("cctvFaultsReports"),
+        countFn("cabinHealthSafetyChecks"),
+        countFn("vehicleDailyChecks"),
       ]);
 
       return (
-        cctvCount + incidentCount + assetCount + dailyCount + cctvFaultsCount
+        cctvCount +
+        incidentCount +
+        assetCount +
+        dailyCount +
+        cctvFaultsCount +
+        cabinSafetyCount +
+        vehicleCheckCount
       );
     } catch (error) {
       console.warn("Could not get total forms count:", error);
@@ -1880,12 +2315,16 @@ class StaffService {
         assetCount,
         dailyCount,
         cctvFaultsCount,
+        cabinSafetyCount,
+        vehicleCheckCount,
       ] = await Promise.all([
         countFn("cctvCheckForms"),
         countFn("incidentReports"),
         countFn("assetDamageReports"),
         countFn("dailyOccurrenceReports"),
         countFn("cctvFaultsReports"),
+        countFn("cabinHealthSafetyChecks"),
+        countFn("vehicleDailyChecks"),
       ]);
       return {
         cctvCheckTotal: cctvCount,
@@ -1893,6 +2332,8 @@ class StaffService {
         assetDamageTotal: assetCount,
         dailyLogsTotal: dailyCount,
         cctvFaultsTotal: cctvFaultsCount,
+        cabinSafetyTotal: cabinSafetyCount,
+        vehicleCheckTotal: vehicleCheckCount,
       };
     } catch (error) {
       console.warn("Could not get forms count by type:", error);
@@ -1902,6 +2343,8 @@ class StaffService {
         assetDamageTotal: 0,
         dailyLogsTotal: 0,
         cctvFaultsTotal: 0,
+        cabinSafetyTotal: 0,
+        vehicleCheckTotal: 0,
       };
     }
   }
@@ -1918,6 +2361,8 @@ class StaffService {
       "asset-damage": "assetDamageReports",
       "daily-occurrence": "dailyOccurrenceReports",
       "cctv-faults": "cctvFaultsReports",
+      "cabin-safety": "cabinHealthSafetyChecks",
+      "vehicle-check": "vehicleDailyChecks",
     };
     const collectionName = collectionMap[formType];
     if (!collectionName) return 0;
@@ -2093,6 +2538,8 @@ class StaffService {
       { name: "dailyOccurrenceReports", key: "dailyOccurrence", type: "Daily Occurrence" },
       { name: "cctvCheckForms",         key: "cctv",            type: "CCTV Check Sheet" },
       { name: "cctvFaultsReports",      key: "cctvFaults",      type: "CCTV Faults" },
+      { name: "cabinHealthSafetyChecks", key: "cabinSafety",    type: "Cabin H&S Check" },
+      { name: "vehicleDailyChecks",     key: "vehicleCheck",    type: "Vehicle Daily Check" },
     ];
 
     // Fetch pageSize+1 per collection so we can detect hasMore
@@ -2164,6 +2611,8 @@ class StaffService {
       { name: "dailyOccurrenceReports", type: "Daily Occurrence" },
       { name: "cctvCheckForms", type: "CCTV Check Sheet" },
       { name: "cctvFaultsReports", type: "CCTV Faults" },
+      { name: "cabinHealthSafetyChecks", type: "Cabin H&S Check" },
+      { name: "vehicleDailyChecks", type: "Vehicle Daily Check" },
     ];
 
     // Run referenceId and submittedBy.name queries in parallel

@@ -82,8 +82,16 @@ const LiveCameraFaultsPage = ({
 }) => {
   const navigate = useNavigate();
   const { userProfile, role } = useAuth();
-  const canAddNote = role === USER_ROLES.CCTVOPERATOR;
+  // Clients migrated from the removed 'cctvfaultoperator' role keep note-writing
+  // rights via this capability flag; plain clients remain acknowledge-only.
+  const canAddNote =
+    role === USER_ROLES.CLIENT && userProfile?.canManageCCTVFaults === true;
   const authorName = userProfile?.displayName || userProfile?.name || "";
+  // Notes/acknowledgments from canManageCCTVFaults clients keep the
+  // 'cctvfaultoperator' discriminator so historical bubble styling/attribution
+  // (see NoteThread's isCCTV check) continues to work now that the live role
+  // value is always 'client'.
+  const noteAuthorRole = canAddNote ? "cctvfaultoperator" : role;
 
   // Restrict to assigned schemes when the operator has been assigned specific schemes
   const operatorSchemeIds = userProfile?.schemeIds?.length > 0
@@ -149,7 +157,7 @@ const LiveCameraFaultsPage = ({
       await clientDataService.acknowledgeCCTVFault(
         fault.id,
         notes[fault.id] || "",
-        role,
+        noteAuthorRole,
         authorName,
       );
       toast.success("Fault acknowledged — staff have been notified.");
@@ -165,7 +173,7 @@ const LiveCameraFaultsPage = ({
     if (!text) return;
     setSavingNote((prev) => ({ ...prev, [fault.id]: true }));
     try {
-      await clientDataService.addClientNote(fault.id, text, role, authorName);
+      await clientDataService.addClientNote(fault.id, text, noteAuthorRole, authorName);
       setNewNotes((prev) => ({ ...prev, [fault.id]: "" }));
     } catch {
       toast.error("Failed to add note. Please try again.");

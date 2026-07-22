@@ -11,17 +11,15 @@ import {
   RefreshCw,
   Users,
   Building2,
-  Camera,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 
 const OTPManagement = () => {
   const { userProfile } = useAuth();
-  const [activeTab, setActiveTab] = useState("client"); // "client", "staff", or "cctv"
+  const [activeTab, setActiveTab] = useState("client"); // "client" or "staff"
   const [clientOTPs, setClientOTPs] = useState([]);
   const [staffInviteCodes, setStaffInviteCodes] = useState([]);
-  const [cctvCodes, setCctvCodes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [formData, setFormData] = useState({
@@ -43,18 +41,11 @@ const OTPManagement = () => {
   const [staffTotalCount, setStaffTotalCount] = useState(0);
   const [staffCurrentPage, setStaffCurrentPage] = useState(1);
 
-  // Pagination state for CCTV operator codes
-  const [cctvLastDoc, setCctvLastDoc] = useState(null);
-  const [cctvHasMore, setCctvHasMore] = useState(true);
-  const [cctvTotalCount, setCctvTotalCount] = useState(0);
-  const [cctvCurrentPage, setCctvCurrentPage] = useState(1);
-
   const codesPerPage = 10;
 
   useEffect(() => {
     loadClientCodes(true);
     loadStaffCodes(true);
-    loadCCTVCodes(true);
     loadTotalCounts();
   }, []);
 
@@ -118,41 +109,12 @@ const OTPManagement = () => {
     }
   };
 
-  const loadCCTVCodes = async (resetPage = false) => {
-    setLoading(true);
-    try {
-      const result = await otpService
-        .getCCTVOperatorCodesPaginated(
-          codesPerPage,
-          resetPage ? null : cctvLastDoc,
-        )
-        .catch((err) => {
-          console.error("Error loading CCTV operator codes:", err);
-          return { codes: [], lastDoc: null, hasMore: false };
-        });
-
-      setCctvCodes(result.codes);
-      setCctvLastDoc(result.lastDoc);
-      setCctvHasMore(result.hasMore);
-
-      if (resetPage) {
-        setCctvCurrentPage(1);
-      }
-    } catch (error) {
-      console.error("Failed to load CCTV operator codes:", error);
-      toast.error("Failed to load CCTV operator codes");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const loadTotalCounts = async () => {
     try {
-      // Use aggregation - only 3 reads regardless of how many codes exist
+      // Use aggregation - only 2 reads regardless of how many codes exist
       const counts = await otpService.getOTPCounts();
       setClientTotalCount(counts.clientTotal);
       setStaffTotalCount(counts.staffTotal);
-      setCctvTotalCount(counts.cctvTotal);
     } catch (error) {
       console.warn("Could not load total counts:", error);
     }
@@ -161,7 +123,6 @@ const OTPManagement = () => {
   const loadAllCodes = () => {
     loadClientCodes(true);
     loadStaffCodes(true);
-    loadCCTVCodes(true);
     loadTotalCounts();
   };
 
@@ -193,40 +154,6 @@ const OTPManagement = () => {
       // eslint-disable-next-line no-unused-vars
     } catch (error) {
       toast.error("Failed to create access code");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreateCCTVCode = async (e) => {
-    e.preventDefault();
-
-    if (!formData.schemeId || !formData.schemeName) {
-      toast.error("Please select a scheme");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const code = await otpService.createCCTVOperatorCode(
-        formData.schemeId.toUpperCase(),
-        formData.schemeName,
-        userProfile.uid,
-        formData.expiresInDays,
-      );
-
-      toast.success(`CCTV Operator Access Code created: ${code}`);
-      setFormData({
-        schemeId: "",
-        schemeName: "",
-        expiresInDays: 30,
-        maxUses: 1,
-      });
-      setShowCreateModal(false);
-      loadAllCodes();
-      // eslint-disable-next-line no-unused-vars
-    } catch (error) {
-      toast.error("Failed to create CCTV operator access code");
     } finally {
       setLoading(false);
     }
@@ -322,12 +249,7 @@ const OTPManagement = () => {
     );
   };
 
-  const displayCodes =
-    activeTab === "client"
-      ? clientOTPs
-      : activeTab === "cctv"
-        ? cctvCodes
-        : staffInviteCodes;
+  const displayCodes = activeTab === "client" ? clientOTPs : staffInviteCodes;
   const availableCount = displayCodes.filter(
     (code) => getCodeStatus(code) === "available",
   ).length;
@@ -363,23 +285,6 @@ const OTPManagement = () => {
     if (staffCurrentPage > 1) {
       setStaffCurrentPage((prev) => prev - 1);
       loadStaffCodes(true);
-    }
-  };
-
-  // Pagination handlers for CCTV operator codes
-  const cctvTotalPages = Math.ceil(cctvTotalCount / codesPerPage);
-
-  const handleCctvNextPage = () => {
-    if (cctvHasMore) {
-      setCctvCurrentPage((prev) => prev + 1);
-      loadCCTVCodes(false);
-    }
-  };
-
-  const handleCctvPrevPage = () => {
-    if (cctvCurrentPage > 1) {
-      setCctvCurrentPage((prev) => prev - 1);
-      loadCCTVCodes(true);
     }
   };
 
@@ -427,17 +332,6 @@ const OTPManagement = () => {
           Client Access Codes
         </button>
         <button
-          onClick={() => setActiveTab("cctv")}
-          className={`flex items-center gap-2 px-4 py-3 font-semibold border-b-2 transition-colors ${
-            activeTab === "cctv"
-              ? "border-teal-500 text-teal-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <Camera className="w-5 h-5" />
-          CCTV Operator Codes
-        </button>
-        <button
           onClick={() => setActiveTab("staff")}
           className={`flex items-center gap-2 px-4 py-3 font-semibold border-b-2 transition-colors ${
             activeTab === "staff"
@@ -446,7 +340,7 @@ const OTPManagement = () => {
           }`}
         >
           <Users className="w-5 h-5" />
-          Staff/Live Operator Invite Codes
+          Staff Invite Codes
         </button>
       </div>
 
@@ -455,11 +349,7 @@ const OTPManagement = () => {
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-500 mb-1">Total Codes</p>
           <p className="text-2xl font-bold text-gray-800">
-            {activeTab === "client"
-              ? clientTotalCount
-              : activeTab === "cctv"
-                ? cctvTotalCount
-                : staffTotalCount}
+            {activeTab === "client" ? clientTotalCount : staffTotalCount}
           </p>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
@@ -547,32 +437,7 @@ const OTPManagement = () => {
                       </td>
                     </tr>
                   ))
-                : activeTab === "cctv"
-                  ? cctvCodes.map((c) => (
-                      <tr key={c.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <code className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
-                            {c.code}
-                          </code>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {renderStatus(c)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {formatDate(c.createdAt)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <button
-                            onClick={() => copyToClipboard(c.code)}
-                            className="flex items-center gap-1 text-sm text-teal-600 hover:text-teal-700"
-                          >
-                            <Copy className="w-4 h-4" />
-                            Copy
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  : staffInviteCodes.map((code) => (
+                : staffInviteCodes.map((code) => (
                       <tr key={code.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <code className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
@@ -682,33 +547,6 @@ e                <ChevronRight className="w-4 h-4" />
           </div>
         )}
 
-        {activeTab === "cctv" && cctvTotalPages > 1 && (
-          <div className="flex items-center justify-between p-4 border-t">
-            <p className="text-sm text-gray-600">
-              Showing page {cctvCurrentPage} of {cctvTotalPages} (
-              {cctvTotalCount} total codes)
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleCctvPrevPage}
-                disabled={cctvCurrentPage === 1}
-                className="btn btn-sm btn-outline"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="text-sm font-medium">
-                Page {cctvCurrentPage} of {cctvTotalPages}
-              </span>
-              <button
-                onClick={handleCctvNextPage}
-                disabled={!cctvHasMore || cctvCurrentPage === cctvTotalPages}
-                className="btn btn-sm btn-outline"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Create Modal */}
@@ -718,21 +556,17 @@ e                <ChevronRight className="w-4 h-4" />
             <h5 className="text-xl font-bold text-gray-800 mb-4">
               {activeTab === "client"
                 ? "Generate Client Access Code"
-                : activeTab === "cctv"
-                  ? "Generate CCTV Operator Access Code"
-                  : "Generate Staff Invite Code"}
+                : "Generate Staff Invite Code"}
             </h5>
             <form
               onSubmit={
                 activeTab === "client"
                   ? handleCreateClientOTP
-                  : activeTab === "cctv"
-                    ? handleCreateCCTVCode
-                    : handleCreateStaffInvite
+                  : handleCreateStaffInvite
               }
               className="space-y-4"
             >
-              {(activeTab === "client" || activeTab === "cctv") && (
+              {activeTab === "client" && (
                 <div className="form-control">
                   <label className="label">
                     <span className="label-text font-semibold">

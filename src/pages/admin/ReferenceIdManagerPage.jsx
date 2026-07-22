@@ -12,6 +12,7 @@ const FORM_TYPES = [
   { type: "cctvCheck",       label: "CCTV Check",           prefix: "CC" },
   { type: "incident",        label: "Incident Report",      prefix: "IN" },
   { type: "assetDamage",     label: "Asset Damage",         prefix: "AD" },
+  { type: "dailyAllocation", label: "Daily Allocations",    prefix: "DA" },
 ];
 
 // Returns every counter name that exists for a given form type

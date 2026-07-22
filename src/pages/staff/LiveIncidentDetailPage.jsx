@@ -3,11 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { ArrowLeft, Download, FileText } from 'lucide-react';
 import { staffService } from '../../services/staffService';
-import LiveOperatorSidebarLayout from '../../components/layout/LiveOperatorSidebarLayout';
+import StaffSidebarLayout from '../../components/layout/StaffSidebarLayout';
 import { generateReportPDF } from '../../utils/pdfGenerator';
 import chellanlogo from "../../assets/chellanpng.png";
 
-const IncidentDetailPage = () => {
+const LiveIncidentDetailPage = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const [loading, setLoading] = useState(true);
@@ -27,12 +27,12 @@ const IncidentDetailPage = () => {
         setReport(foundReport);
       } else {
         toast.error('Report not found');
-        navigate('/dashboard/liveoperator');
+        navigate('/dashboard/staff/live-incidents');
       }
     } catch (error) {
       console.error('Failed to load report:', error);
       toast.error('Failed to load report');
-      navigate('/dashboard/liveoperator');
+      navigate('/dashboard/staff/live-incidents');
     } finally {
       setLoading(false);
     }
@@ -65,11 +65,11 @@ const IncidentDetailPage = () => {
 
   if (loading) {
     return (
-      <LiveOperatorSidebarLayout>
+      <StaffSidebarLayout>
         <div className="flex justify-center items-center h-96">
           <span className="loading loading-spinner loading-lg text-teal-500"></span>
         </div>
-      </LiveOperatorSidebarLayout>
+      </StaffSidebarLayout>
     );
   }
 
@@ -78,13 +78,13 @@ const IncidentDetailPage = () => {
   }
 
   return (
-    <LiveOperatorSidebarLayout>
+    <StaffSidebarLayout>
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => navigate('/dashboard/liveoperator')}
+              onClick={() => navigate('/dashboard/staff/live-incidents')}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-6 h-6 text-gray-600" />
@@ -439,8 +439,8 @@ const IncidentDetailPage = () => {
           )}
         </div>
       </div>
-    </LiveOperatorSidebarLayout>
+    </StaffSidebarLayout>
   );
 };
 
-export default IncidentDetailPage;
+export default LiveIncidentDetailPage;

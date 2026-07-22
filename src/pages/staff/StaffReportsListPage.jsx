@@ -16,6 +16,8 @@ import {
   CheckCircle,
   FilePlus2,
   AlertTriangle,
+  ShieldCheck,
+  Car,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { generateReportPDF } from "../../utils/pdfGenerator";
@@ -329,6 +331,10 @@ const StaffReportsListPage = () => {
         return <FileText className="w-5 h-5 text-red-500" />;
       case "CCTV Faults":
         return <Eye className="w-5 h-5 text-pink-500" />;
+      case "Cabin H&S Check":
+        return <ShieldCheck className="w-5 h-5 text-green-500" />;
+      case "Vehicle Daily Check":
+        return <Car className="w-5 h-5 text-amber-500" />;
       default:
         return <FileText className="w-5 h-5 text-gray-500" />;
     }
@@ -341,6 +347,8 @@ const StaffReportsListPage = () => {
       "Daily Occurrence": "badge-info",
       "CCTV Check Sheet": "badge-success",
       "CCTV Faults": "badge-secondary",
+      "Cabin H&S Check": "badge-success",
+      "Vehicle Daily Check": "badge-warning",
     };
     return badges[type] || "badge-ghost";
   };
@@ -429,6 +437,8 @@ const StaffReportsListPage = () => {
       "Incident Report": "incident",
       "Daily Occurrence": "daily-occurrence",
       "CCTV Faults": "cctv-faults",
+      "Cabin H&S Check": "cabin-safety",
+      "Vehicle Daily Check": "vehicle-check",
     };
     return filterType === "all" || formTypeMap[form.type] === filterType;
   });
@@ -478,6 +488,10 @@ const StaffReportsListPage = () => {
       navigate(`${basePath}/reports/daily-logs/${form.id}`);
     } else if (form.type === "CCTV Faults") {
       navigate(`${basePath}/reports/cctv-faults/${form.id}`);
+    } else if (form.type === "Cabin H&S Check") {
+      navigate(`${basePath}/reports/cabin-safety-check/${form.id}`);
+    } else if (form.type === "Vehicle Daily Check") {
+      navigate(`${basePath}/reports/vehicle-daily-check/${form.id}`);
     }
   };
 
@@ -501,6 +515,10 @@ const StaffReportsListPage = () => {
       navigate(`${basePath}/forms/daily-occurence?edit=${form.id}`);
     } else if (form.type === "CCTV Faults") {
       navigate(`${basePath}/forms/cctv-faults?edit=${form.id}`);
+    } else if (form.type === "Cabin H&S Check") {
+      navigate(`${basePath}/forms/cabin-safety-check?edit=${form.id}`);
+    } else if (form.type === "Vehicle Daily Check") {
+      navigate(`${basePath}/forms/vehicle-daily-check?edit=${form.id}`);
     }
   };
 
@@ -515,6 +533,10 @@ const StaffReportsListPage = () => {
         reportType = "daily-occurrence";
       } else if (form.type === "CCTV Faults") {
         reportType = "cctv-faults";
+      } else if (form.type === "Cabin H&S Check") {
+        reportType = "cabin-safety";
+      } else if (form.type === "Vehicle Daily Check") {
+        reportType = "vehicle-check";
       }
 
       await generateReportPDF(form, reportType, null);
@@ -586,6 +608,8 @@ const StaffReportsListPage = () => {
                     <option value="daily-occurrence">Daily Occurrence</option>
                     <option value="cctv-check">CCTV Checks</option>
                     <option value="cctv-faults">CCTV Faults</option>
+                    <option value="cabin-safety">Cabin H&S Checks</option>
+                    <option value="vehicle-check">Vehicle Daily Checks</option>
                   </select>
                 </div>
               </div>

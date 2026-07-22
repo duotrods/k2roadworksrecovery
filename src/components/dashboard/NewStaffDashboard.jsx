@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { staffService } from "../../services/staffService";
 import NoticeBoard from "../staff/NoticeBoard";
-import { AlertTriangle, Truck, Car, FilePlus, ChevronRight } from "lucide-react";
+import { AlertTriangle, Truck, Car, FilePlus, ChevronRight, ShieldCheck } from "lucide-react";
 import { getViewerSchemeScope } from "../../utils/schemes";
 import { getStaffBasePath } from "../../utils/constants";
 
@@ -151,6 +151,58 @@ const NewStaffDashboard = () => {
                   className="px-6 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 transition-colors font-semibold flex items-center gap-2 shrink-0"
                 >
                   + New Job Sheet
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* New Cabin H&S Check CTA */}
+            <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow mt-6">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-lg bg-green-500 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800">
+                      Create a new Cabin H&S Check
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      Complete the monthly cabin health & safety inspection checklist.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => navigate(`${basePath}/forms/cabin-safety-check`)}
+                  className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-semibold flex items-center gap-2 shrink-0"
+                >
+                  + New Cabin H&S Check
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* New Vehicle Check CTA */}
+            <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow mt-6">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-lg bg-amber-500 flex items-center justify-center shrink-0">
+                    <Car className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800">
+                      Create a new Vehicle Check
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      Log the Recovery Vehicle Daily Check Sheet for the week.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => navigate(`${basePath}/forms/vehicle-daily-check`)}
+                  className="px-6 py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-semibold flex items-center gap-2 shrink-0"
+                >
+                  + New Vehicle Check
                   <ChevronRight className="w-5 h-5" />
                 </button>
               </div>

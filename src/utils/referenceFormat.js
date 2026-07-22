@@ -9,6 +9,9 @@ const REFERENCE_CONFIGS = {
   dailyOccurrence: { prefix: "DO", digits: 2, counterName: "dailyOccurrence" },
   cctvCheck: { prefix: "CC", digits: 2, counterName: "cctvCheck" },
   cctvFaults: { prefix: "CF", digits: 2, counterName: "cctvFaults" },
+  dailyAllocation: { prefix: "DA", digits: 2, counterName: "dailyAllocation" },
+  cabinSafety: { prefix: "CH", digits: 2, counterName: "cabinSafety" },
+  vehicleCheck: { prefix: "VC", digits: 2, counterName: "vehicleCheck" },
 };
 
 export const getReferenceConfig = (type) => {

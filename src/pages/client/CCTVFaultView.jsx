@@ -6,7 +6,6 @@ import { clientDataService } from '../../services/clientDataService';
 import { useAuth } from '../../hooks/useAuth';
 import { USER_ROLES } from '../../utils/constants';
 import ClientSidebarLayout from '../../components/layout/ClientSidebarLayout';
-import CCTVOperatorSidebarLayout from '../../components/layout/CCTVOperatorSidebarLayout';
 
 const formatNoteTime = (addedAt) => {
   if (!addedAt) return '';
@@ -51,7 +50,7 @@ const CCTVFaultView = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { role, userProfile } = useAuth();
-  const Layout = role === USER_ROLES.CCTVOPERATOR ? CCTVOperatorSidebarLayout : ClientSidebarLayout;
+  const Layout = ClientSidebarLayout;
   const [fault, setFault] = useState(null);
   const [loading, setLoading] = useState(true);
   const [threadOpen, setThreadOpen] = useState(false);

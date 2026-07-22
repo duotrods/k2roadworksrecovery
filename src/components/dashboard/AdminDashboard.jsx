@@ -116,7 +116,7 @@ const AdminDashboard = () => {
         <div className="flex gap-3">
           <button
             onClick={() => navigate('/dashboard/admin/otp-management')}
-            className="flex items-center gap-2 px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition-colors"
           >
             <Key className="w-4 h-4" />
             Manage Access Codes
@@ -250,7 +250,7 @@ const AdminDashboard = () => {
                 className={`px-4 py-2 rounded-lg transition-colors ${
                   !hasMore
                     ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                    : 'bg-teal-500 hover:bg-teal-600 text-white'
+                    : 'bg-brand-500 hover:bg-brand-600 text-white'
                 }`}
               >
                 Next

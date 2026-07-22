@@ -72,7 +72,7 @@ const LiveOperatorDashboard = () => {
   };
 
   const handleViewIncident = (incident) => {
-    navigate(`/dashboard/liveoperator/incident/${incident.id}`);
+    navigate(`/dashboard/staff/live-incidents/incident/${incident.id}`);
   };
 
   const handleDownloadPDF = async (incident, e) => {

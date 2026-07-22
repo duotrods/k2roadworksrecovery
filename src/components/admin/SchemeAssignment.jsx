@@ -13,16 +13,17 @@ import {
   ArchiveRestore,
   ChevronLeft,
   ChevronRight,
-  Radio,
   CameraOff,
   LayoutGrid,
   Users,
 } from "lucide-react";
 
+// Filter keys used by this page. "client" queries role == 'client' directly;
+// "cctv-managers" queries clients with canManageCCTVFaults == true (the
+// migrated cohort of the removed 'cctvfaultoperator' role).
 const ROLE_CONFIG = {
   client: { label: "Client", color: "teal", icon: User },
-  liveoperator: { label: "Live Operator", color: "blue", icon: Radio },
-  cctvfaultoperator: { label: "CCTV Operator", color: "pink", icon: CameraOff },
+  "cctv-managers": { label: "CCTV Fault Manager", color: "pink", icon: CameraOff },
 };
 
 const SchemeAssignment = () => {
@@ -54,11 +55,17 @@ const SchemeAssignment = () => {
   const loadUsers = async (resetPage = false, role = roleFilter) => {
     setLoading(true);
     try {
-      const result = await firestoreService.getAllUsersPaginated(
-        usersPerPage,
-        resetPage ? null : lastDoc,
-        role
-      );
+      const result =
+        role === "cctv-managers"
+          ? await firestoreService.getCCTVFaultManagersPaginated(
+              usersPerPage,
+              resetPage ? null : lastDoc
+            )
+          : await firestoreService.getAllUsersPaginated(
+              usersPerPage,
+              resetPage ? null : lastDoc,
+              role
+            );
       setUsers(result.users);
       setLastDoc(result.lastDoc);
       setHasMore(result.hasMore);
@@ -74,7 +81,9 @@ const SchemeAssignment = () => {
   const loadTotalCount = async (role = roleFilter) => {
     try {
       const counts = await firestoreService.getUsersCountByRole();
-      setTotalCount(role === "client" ? counts.client : counts[role] ?? 0);
+      setTotalCount(
+        role === "cctv-managers" ? counts.cctvManagers : counts[role] ?? 0
+      );
     } catch (error) {
       console.warn("Could not load total count:", error);
     }
@@ -90,16 +99,11 @@ const SchemeAssignment = () => {
   const loadOverview = async () => {
     setOverviewLoading(true);
     try {
-      const [clientResult, liveOpResult, cctvOpResult] = await Promise.all([
+      const [clientResult, cctvManagersResult] = await Promise.all([
         firestoreService.getAllUsersPaginated(100, null, "client"),
-        firestoreService.getAllUsersPaginated(100, null, "liveoperator"),
-        firestoreService.getAllUsersPaginated(100, null, "cctvfaultoperator"),
+        firestoreService.getCCTVFaultManagersPaginated(100, null),
       ]);
-      setOverviewUsers([
-        ...clientResult.users,
-        ...liveOpResult.users,
-        ...cctvOpResult.users,
-      ]);
+      setOverviewUsers([...clientResult.users, ...cctvManagersResult.users]);
     } catch (error) {
       console.error("Failed to load scheme overview:", error);
       toast.error("Failed to load scheme overview");
@@ -114,7 +118,7 @@ const SchemeAssignment = () => {
       loadOverview();
     }
     if (tab === "cctv") {
-      handleRoleFilterChange("cctvfaultoperator");
+      handleRoleFilterChange("cctv-managers");
     }
     if (tab === "assignments") {
       handleRoleFilterChange("client");
@@ -234,20 +238,28 @@ const SchemeAssignment = () => {
     }
   };
 
-  // Group overview users by scheme for the Scheme Overview tab
+  // Group overview users by scheme for the Scheme Overview tab.
+  // De-dupe by uid: a canManageCCTVFaults client appears in both the plain
+  // "client" query and the "cctv-managers" query that feed overviewUsers.
   const schemeOverview = SCHEMES.map((scheme) => {
     const usersInScheme = overviewUsers.filter(
       (u) =>
         (u.schemeIds && u.schemeIds.includes(scheme.id)) ||
         u.schemeId === scheme.id
     );
+    const uniqueUsersInScheme = Array.from(
+      new Map(usersInScheme.map((u) => [u.uid, u])).values()
+    );
     return {
       scheme,
-      clients: usersInScheme.filter((u) => u.role === "client"),
-      liveOperators: usersInScheme.filter((u) => u.role === "liveoperator"),
-      cctvOperators: usersInScheme.filter((u) => u.role === "cctvfaultoperator"),
+      clients: uniqueUsersInScheme.filter(
+        (u) => u.role === "client" && !u.canManageCCTVFaults
+      ),
+      cctvManagers: uniqueUsersInScheme.filter(
+        (u) => u.role === "client" && u.canManageCCTVFaults
+      ),
     };
-  }).filter((s) => s.clients.length + s.liveOperators.length + s.cctvOperators.length > 0);
+  }).filter((s) => s.clients.length + s.cctvManagers.length > 0);
 
   return (
     <div className="p-6">
@@ -288,7 +300,7 @@ const SchemeAssignment = () => {
           }`}
         >
           <CameraOff className="w-4 h-4" />
-          CCTV Operator Assignments
+          CCTV Fault Manager Assignments
         </button>
         <button
           onClick={() => handleTabChange("overview")}
@@ -310,7 +322,7 @@ const SchemeAssignment = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="bg-white rounded-lg shadow p-4">
               <p className="text-sm text-gray-500 mb-1">
-                {roleFilter === "cctvfaultoperator" ? "Total CCTV Operators" : "Total Clients"}
+                {roleFilter === "cctv-managers" ? "Total CCTV Fault Managers" : "Total Clients"}
               </p>
               <p className="text-2xl font-bold text-gray-800">{totalCount}</p>
             </div>
@@ -474,7 +486,7 @@ const SchemeAssignment = () => {
               <div className="flex items-center justify-between p-4 border-t">
                 <p className="text-sm text-gray-600">
                   Showing page {currentPage} of {totalPages} ({totalCount} total {
-                    roleFilter === "cctvfaultoperator" ? "CCTV operators" : "clients"
+                    roleFilter === "cctv-managers" ? "CCTV fault managers" : "clients"
                   })
                 </p>
                 <div className="flex items-center gap-2">
@@ -517,7 +529,7 @@ const SchemeAssignment = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {schemeOverview.map(({ scheme, clients, liveOperators, cctvOperators }) => (
+              {schemeOverview.map(({ scheme, clients, cctvManagers }) => (
                 <div key={scheme.id} className="bg-white rounded-lg shadow overflow-hidden">
                   {/* Scheme Header */}
                   <div className="bg-teal-600 px-5 py-4">
@@ -530,8 +542,7 @@ const SchemeAssignment = () => {
                     </div>
                     <div className="flex gap-4 mt-3 text-xs text-teal-100">
                       <span>{clients.length} client{clients.length !== 1 ? "s" : ""}</span>
-                      <span>{liveOperators.length} live operator{liveOperators.length !== 1 ? "s" : ""}</span>
-                      <span>{cctvOperators.length} CCTV operator{cctvOperators.length !== 1 ? "s" : ""}</span>
+                      <span>{cctvManagers.length} CCTV fault manager{cctvManagers.length !== 1 ? "s" : ""}</span>
                     </div>
                   </div>
 
@@ -539,8 +550,7 @@ const SchemeAssignment = () => {
                   <div className="divide-y divide-gray-100">
                     {[
                       { role: "client", users: clients, label: "Clients", Icon: User, badgeClass: "bg-teal-100 text-teal-700" },
-                      { role: "liveoperator", users: liveOperators, label: "Live Operators", Icon: Radio, badgeClass: "bg-blue-100 text-blue-700" },
-                      { role: "cctvfaultoperator", users: cctvOperators, label: "CCTV Operators", Icon: CameraOff, badgeClass: "bg-pink-100 text-pink-700" },
+                      { role: "cctv-managers", users: cctvManagers, label: "CCTV Fault Managers", Icon: CameraOff, badgeClass: "bg-pink-100 text-pink-700" },
                     ].map(({ role, users: roleUsers, label, Icon, badgeClass }) => (
                       roleUsers.length > 0 && (
                         <div key={role} className="px-5 py-3">

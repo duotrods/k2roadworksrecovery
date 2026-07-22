@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { FileText, Camera, Calendar } from 'lucide-react';
+import { FileText, Camera, Calendar, ShieldCheck, Car } from 'lucide-react';
 import StaffSidebarLayout from '../../components/layout/StaffSidebarLayout';
 import { getStaffBasePath } from '../../utils/constants';
 
@@ -33,6 +33,22 @@ const FormsSelectionPage = () => {
       color: 'from-purple-400 to-purple-500',
       bgColor: 'bg-purple-50',
       path: `${basePath}/forms/cctv-check`
+    },
+    {
+      title: 'Cabin Health & Safety Check',
+      description: 'Complete the monthly cabin health & safety inspection checklist',
+      icon: ShieldCheck,
+      color: 'from-green-400 to-green-500',
+      bgColor: 'bg-green-50',
+      path: `${basePath}/forms/cabin-safety-check`
+    },
+    {
+      title: 'Vehicle Daily Check Sheet',
+      description: 'Record daily vehicle checks for the week',
+      icon: Car,
+      color: 'from-amber-400 to-amber-500',
+      bgColor: 'bg-amber-50',
+      path: `${basePath}/forms/vehicle-daily-check`
     },
   ];
 

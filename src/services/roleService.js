@@ -4,7 +4,7 @@ import { AppError } from "../utils/errorHandling";
 class RoleService {
   async completeGoogleSignUpWithRole(user, role, additionalData) {
     // After Google sign-in, create user document with selected role
-    if (!["staff", "client", "liveoperator"].includes(role)) {
+    if (!["staff", "client"].includes(role)) {
       throw new AppError("Invalid role selection", "role/invalid");
     }
 

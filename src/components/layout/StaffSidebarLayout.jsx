@@ -15,6 +15,7 @@ import {
   PanelLeftOpen,
   Menu,
   FolderOpen,
+  Radio,
 } from "lucide-react";
 import headerLogo from "../../assets/headerlogo.svg";
 import k2logo from "../../assets/k2logo.svg";
@@ -76,6 +77,11 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
       path: `${basePath}/reports`,
       icon: FileText,
     },
+    // {
+    //   name: "Live Incidents",
+    //   path: `${basePath}/live-incidents`,
+    //   icon: Radio,
+    // },
   ];
 
   return (

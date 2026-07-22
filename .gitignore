@@ -62,3 +62,8 @@ CLAUDE.md
 /coverage-ssr-final-lcov.info
 /coverage-ssr-final-lcov-report
 /coverage-ssr-final-lcov-report/index.html
+
+
+/supabase
+
+migrate-roles-consolidation.js

@@ -238,25 +238,52 @@ class FirestoreService {
   }
 
   /**
-   * Get user counts per role using aggregation - only 3 reads total
+   * Get user counts per role using aggregation - only 4 reads total
    */
   async getUsersCountByRole() {
     try {
       const usersRef = collection(db, 'users');
-      const [totalSnap, staffSnap, clientSnap, cctvSnap] = await Promise.all([
+      const [totalSnap, staffSnap, clientSnap, cctvManagersSnap] = await Promise.all([
         getCountFromServer(query(usersRef)),
         getCountFromServer(query(usersRef, where('role', '==', 'staff'))),
         getCountFromServer(query(usersRef, where('role', '==', 'client'))),
-        getCountFromServer(query(usersRef, where('role', '==', 'cctvfaultoperator'))),
+        getCountFromServer(query(usersRef, where('role', '==', 'client'), where('canManageCCTVFaults', '==', true))),
       ]);
       return {
         total: totalSnap.data().count,
         staff: staffSnap.data().count,
         client: clientSnap.data().count,
-        cctvfaultoperator: cctvSnap.data().count,
+        cctvManagers: cctvManagersSnap.data().count,
       };
     } catch (error) {
       throw new AppError('Failed to count users by role', 'firestore/read-error', error);
+    }
+  }
+
+  // Admin-only: Get paginated clients with canManageCCTVFaults enabled
+  // (the migrated cohort of the removed 'cctvfaultoperator' role)
+  async getCCTVFaultManagersPaginated(limitCount = 10, lastDoc = null) {
+    try {
+      const usersRef = collection(db, 'users');
+      const baseFilters = [
+        where('role', '==', 'client'),
+        where('canManageCCTVFaults', '==', true),
+      ];
+      const q = lastDoc
+        ? query(usersRef, ...baseFilters, startAfter(lastDoc), limit(limitCount))
+        : query(usersRef, ...baseFilters, limit(limitCount));
+
+      const snapshot = await getDocs(q);
+      const users = snapshot.docs.map(doc => doc.data());
+      const lastVisible = snapshot.docs[snapshot.docs.length - 1];
+
+      return {
+        users,
+        lastDoc: lastVisible,
+        hasMore: snapshot.docs.length === limitCount
+      };
+    } catch (error) {
+      throw new AppError('Failed to fetch CCTV fault managers', 'firestore/read-error', error);
     }
   }
 

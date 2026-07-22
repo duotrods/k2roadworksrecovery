@@ -2,24 +2,18 @@ import { useAuth } from "../hooks/useAuth";
 import StaffSidebarLayout from "../components/layout/StaffSidebarLayout";
 import ClientSidebarLayout from "../components/layout/ClientSidebarLayout";
 import AdminSidebarLayout from "../components/layout/AdminSidebarLayout";
-import CCTVOperatorSidebarLayout from "../components/layout/CCTVOperatorSidebarLayout";
-import LiveOperatorSidebarLayout from "../components/layout/LiveOperatorSidebarLayout";
 import comingSoonSvg from "../assets/comingsoon.svg";
 
 const layouts = {
   admin: AdminSidebarLayout,
   staff: StaffSidebarLayout,
   client: ClientSidebarLayout,
-  cctvfaultoperator: CCTVOperatorSidebarLayout,
-  liveoperator: LiveOperatorSidebarLayout,
 };
 
 const roleBasePaths = {
   admin: "/dashboard/admin",
   staff: "/dashboard/staff",
   client: "/dashboard/client",
-  cctvfaultoperator: "/dashboard/cctvoperator",
-  liveoperator: "/dashboard/liveoperator",
 };
 
 const HelpPage = () => {

@@ -77,20 +77,6 @@ const SignUpForm = () => {
           userData,
           formData.otpCode
         );
-      } else if (formData.role === USER_ROLES.LIVEOPERATOR) {
-        await authService.signUpLiveOperatorWithOTP(
-          formData.email,
-          formData.password,
-          userData,
-          formData.otpCode
-        );
-      } else if (formData.role === USER_ROLES.CCTVOPERATOR) {
-        await authService.signUpCCTVFaultOperatorWithOTP(
-          formData.email,
-          formData.password,
-          userData,
-          formData.otpCode
-        );
       } else {
         await authService.signUpWithEmail(
           formData.email,
@@ -111,7 +97,6 @@ const SignUpForm = () => {
   const getCodeLabel = (role) => {
     switch (role) {
       case USER_ROLES.CLIENT: return 'Client Access Code';
-      case USER_ROLES.CCTVOPERATOR: return 'CCTV Operator Access Code';
       default: return 'Staff Invite Code';
     }
   };
@@ -119,7 +104,6 @@ const SignUpForm = () => {
   const getCodePlaceholder = (role) => {
     switch (role) {
       case USER_ROLES.CLIENT: return 'e.g., A417-2024-ABC123';
-      case USER_ROLES.CCTVOPERATOR: return 'e.g., CCTV-2024-ABC123';
       default: return 'e.g., STAFF-2024-XYZ789';
     }
   };
@@ -228,12 +212,6 @@ const SignUpForm = () => {
             </option>
             <option value={USER_ROLES.STAFF}>
               {ROLE_LABELS[USER_ROLES.STAFF]}
-            </option>
-            <option value={USER_ROLES.LIVEOPERATOR}>
-              {ROLE_LABELS[USER_ROLES.LIVEOPERATOR]}
-            </option>
-            <option value={USER_ROLES.CCTVOPERATOR}>
-              {ROLE_LABELS[USER_ROLES.CCTVOPERATOR]}
             </option>
           </select>
         </div>

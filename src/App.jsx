@@ -38,10 +38,14 @@
   const DailyOccurrenceFormPage = lazy(() => import("./pages/staff/DailyOccurrenceFormPage"));
   const CCTVFaultsFormPage = lazy(() => import("./pages/staff/CCTVFaultsFormPage"));
   const CCTVFaultsLivePage = lazy(() => import("./pages/staff/CCTVFaultsLivePage"));
+  const CabinSafetyCheckFormPage = lazy(() => import("./pages/staff/CabinSafetyCheckFormPage"));
+  const VehicleDailyCheckFormPage = lazy(() => import("./pages/staff/VehicleDailyCheckFormPage"));
   const IncidentReportView = lazy(() => import("./pages/staff/IncidentReportView"));
   const CCTVCheckView = lazy(() => import("./pages/staff/CCTVCheckView"));
   const DailyOccurrenceView = lazy(() => import("./pages/staff/DailyOccurrenceView"));
   const CCTVFaultsView = lazy(() => import("./pages/staff/CCTVFaultsView"));
+  const CabinSafetyCheckView = lazy(() => import("./pages/staff/CabinSafetyCheckView"));
+  const VehicleDailyCheckView = lazy(() => import("./pages/staff/VehicleDailyCheckView"));
   const OTPManagementPage = lazy(() => import("./pages/admin/OTPManagementPage"));
   const BackfillVehicleStatsPage = lazy(() => import("./pages/admin/BackfillVehicleStatsPage"));
   const BackfillHasVideoPage = lazy(() => import("./pages/admin/BackfillHasVideoPage"));
@@ -50,13 +54,19 @@
   const SchemeAssignmentPage = lazy(() => import("./pages/admin/SchemeAssignmentPage"));
   const StaffManagementPage = lazy(() => import("./pages/admin/StaffManagementPage"));
   const StaffReportsPage = lazy(() => import("./pages/admin/StaffReportsPage"));
+  const DailyAllocationsListPage = lazy(() => import("./pages/admin/DailyAllocationsListPage"));
+  const DailyAllocationsFormPage = lazy(() => import("./pages/admin/DailyAllocationsFormPage"));
   const ClientChartsPage = lazy(() => import("./pages/admin/ClientChartsPage"));
   const IncidentReportDetailPage = lazy(() => import("./pages/admin/IncidentReportDetailPage"));
   const CCTVCheckDetailPage = lazy(() => import("./pages/admin/CCTVCheckDetailPage"));
   const DailyLogsDetailPage = lazy(() => import("./pages/admin/DailyLogsDetailPage"));
+  const CabinSafetyCheckDetailPage = lazy(() => import("./pages/admin/CabinSafetyCheckDetailPage"));
+  const VehicleDailyCheckDetailPage = lazy(() => import("./pages/admin/VehicleDailyCheckDetailPage"));
 
-  // Live Operator pages
-  const LiveOperatorIncidentDetailPage = lazy(() => import("./pages/liveoperator/IncidentDetailPage"));
+  // Live Incidents board (relocated under staff after role consolidation)
+  const StaffSidebarLayout = lazy(() => import("./components/layout/StaffSidebarLayout"));
+  const LiveOperatorDashboard = lazy(() => import("./components/dashboard/LiveOperatorDashboard"));
+  const LiveIncidentDetailPage = lazy(() => import("./pages/staff/LiveIncidentDetailPage"));
 
   // Client pages
   const AnalyticsPage = lazy(() => import("./pages/client/AnalyticsPage"));
@@ -195,6 +205,34 @@
                   }
                 />
 
+                {/* Daily Allocations (admin-only weekly roster) */}
+                <Route
+                  path="/dashboard/admin/daily-allocations"
+                  element={
+                    <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
+                      <DailyAllocationsListPage />
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="/dashboard/admin/daily-allocations/new"
+                  element={
+                    <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
+                      <DailyAllocationsFormPage />
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="/dashboard/admin/daily-allocations/:id"
+                  element={
+                    <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
+                      <DailyAllocationsFormPage />
+                    </ProtectedRoute>
+                  }
+                />
+
                 <Route
                   path="/dashboard/admin/client-charts"
                   element={
@@ -233,6 +271,24 @@
                 />
 
                 <Route
+                  path="/dashboard/admin/staff-reports/cabin-safety/:id"
+                  element={
+                    <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
+                      <CabinSafetyCheckDetailPage />
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="/dashboard/admin/staff-reports/vehicle-check/:id"
+                  element={
+                    <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
+                      <VehicleDailyCheckDetailPage />
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
                   path="/dashboard/staff"
                   element={
                     <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
@@ -256,6 +312,24 @@
                   element={
                     <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
                       <CCTVCheckFormPage />
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="/dashboard/staff/forms/cabin-safety-check"
+                  element={
+                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
+                      <CabinSafetyCheckFormPage />
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="/dashboard/staff/forms/vehicle-daily-check"
+                  element={
+                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
+                      <VehicleDailyCheckFormPage />
                     </ProtectedRoute>
                   }
                 />
@@ -351,39 +425,41 @@
                   }
                 />
 
-                {/* CCTV Fault Operator Routes */}
                 <Route
-                  path="/dashboard/cctvoperator"
+                  path="/dashboard/staff/reports/cabin-safety-check/:id"
                   element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.CCTVOPERATOR]}>
-                      <Dashboard />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/dashboard/cctvoperator/cctv-fault/:id"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.CCTVOPERATOR]}>
-                      <ClientCCTVFaultView />
-                    </ProtectedRoute>
-                  }
-                />
-
-                {/* Live Operator Routes */}
-                <Route
-                  path="/dashboard/liveoperator"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.LIVEOPERATOR]}>
-                      <Dashboard />
+                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
+                      <CabinSafetyCheckView />
                     </ProtectedRoute>
                   }
                 />
 
                 <Route
-                  path="/dashboard/liveoperator/incident/:id"
+                  path="/dashboard/staff/reports/vehicle-daily-check/:id"
                   element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.LIVEOPERATOR]}>
-                      <LiveOperatorIncidentDetailPage />
+                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
+                      <VehicleDailyCheckView />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Staff Live Incidents Board (formerly the standalone Live Operator role) */}
+                <Route
+                  path="/dashboard/staff/live-incidents"
+                  element={
+                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
+                      <StaffSidebarLayout>
+                        <LiveOperatorDashboard />
+                      </StaffSidebarLayout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="/dashboard/staff/live-incidents/incident/:id"
+                  element={
+                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
+                      <LiveIncidentDetailPage />
                     </ProtectedRoute>
                   }
                 />

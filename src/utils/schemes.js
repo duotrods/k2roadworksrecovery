@@ -4,10 +4,10 @@ export const DEMO_SCHEME_ID = "DMO1";
 // List of all schemes/clients in the system
 export const SCHEMES = [
   {
-    id: "A66-WJ",
-    fullName: "A66-WJ",
-    shortName: "A66-WJ",
-    contractor: "WJ",
+    id: "M3",
+    fullName: "M3 Jct 9 - Balfour Beatty",
+    shortName: "M3 Jct 9",
+    contractor: "Balfour Beatty",
   },
   {
     id: "DMO1",
