@@ -190,6 +190,8 @@ export const generateReportPDF = async (
     "asset-damage": "Asset Damage Report",
     "daily-occurrence": "Daily Occurrence Report",
     "cctv-check": "CCTV Check Report",
+    "cabin-safety": "Cabin Health & Safety Inspection Report",
+    "vehicle-check": "Recovery Vehicle Daily Check Sheet",
   };
 
   // Title with background
@@ -623,6 +625,89 @@ export const generateReportPDF = async (
         yPosition += 3;
       }
       break;
+
+    case "cabin-safety": {
+      if (report.cabinOrPlotNo)
+        addField("Cabin No / Plot No", report.cabinOrPlotNo);
+      if (report.inspectionCompletedBy)
+        addField("Inspection Completed By", report.inspectionCompletedBy);
+      if (report.siteLocation)
+        addField("Site Location", report.siteLocation);
+      if (report.inspectionDate)
+        addField("Inspection Date", report.inspectionDate);
+
+      if (Array.isArray(report.checklist) && report.checklist.length > 0) {
+        const sections = [
+          ...new Set(report.checklist.map((row) => row.section)),
+        ];
+        sections.forEach((sectionName) => {
+          yPosition += 3;
+          addSectionHeader(sectionName.toUpperCase());
+          report.checklist
+            .filter((row) => row.section === sectionName)
+            .forEach((row) => {
+              addField(row.question, row.answer || "N/A");
+              if (row.comments) addField("Comments/Actions", row.comments);
+              if (row.actionOwner) addField("Action Owner", row.actionOwner);
+              if (row.completed) addField("Completed", row.completed);
+            });
+        });
+      }
+      break;
+    }
+
+    case "vehicle-check": {
+      if (report.weekCommencing)
+        addField("Week Commencing", report.weekCommencing);
+      if (report.driversName) addField("Drivers Name", report.driversName);
+      if (report.vehicleTypeReg)
+        addField("Vehicle Type/Registration No", report.vehicleTypeReg);
+      if (report.mileage) addField("Mileage", report.mileage);
+
+      if (Array.isArray(report.checks) && report.checks.length > 0) {
+        yPosition += 3;
+        addSectionHeader("DAILY CHECKS");
+        const dayOrder = [
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+          "saturday",
+          "sunday",
+        ];
+        const dayAbbrev = {
+          monday: "Mon",
+          tuesday: "Tue",
+          wednesday: "Wed",
+          thursday: "Thu",
+          friday: "Fri",
+          saturday: "Sat",
+          sunday: "Sun",
+        };
+        const statusAbbrev = { ok: "OK", defect: "DEFECT", na: "N/A" };
+        report.checks.forEach((row) => {
+          const line = dayOrder
+            .map((day) => {
+              const status = row.status?.[day];
+              const value = status
+                ? statusAbbrev[status] || status
+                : row.initials?.[day] || "-";
+              return `${dayAbbrev[day]}: ${value}`;
+            })
+            .join("  ");
+          addField(row.label, line);
+        });
+      }
+
+      if (report.driversReport)
+        addField("Driver's Report", report.driversReport);
+      if (report.actionTaken) addField("Action Taken", report.actionTaken);
+      if (report.supervisorSignature)
+        addField("Supervisor's Signature", report.supervisorSignature);
+      if (report.date) addField("Date", report.date);
+      break;
+    }
   }
 
   // Report Information Section (Status and Submitter)
