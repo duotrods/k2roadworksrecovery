@@ -15,9 +15,21 @@ import {
   ChevronLeft,
   ChevronRight,
   Trash2,
+  ShieldCheck,
+  Car,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { generateReportPDF } from "../../utils/pdfGenerator";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import { countDefectsByItem } from "../../utils/vehicleCheckStats";
 
 // Module-level variable — survives component unmount/remount, no serialization needed
 let _staffReportsRestore = null;
@@ -50,7 +62,8 @@ const StaffReportsPage = () => {
   const [hasMore, setHasMore] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [typeCount, setTypeCount] = useState(0);
-  const [formCounts, setFormCounts] = useState({ cctvCheckTotal: 0, incidentReportTotal: 0, assetDamageTotal: 0, dailyLogsTotal: 0 });
+  const [formCounts, setFormCounts] = useState({ cctvCheckTotal: 0, incidentReportTotal: 0, assetDamageTotal: 0, dailyLogsTotal: 0, cabinSafetyTotal: 0, vehicleCheckTotal: 0 });
+  const [vehicleCheckDefects, setVehicleCheckDefects] = useState([]);
   const reportsPerPage = 10;
 
   // Maps admin display filter values → staffService type keys
@@ -59,6 +72,8 @@ const StaffReportsPage = () => {
     'Incident Report': 'incident',
     'Asset Damage':    'asset-damage',
     'Daily Logs':      'daily-occurrence',
+    'Cabin H&S Check': 'cabin-safety',
+    'Vehicle Daily Check': 'vehicle-check',
   };
 
   useEffect(() => {
@@ -91,6 +106,15 @@ const StaffReportsPage = () => {
   }, []);
 
   useEffect(() => {
+    // Independent of the paginated `reports` list (which only ever holds one
+    // page of 10) — the chart needs every vehicle check, not just the
+    // current page, so it doesn't shrink/flicker as the admin paginates.
+    staffService.getVehicleDailyChecks(null).then((allChecks) => {
+      setVehicleCheckDefects(countDefectsByItem(allChecks));
+    });
+  }, []);
+
+  useEffect(() => {
     applyFilters();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reports]);
@@ -103,6 +127,8 @@ const StaffReportsPage = () => {
     'Daily Logs':      ['dailyOccurrence'],
     'CCTV Check':      ['cctv'],
     'CCTV Faults':     ['cctvFaults'],
+    'Cabin H&S Check': ['cabinSafety'],
+    'Vehicle Daily Check': ['vehicleCheck'],
   };
 
   const mapSearchResults = (results) => {
@@ -112,6 +138,8 @@ const StaffReportsPage = () => {
       'Daily Occurrence': { type: 'Daily Logs',      icon: Calendar,      color: 'bg-blue-100 text-blue-600'    },
       'CCTV Check Sheet': { type: 'CCTV Check',      icon: Camera,        color: 'bg-purple-100 text-purple-600' },
       'CCTV Faults':      { type: 'CCTV Faults',     icon: FileText,      color: 'bg-pink-100 text-pink-600'    },
+      'Cabin H&S Check':  { type: 'Cabin H&S Check', icon: ShieldCheck,   color: 'bg-green-100 text-green-600'  },
+      'Vehicle Daily Check': { type: 'Vehicle Daily Check', icon: Car,    color: 'bg-amber-100 text-amber-600'  },
     };
     return results.map(f => ({ ...f, ...(typeMap[f.type] || {}) }));
   };
@@ -256,6 +284,14 @@ const StaffReportsPage = () => {
           type = "CCTV Faults";
           icon = Eye;
           color = "bg-pink-100 text-pink-600";
+        } else if (f.type === 'Cabin H&S Check') {
+          type = "Cabin H&S Check";
+          icon = ShieldCheck;
+          color = "bg-green-100 text-green-600";
+        } else if (f.type === 'Vehicle Daily Check') {
+          type = "Vehicle Daily Check";
+          icon = Car;
+          color = "bg-amber-100 text-amber-600";
         }
 
         return { ...f, type, icon, color };
@@ -368,6 +404,10 @@ const StaffReportsPage = () => {
       navigate(`/dashboard/admin/staff-reports/asset/${report.id}`);
     } else if (report.type === "Daily Logs") {
       navigate(`/dashboard/admin/staff-reports/daily/${report.id}`);
+    } else if (report.type === "Cabin H&S Check") {
+      navigate(`/dashboard/admin/staff-reports/cabin-safety/${report.id}`);
+    } else if (report.type === "Vehicle Daily Check") {
+      navigate(`/dashboard/admin/staff-reports/vehicle-check/${report.id}`);
     }
   };
 
@@ -379,6 +419,8 @@ const StaffReportsPage = () => {
         "Incident Report": "incident",
         "Asset Damage": "asset-damage",
         "Daily Logs": "daily-occurrence",
+        "Cabin H&S Check": "cabin-safety",
+        "Vehicle Daily Check": "vehicle-check",
       };
       const reportType = typeMap[report.type] || "incident";
       await generateReportPDF(report, reportType);
@@ -443,6 +485,10 @@ const StaffReportsPage = () => {
         return <Calendar className="w-5 h-5 text-blue-500" />;
       case "Asset Damage":
         return <FileText className="w-5 h-5 text-red-500" />;
+      case "Cabin H&S Check":
+        return <ShieldCheck className="w-5 h-5 text-green-500" />;
+      case "Vehicle Daily Check":
+        return <Car className="w-5 h-5 text-amber-500" />;
       default:
         return <FileText className="w-5 h-5 text-gray-500" />;
     }
@@ -454,6 +500,8 @@ const StaffReportsPage = () => {
       "Asset Damage": "badge-error",
       "Daily Logs": "badge-info",
       "CCTV Check": "badge-success",
+      "Cabin H&S Check": "badge-success",
+      "Vehicle Daily Check": "badge-warning",
     };
     return badges[type] || "badge-ghost";
   };
@@ -538,6 +586,8 @@ const StaffReportsPage = () => {
         "Incident Report": "incidentReports",
         "Asset Damage": "assetDamageReports",
         "Daily Logs": "dailyOccurrenceReports",
+        "Cabin H&S Check": "cabinHealthSafetyChecks",
+        "Vehicle Daily Check": "vehicleDailyChecks",
       };
       const collectionName = collectionMap[reportToDelete.type];
 
@@ -564,6 +614,8 @@ const StaffReportsPage = () => {
     incident: formCounts.incidentReportTotal,
     assetDamage: formCounts.assetDamageTotal,
     dailyLogs: formCounts.dailyLogsTotal,
+    cabinSafety: formCounts.cabinSafetyTotal,
+    vehicleCheck: formCounts.vehicleCheckTotal,
   };
 
   return (
@@ -576,7 +628,7 @@ const StaffReportsPage = () => {
         </div>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
           <div className="bg-white rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -636,6 +688,49 @@ const StaffReportsPage = () => {
               </div>
             </div>
           </div>
+
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-500 text-sm">Cabin H&S Checks</p>
+                <p className="text-3xl font-bold text-green-600 mt-1">{stats.cabinSafety}</p>
+              </div>
+              <div className="bg-green-100 p-3 rounded-lg">
+                <ShieldCheck className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-500 text-sm">Vehicle Checks</p>
+                <p className="text-3xl font-bold text-amber-600 mt-1">{stats.vehicleCheck}</p>
+              </div>
+              <div className="bg-amber-100 p-3 rounded-lg">
+                <Car className="w-6 h-6 text-amber-600" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Vehicle Check Defect Chart */}
+        <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+          <h5 className="text-lg font-semibold text-gray-800 mb-4">
+            Defect Frequency by Check Item
+          </h5>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={vehicleCheckDefects}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#17af93" />
+              <XAxis dataKey="label" tick={{ fontSize: 12 }} interval={0} angle={-20} textAnchor="end" height={70} />
+              <YAxis tick={{ fontSize: 13 }} allowDecimals={false} />
+              <Tooltip
+                contentStyle={{ backgroundColor: "#fff", border: "1px solid #17af93", borderRadius: "8px" }}
+                labelStyle={{ fontWeight: "bold" }}
+              />
+              <Bar dataKey="count" name="Defects" fill="#17af93" radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
 
         {/* Filters */}
@@ -685,6 +780,8 @@ const StaffReportsPage = () => {
               <option value="Incident Report">Incident Report</option>
               <option value="Asset Damage">Asset Damage</option>
               <option value="Daily Logs">Daily Logs</option>
+              <option value="Cabin H&S Check">Cabin H&S Check</option>
+              <option value="Vehicle Daily Check">Vehicle Daily Check</option>
             </select>
 
             {/* Filter by Scheme */}
