@@ -70,6 +70,21 @@ class UserService {
     return this.getUserDocument(supabaseUser.id);
   }
 
+  // Fire-and-forget login audit entry — mirrors the old Firestore version's
+  // 15-day expiry (actual cleanup runs server-side via the
+  // cleanup_expired_login_logs() cron job, see 0004_rpc_functions.sql).
+  async logUserLogin(userId, displayName, email, role) {
+    const expireAt = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+    const { error } = await supabase.from('login_logs').insert({
+      user_id: userId,
+      display_name: displayName || 'Unknown',
+      email: email || '',
+      role: role || 'unknown',
+      expire_at: expireAt.toISOString(),
+    });
+    if (error) console.error('Failed to log user login:', error);
+  }
+
   async updateLastLogin() {
     try {
       const { error } = await supabase.rpc('update_own_profile', {
@@ -96,8 +111,8 @@ class UserService {
 
   // Only covers the fields update_own_profile() exposes (display name,
   // active scheme, last login/logout, email verified) — always applies to
-  // the caller's own row. Admin-driven updates to OTHER users' profiles stay
-  // on firestoreService until its own migration pass.
+  // the caller's own row. Admin-driven updates to OTHER users' profiles go
+  // through userAdminService instead.
   async updateUserProfile(_uid, updates) {
     try {
       const { error } = await supabase.rpc('update_own_profile', {

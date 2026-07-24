@@ -4,7 +4,6 @@ import AdminSidebarLayout from "../../components/layout/AdminSidebarLayout";
 import { SCHEMES, getInternalSchemeIds } from "../../utils/schemes";
 import {
   BarChart3,
-  TrendingUp,
   AlertTriangle,
   Calendar,
   Download,
@@ -43,7 +42,7 @@ const ClientChartsPage = () => {
   const [reports, setReports] = useState([]);
   const [schemes, setSchemes] = useState([]);
   const [isExporting, setIsExporting] = useState(false);
-  const [formCounts, setFormCounts] = useState({ cctvCheckTotal: 0, incidentReportTotal: 0, assetDamageTotal: 0 });
+  const [formCounts, setFormCounts] = useState({ incidentReportTotal: 0 });
   const datePickerRef = useRef(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -500,10 +499,8 @@ const ClientChartsPage = () => {
 
   // Statistics - use aggregation counts for cards (consistent with other pages)
   const stats = {
-    total: formCounts.cctvCheckTotal + formCounts.incidentReportTotal + formCounts.assetDamageTotal,
-    cctvCheck: formCounts.cctvCheckTotal,
+    total: formCounts.incidentReportTotal,
     incident: formCounts.incidentReportTotal,
-    assetDamage: formCounts.assetDamageTotal,
   };
 
   // Extract chart data
@@ -626,29 +623,6 @@ const ClientChartsPage = () => {
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-500 text-sm">Asset Damage</p>
-                    <p className="text-3xl font-bold text-orange-600 mt-1">{stats.assetDamage}</p>
-                  </div>
-                  <div className="bg-orange-100 p-3 rounded-lg">
-                    <Calendar className="w-6 h-6 text-orange-600" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-500 text-sm">CCTV Checks</p>
-                    <p className="text-3xl font-bold text-purple-600 mt-1">{stats.cctvCheck}</p>
-                  </div>
-                  <div className="bg-purple-100 p-3 rounded-lg">
-                    <TrendingUp className="w-6 h-6 text-purple-600" />
-                  </div>
-                </div>
-              </div>
             </div>
 
             {/* Incident Analytics Charts Grid */}

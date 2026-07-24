@@ -5,7 +5,6 @@ import { ArrowLeft, Upload, X, ChevronRight } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { getStaffBasePath } from "../../utils/constants";
 import { staffService } from "../../services/staffService";
-import { sendIncidentAlertNotification } from "../../services/emailService";
 import { supabase } from "../../config/supabase";
 import StaffSidebarLayout from "../../components/layout/StaffSidebarLayout";
 import StepIndicator from "../../components/staff/incident/StepIndicator";
@@ -551,15 +550,6 @@ const IncidentReportFormPage = () => {
         );
 
         if (isEditingLiveIncident) {
-          await sendIncidentAlertNotification(
-            {
-              ...updateData,
-              id: incidentId,
-              referenceId: existingReferenceId,
-              submittedBy: userProfile.displayName,
-            },
-            false,
-          );
           toast.success("Job Sheet completed successfully!");
         } else {
           toast.success("Job Sheet updated successfully!");
@@ -567,24 +557,14 @@ const IncidentReportFormPage = () => {
         navigate(basePath);
       } else {
         // Submit new form (regular flow - not using the staged workflow)
-        const { id: newIncidentId, referenceId: newReferenceId } =
-          await staffService.submitIncidentReport(
-            {
-              ...dataWithTimings,
-              files: uploadedFiles,
-            },
-            userProfile.uid,
-            userProfile.displayName,
-            "submitted",
-          );
-        await sendIncidentAlertNotification(
+        await staffService.submitIncidentReport(
           {
             ...dataWithTimings,
-            id: newIncidentId,
-            referenceId: newReferenceId,
-            submittedBy: userProfile.displayName,
+            files: uploadedFiles,
           },
-          false,
+          userProfile.uid,
+          userProfile.displayName,
+          "submitted",
         );
 
         toast.success("Job Sheet submitted successfully!");

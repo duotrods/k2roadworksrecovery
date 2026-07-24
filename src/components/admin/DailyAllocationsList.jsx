@@ -37,7 +37,7 @@
       try {
         const cursor = stack[page - 1] ?? null;
         const schemeIds = schemeFilter === "all" ? null : [schemeFilter];
-        const result = await staffService.fetchPaginatedForms(
+        const result = await staffService.fetchPaginatedFormsAny(
           "dailyAllocations",
           PAGE_SIZE,
           cursor,

@@ -1,31 +1,36 @@
 /* eslint-disable no-unused-vars */
-import {
-  collection,
-  addDoc,
-  getDocs,
-  getDoc,
-  doc,
-  query,
-  where,
-  orderBy,
-  limit,
-  serverTimestamp,
-  updateDoc,
-  deleteDoc,
-  Timestamp,
-  onSnapshot,
-  startAfter,
-  getCountFromServer,
-  increment,
-  setDoc,
-} from "firebase/firestore";
-import { db } from "../config/firebase";
 import { supabase } from "../config/supabase";
 import { referenceIdService } from "./referenceIdService";
 import { extractSchemeId, SCHEMES, DEMO_SCHEME_ID } from "../utils/schemes";
 import { countVehicles, isPureIncident } from "../utils/incidentStats";
 import { isVideoFile } from "../utils/fileType";
 import { fromIncidentRow, toIncidentRow } from "../utils/incidentRowMapper";
+import { fromCabinSafetyRow, toCabinSafetyRow } from "../utils/cabinSafetyRowMapper";
+import { fromVehicleCheckRow, toVehicleCheckRow } from "../utils/vehicleCheckRowMapper";
+import { fromDailyAllocationRow, toDailyAllocationRow } from "../utils/dailyAllocationRowMapper";
+import { subscribeRealtimeList } from "../utils/realtimeSubscription";
+import { fromActivityRow, toActivityRow } from "../utils/activityRowMapper";
+
+// Form types whose data now lives in Supabase (not Firestore). Keyed by the
+// legacy Firestore collection name so existing call sites (which still pass
+// that name around as a de-facto "form type" key) can look up the Postgres
+// table + row mapper without a wider rename.
+const SUPABASE_BACKED_TABLES = {
+  incidentReports: { table: "incident_reports", fromRow: fromIncidentRow },
+  cabinHealthSafetyChecks: { table: "cabin_health_safety_checks", fromRow: fromCabinSafetyRow },
+  vehicleDailyChecks: { table: "vehicle_daily_checks", fromRow: fromVehicleCheckRow },
+  dailyAllocations: { table: "daily_allocations", fromRow: fromDailyAllocationRow },
+};
+
+// Normalizes createdAt across a Firestore Timestamp, a Supabase ISO string,
+// or a plain Date, so merged lists spanning both backends sort correctly.
+const toMillis = (createdAt) => {
+  if (!createdAt) return 0;
+  if (typeof createdAt === "string") return new Date(createdAt).getTime();
+  if (typeof createdAt.seconds === "number") return createdAt.seconds * 1000;
+  if (typeof createdAt.toDate === "function") return createdAt.toDate().getTime();
+  return 0;
+};
 
 class StaffService {
   // ============================================
@@ -34,11 +39,10 @@ class StaffService {
 
   async logActivity(activityData) {
     try {
-      const activitiesRef = collection(db, "activities");
-      await addDoc(activitiesRef, {
-        ...activityData,
-        createdAt: serverTimestamp(),
-      });
+      const { error } = await supabase
+        .from("activities")
+        .insert(toActivityRow(activityData));
+      if (error) throw error;
     } catch (error) {
       console.error("Failed to log activity:", error);
     }
@@ -46,17 +50,20 @@ class StaffService {
 
   async getRecentActivities(userId, lastLogoutTime, staffGroup = "internal") {
     try {
-      const activitiesRef = collection(db, "activities");
-      const q = query(
-        activitiesRef,
-        where("createdAt", ">", lastLogoutTime),
-        orderBy("createdAt", "desc"),
-        limit(25),
-      );
+      const since =
+        lastLogoutTime instanceof Date
+          ? lastLogoutTime.toISOString()
+          : lastLogoutTime;
+      const { data, error } = await supabase
+        .from("activities")
+        .select("*")
+        .gt("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(25);
+      if (error) throw error;
 
-      const snapshot = await getDocs(q);
-      return snapshot.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() }))
+      return (data || [])
+        .map(fromActivityRow)
         .filter((a) => a.staffId !== userId)
         .filter((a) => {
           // Activities without staffGroup are legacy internal activities
@@ -67,133 +74,6 @@ class StaffService {
     } catch (error) {
       console.error("Failed to get activities:", error);
       return [];
-    }
-  }
-
-  // ============================================
-  // CCTV CHECK FORMS
-  // ============================================
-
-  async submitCCTVCheckForm(formData, userId, userName) {
-    try {
-      // Dynamically determine which schemes have data (issues or comments)
-      const schemeIds = [];
-
-      // Check A66-WJ section
-      const hasA66Data =
-        (formData.a66Cameras && formData.a66Cameras.length > 0) ||
-        (formData.a66Comments && formData.a66Comments.trim() !== "");
-      if (hasA66Data) {
-        schemeIds.push("A66-WJ");
-      }
-
-      // Check Demo section
-      const hasDemoData =
-        (formData.demoCameras && formData.demoCameras.length > 0) ||
-        (formData.demoComments && formData.demoComments.trim() !== "");
-      if (hasDemoData) {
-        schemeIds.push("DMO1");
-      }
-
-      // If no data in any section (clean check - all cameras working),
-      // include the real scheme ID so every client can see the clean check form
-      if (schemeIds.length === 0) {
-        schemeIds.push("A66-WJ");
-      }
-
-      // Use the first scheme as the primary schemeId for backward compatibility
-      const schemeId = schemeIds[0];
-
-      // Check if this is a demo submission (only has DMO1 scheme)
-      const isDemo = schemeIds.length === 1 && schemeIds[0] === DEMO_SCHEME_ID;
-
-      // Generate reference ID — separate demo counter, or real staff counter
-      const referenceId = await referenceIdService.generateReferenceId(
-        "cctvCheck",
-        isDemo,
-      );
-
-      const formsRef = collection(db, "cctvCheckForms");
-      const docRef = await addDoc(formsRef, {
-        ...formData,
-        schemeId, // Keep for backward compatibility
-        schemeIds, // New array format for multi-scheme support
-        referenceId,
-        submittedBy: {
-          userId,
-          name: userName,
-        },
-        status: "submitted",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-
-      // Keep the live dashboard counter in step (decoupled, non-fatal).
-      // CCTV-check deletes are rare and rely on the hourly self-heal recount.
-      this._applyCountDelta("cctvCheckForms", isDemo, 1);
-
-      await this.logActivity({
-        type: "form_submitted",
-        staffId: userId,
-        staffName: userName,
-        description: `${userName} submitted CCTV Check Form ${referenceId}`,
-        relatedFormId: docRef.id,
-        staffGroup: "internal",
-      });
-
-      return docRef.id;
-    } catch (error) {
-      console.error("Failed to submit CCTV check form:", error);
-      throw error;
-    }
-  }
-
-  async getCCTVCheckForms(userId = null, limitCount = null) {
-    try {
-      const formsRef = collection(db, "cctvCheckForms");
-      let q;
-
-      if (userId) {
-        // When fetching for a specific user, apply limit if provided
-        q = limitCount
-          ? query(
-              formsRef,
-              where("submittedBy.userId", "==", userId),
-              orderBy("createdAt", "desc"),
-              limit(limitCount),
-            )
-          : query(
-              formsRef,
-              where("submittedBy.userId", "==", userId),
-              orderBy("createdAt", "desc"),
-            );
-      } else {
-        // When fetching all, no limit unless explicitly provided
-        q = limitCount
-          ? query(formsRef, orderBy("createdAt", "desc"), limit(limitCount))
-          : query(formsRef, orderBy("createdAt", "desc"));
-      }
-
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-    } catch (error) {
-      console.error("Failed to get CCTV check forms:", error);
-      return [];
-    }
-  }
-
-  // Fetch a single CCTV check form by id (1 read instead of scanning the whole
-  // collection). Returns null if it doesn't exist.
-  async getCCTVCheckFormById(formId) {
-    try {
-      const snap = await getDoc(doc(db, "cctvCheckForms", formId));
-      return snap.exists() ? { id: snap.id, ...snap.data() } : null;
-    } catch (error) {
-      console.error("Failed to get CCTV check form:", error);
-      return null;
     }
   }
 
@@ -210,103 +90,6 @@ class StaffService {
     } catch (error) {
       console.error("Failed to get incident report:", error);
       return null;
-    }
-  }
-
-  async updateCCTVCheckForm(formId, formData, userId, userName) {
-    try {
-      const formRef = doc(db, "cctvCheckForms", formId);
-      const formDoc = await getDoc(formRef);
-
-      if (!formDoc.exists()) {
-        throw new Error("Form not found");
-      }
-
-      const currentData = formDoc.data();
-      const editHistory = currentData.editHistory || [];
-      editHistory.push({
-        editedBy: { userId, name: userName },
-        editedAt: new Date(),
-        previousSubmittedBy: currentData.submittedBy,
-      });
-
-      // Dynamically determine which schemes have data (issues or comments)
-      const schemeIds = [];
-
-      // Check A66-WJ section
-      const hasA66Data =
-        (formData.a66Cameras && formData.a66Cameras.length > 0) ||
-        (formData.a66Comments && formData.a66Comments.trim() !== "");
-      if (hasA66Data) {
-        schemeIds.push("A66-WJ");
-      }
-
-      // Check Demo section
-      const hasDemoData =
-        (formData.demoCameras && formData.demoCameras.length > 0) ||
-        (formData.demoComments && formData.demoComments.trim() !== "");
-      if (hasDemoData) {
-        schemeIds.push("DMO1");
-      }
-
-      // If no data in any section (clean check - all cameras working),
-      // include the real scheme ID so every client can see the clean check form
-      if (schemeIds.length === 0) {
-        schemeIds.push("A66-WJ");
-      }
-
-      // Use the first scheme as the primary schemeId for backward compatibility
-      const schemeId = schemeIds[0];
-
-      await updateDoc(formRef, {
-        ...formData,
-        schemeId, // Keep for backward compatibility
-        schemeIds, // Update array for client filtering
-        editHistory,
-        lastEditedBy: { userId, name: userName },
-        updatedAt: serverTimestamp(),
-      });
-
-      await this.logActivity({
-        type: "form_edited",
-        staffId: userId,
-        staffName: userName,
-        description: `${userName} edited CCTV Check Form ${currentData.referenceId}`,
-        relatedFormId: formId,
-      });
-
-      return formId;
-    } catch (error) {
-      console.error("Failed to update CCTV check form:", error);
-      throw error;
-    }
-  }
-
-  async deleteCCTVCheckForm(formId, userId, userName) {
-    try {
-      const formRef = doc(db, "cctvCheckForms", formId);
-      const formDoc = await getDoc(formRef);
-
-      if (!formDoc.exists()) {
-        throw new Error("Form not found");
-      }
-
-      const currentData = formDoc.data();
-
-      await deleteDoc(formRef);
-
-      await this.logActivity({
-        type: "form_deleted",
-        staffId: userId,
-        staffName: userName,
-        description: `${userName} deleted CCTV Check Form ${currentData.referenceId}`,
-        relatedFormId: formId,
-      });
-
-      return formId;
-    } catch (error) {
-      console.error("Failed to delete CCTV check form:", error);
-      throw error;
     }
   }
 
@@ -373,9 +156,6 @@ class StaffService {
       // Update running vehicle total for this scheme (decoupled, non-fatal).
       const vehicleDelta = this._countVehicles(formData);
       this._adjustSchemeVehicleStats(schemeId, vehicleDelta);
-
-      // Keep the live dashboard counter in step (decoupled, non-fatal).
-      this._applyCountDelta("incidentReports", isDemo, 1);
 
       await this.logActivity({
         type: "form_submitted",
@@ -524,13 +304,6 @@ class StaffService {
         this._adjustSchemeVehicleStats(deletedSchemeId, -vehicleDelta);
       }
 
-      // Keep the live dashboard counter in step (decoupled, non-fatal).
-      this._applyCountDelta(
-        "incidentReports",
-        currentData.schemeId === DEMO_SCHEME_ID,
-        -1,
-      );
-
       await this.logActivity({
         type: "form_deleted",
         staffId: userId,
@@ -551,44 +324,42 @@ class StaffService {
   // ============================================
 
   /**
-   * Subscribe to real-time live incidents for Live Operator Dashboard
-   * Uses onSnapshot for instant updates - only charges when data changes
+   * Subscribe to real-time live incidents for the Live Operator Dashboard.
+   * Postgres Realtime (postgres_changes) — requires incident_reports to be
+   * added to the supabase_realtime publication, see
+   * supabase/migrations/0007_enable_realtime_incident_reports.sql.
    * @param {function} callback - Called with array of live incidents
    * @param {function} onError - Called on error
    * @returns {function} Unsubscribe function
    */
   subscribeLiveIncidents(callback, onError) {
-    const reportsRef = collection(db, "incidentReports");
-    const q = query(
-      reportsRef,
-      where("status", "==", "live"),
-      orderBy("createdAt", "desc"),
-      limit(50), // Reasonable limit for live incidents
-    );
-
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        const incidents = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        callback(incidents);
-      },
+    return subscribeRealtimeList({
+      table: "incident_reports",
+      initialFetch: () =>
+        supabase
+          .from("incident_reports")
+          .select("*")
+          .eq("status", "live")
+          .order("created_at", { ascending: false })
+          .limit(50),
+      matches: (row) => row.status === "live",
+      limit: 50,
+      callback: (rows) => callback(rows.map(fromIncidentRow)),
       onError,
-    );
+    });
   }
 
   /**
    * Get count of completed incidents (efficient server-side count)
-   * Uses getCountFromServer - only 1 read regardless of document count
    */
   async getCompletedIncidentsCount() {
     try {
-      const reportsRef = collection(db, "incidentReports");
-      const q = query(reportsRef, where("status", "==", "completed"));
-      const snapshot = await getCountFromServer(q);
-      return snapshot.data().count;
+      const { count, error } = await supabase
+        .from("incident_reports")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "completed");
+      if (error) throw error;
+      return count || 0;
     } catch (error) {
       console.error("Failed to get completed incidents count:", error);
       return 0;
@@ -596,183 +367,33 @@ class StaffService {
   }
 
   /**
-   * Get paginated completed incidents - TRUE server-side pagination
-   * Only reads `pageSize` documents per request (massive cost savings!)
-   * @param {number} pageSize - Number of documents per page
-   * @param {DocumentSnapshot|null} lastDoc - Last document from previous page (cursor)
-   * @returns {Promise<{incidents: Array, lastDoc: DocumentSnapshot, hasMore: boolean}>}
+   * Get paginated completed incidents - keyset pagination on created_at.
+   * @param {number} pageSize - Number of rows per page
+   * @param {string|null} lastDoc - created_at cursor from the previous page
+   * @returns {Promise<{incidents: Array, lastDoc: string|null, hasMore: boolean}>}
    */
   async getCompletedIncidentsPaginated(pageSize = 10, lastDoc = null) {
     try {
-      const reportsRef = collection(db, "incidentReports");
-      let q;
+      let q = supabase
+        .from("incident_reports")
+        .select("*")
+        .eq("status", "completed")
+        .order("created_at", { ascending: false })
+        .limit(pageSize);
+      if (lastDoc) q = q.lt("created_at", lastDoc);
 
-      if (lastDoc) {
-        q = query(
-          reportsRef,
-          where("status", "==", "completed"),
-          orderBy("createdAt", "desc"),
-          startAfter(lastDoc),
-          limit(pageSize),
-        );
-      } else {
-        q = query(
-          reportsRef,
-          where("status", "==", "completed"),
-          orderBy("createdAt", "desc"),
-          limit(pageSize),
-        );
-      }
-
-      const snapshot = await getDocs(q);
-      const incidents = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const { data, error } = await q;
+      if (error) throw error;
+      const incidents = (data || []).map(fromIncidentRow);
 
       return {
         incidents,
-        lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
-        hasMore: snapshot.docs.length === pageSize,
+        lastDoc: incidents.length > 0 ? data[data.length - 1].created_at : null,
+        hasMore: incidents.length === pageSize,
       };
     } catch (error) {
       console.error("Failed to get paginated completed incidents:", error);
       return { incidents: [], lastDoc: null, hasMore: false };
-    }
-  }
-
-  // ============================================
-  // ASSET DAMAGE REPORTS
-  // ============================================
-
-  async submitAssetDamageReport(formData, userId, userName) {
-    try {
-      // Extract schemeId from scheme field
-      const schemeId = extractSchemeId(formData.scheme);
-
-      // Check if this is a demo submission
-      const isDemo = schemeId === DEMO_SCHEME_ID;
-
-      // Generate reference ID — separate demo counter, or real staff counter
-      const referenceId = await referenceIdService.generateReferenceId(
-        "assetDamage",
-        isDemo,
-      );
-
-      const reportsRef = collection(db, "assetDamageReports");
-      const docRef = await addDoc(reportsRef, {
-        ...formData,
-        schemeId, // Keep for backward compatibility
-        schemeIds: [schemeId], // New array format for multi-scheme support
-        referenceId,
-        submittedBy: {
-          userId,
-          name: userName,
-        },
-        status: "submitted",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-
-      // Keep the live dashboard counter in step (decoupled, non-fatal).
-      this._applyCountDelta("assetDamageReports", isDemo, 1);
-
-      await this.logActivity({
-        type: "form_submitted",
-        staffId: userId,
-        staffName: userName,
-        description: `${userName} submitted Asset Damage Report ${referenceId}`,
-        relatedFormId: docRef.id,
-        staffGroup: "internal",
-      });
-
-      return docRef.id;
-    } catch (error) {
-      console.error("Failed to submit asset damage report:", error);
-      throw error;
-    }
-  }
-
-  async getAssetDamageReports(userId = null, limitCount = null) {
-    try {
-      const reportsRef = collection(db, "assetDamageReports");
-      let q;
-
-      if (userId) {
-        // When fetching for a specific user, apply limit if provided
-        q = limitCount
-          ? query(
-              reportsRef,
-              where("submittedBy.userId", "==", userId),
-              orderBy("createdAt", "desc"),
-              limit(limitCount),
-            )
-          : query(
-              reportsRef,
-              where("submittedBy.userId", "==", userId),
-              orderBy("createdAt", "desc"),
-            );
-      } else {
-        // When fetching all, no limit unless explicitly provided
-        q = limitCount
-          ? query(reportsRef, orderBy("createdAt", "desc"), limit(limitCount))
-          : query(reportsRef, orderBy("createdAt", "desc"));
-      }
-
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-    } catch (error) {
-      console.error("Failed to get asset damage reports:", error);
-      return [];
-    }
-  }
-
-  async updateAssetDamageReport(reportId, formData, userId, userName) {
-    try {
-      const reportRef = doc(db, "assetDamageReports", reportId);
-      const reportDoc = await getDoc(reportRef);
-
-      if (!reportDoc.exists()) {
-        throw new Error("Report not found");
-      }
-
-      const currentData = reportDoc.data();
-      const editHistory = currentData.editHistory || [];
-      editHistory.push({
-        editedBy: { userId, name: userName },
-        editedAt: new Date(),
-        previousSubmittedBy: currentData.submittedBy,
-      });
-
-      // Recalculate schemeIds when scheme is updated
-      const schemeId = formData.scheme
-        ? extractSchemeId(formData.scheme)
-        : currentData.schemeId;
-
-      await updateDoc(reportRef, {
-        ...formData,
-        schemeId, // Keep for backward compatibility
-        schemeIds: [schemeId], // Update array for client filtering
-        editHistory,
-        lastEditedBy: { userId, name: userName },
-        updatedAt: serverTimestamp(),
-      });
-
-      await this.logActivity({
-        type: "form_edited",
-        staffId: userId,
-        staffName: userName,
-        description: `${userName} edited Asset Damage Report ${currentData.referenceId}`,
-        relatedFormId: reportId,
-      });
-
-      return reportId;
-    } catch (error) {
-      console.error("Failed to update asset damage report:", error);
-      throw error;
     }
   }
 
@@ -789,30 +410,33 @@ class StaffService {
         isDemo,
       );
 
-      const reportsRef = collection(db, "cabinHealthSafetyChecks");
-      const docRef = await addDoc(reportsRef, {
-        ...formData,
-        schemeId,
-        schemeIds: [schemeId],
-        referenceId,
-        submittedBy: { userId, name: userName },
+      const row = {
+        ...toCabinSafetyRow(formData),
+        scheme_id: schemeId,
+        scheme_ids: [schemeId],
+        reference_id: referenceId,
+        submitted_by_user_id: userId,
+        submitted_by_name: userName,
         status: "submitted",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+      };
 
-      this._applyCountDelta("cabinHealthSafetyChecks", isDemo, 1);
+      const { data, error } = await supabase
+        .from("cabin_health_safety_checks")
+        .insert(row)
+        .select("id")
+        .single();
+      if (error) throw error;
 
       await this.logActivity({
         type: "form_submitted",
         staffId: userId,
         staffName: userName,
         description: `${userName} submitted Cabin Health & Safety Check ${referenceId}`,
-        relatedFormId: docRef.id,
+        relatedFormId: data.id,
         staffGroup: "internal",
       });
 
-      return docRef.id;
+      return data.id;
     } catch (error) {
       console.error("Failed to submit cabin health & safety check:", error);
       throw error;
@@ -821,30 +445,14 @@ class StaffService {
 
   async getCabinHealthSafetyChecks(userId = null, limitCount = null) {
     try {
-      const reportsRef = collection(db, "cabinHealthSafetyChecks");
-      let q;
+      let q = supabase.from("cabin_health_safety_checks").select("*");
+      if (userId) q = q.eq("submitted_by_user_id", userId);
+      q = q.order("created_at", { ascending: false });
+      if (limitCount) q = q.limit(limitCount);
 
-      if (userId) {
-        q = limitCount
-          ? query(
-              reportsRef,
-              where("submittedBy.userId", "==", userId),
-              orderBy("createdAt", "desc"),
-              limit(limitCount),
-            )
-          : query(
-              reportsRef,
-              where("submittedBy.userId", "==", userId),
-              orderBy("createdAt", "desc"),
-            );
-      } else {
-        q = limitCount
-          ? query(reportsRef, orderBy("createdAt", "desc"), limit(limitCount))
-          : query(reportsRef, orderBy("createdAt", "desc"));
-      }
-
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data || []).map(fromCabinSafetyRow);
     } catch (error) {
       console.error("Failed to get cabin health & safety checks:", error);
       return [];
@@ -853,8 +461,13 @@ class StaffService {
 
   async getCabinHealthSafetyCheckById(formId) {
     try {
-      const snap = await getDoc(doc(db, "cabinHealthSafetyChecks", formId));
-      return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+      const { data, error } = await supabase
+        .from("cabin_health_safety_checks")
+        .select("*")
+        .eq("id", formId)
+        .maybeSingle();
+      if (error) throw error;
+      return fromCabinSafetyRow(data);
     } catch (error) {
       console.error("Failed to get cabin health & safety check:", error);
       throw error;
@@ -863,18 +476,19 @@ class StaffService {
 
   async updateCabinHealthSafetyCheck(reportId, formData, userId, userName) {
     try {
-      const reportRef = doc(db, "cabinHealthSafetyChecks", reportId);
-      const reportDoc = await getDoc(reportRef);
+      const { data: currentRow, error: fetchError } = await supabase
+        .from("cabin_health_safety_checks")
+        .select("*")
+        .eq("id", reportId)
+        .maybeSingle();
+      if (fetchError) throw fetchError;
+      if (!currentRow) throw new Error("Report not found");
 
-      if (!reportDoc.exists()) {
-        throw new Error("Report not found");
-      }
-
-      const currentData = reportDoc.data();
+      const currentData = fromCabinSafetyRow(currentRow);
       const editHistory = currentData.editHistory || [];
       editHistory.push({
         editedBy: { userId, name: userName },
-        editedAt: new Date(),
+        editedAt: new Date().toISOString(),
         previousSubmittedBy: currentData.submittedBy,
       });
 
@@ -882,14 +496,20 @@ class StaffService {
         ? extractSchemeId(formData.scheme)
         : currentData.schemeId;
 
-      await updateDoc(reportRef, {
-        ...formData,
-        schemeId,
-        schemeIds: [schemeId],
-        editHistory,
-        lastEditedBy: { userId, name: userName },
-        updatedAt: serverTimestamp(),
-      });
+      const row = {
+        ...toCabinSafetyRow(formData),
+        scheme_id: schemeId,
+        scheme_ids: [schemeId],
+        edit_history: editHistory,
+        last_edited_by_user_id: userId,
+        last_edited_by_name: userName,
+      };
+
+      const { error } = await supabase
+        .from("cabin_health_safety_checks")
+        .update(row)
+        .eq("id", reportId);
+      if (error) throw error;
 
       await this.logActivity({
         type: "form_edited",
@@ -908,16 +528,21 @@ class StaffService {
 
   async deleteCabinHealthSafetyCheck(formId, userId, userName) {
     try {
-      const formRef = doc(db, "cabinHealthSafetyChecks", formId);
-      const formDoc = await getDoc(formRef);
+      const { data: currentRow, error: fetchError } = await supabase
+        .from("cabin_health_safety_checks")
+        .select("*")
+        .eq("id", formId)
+        .maybeSingle();
+      if (fetchError) throw fetchError;
+      if (!currentRow) throw new Error("Form not found");
 
-      if (!formDoc.exists()) {
-        throw new Error("Form not found");
-      }
+      const currentData = fromCabinSafetyRow(currentRow);
 
-      const currentData = formDoc.data();
-
-      await deleteDoc(formRef);
+      const { error } = await supabase
+        .from("cabin_health_safety_checks")
+        .delete()
+        .eq("id", formId);
+      if (error) throw error;
 
       await this.logActivity({
         type: "form_deleted",
@@ -947,30 +572,33 @@ class StaffService {
         isDemo,
       );
 
-      const reportsRef = collection(db, "vehicleDailyChecks");
-      const docRef = await addDoc(reportsRef, {
-        ...formData,
-        schemeId,
-        schemeIds: [schemeId],
-        referenceId,
-        submittedBy: { userId, name: userName },
+      const row = {
+        ...toVehicleCheckRow(formData),
+        scheme_id: schemeId,
+        scheme_ids: [schemeId],
+        reference_id: referenceId,
+        submitted_by_user_id: userId,
+        submitted_by_name: userName,
         status: "submitted",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+      };
 
-      this._applyCountDelta("vehicleDailyChecks", isDemo, 1);
+      const { data, error } = await supabase
+        .from("vehicle_daily_checks")
+        .insert(row)
+        .select("id")
+        .single();
+      if (error) throw error;
 
       await this.logActivity({
         type: "form_submitted",
         staffId: userId,
         staffName: userName,
         description: `${userName} submitted Vehicle Daily Check ${referenceId}`,
-        relatedFormId: docRef.id,
+        relatedFormId: data.id,
         staffGroup: "internal",
       });
 
-      return docRef.id;
+      return data.id;
     } catch (error) {
       console.error("Failed to submit vehicle daily check:", error);
       throw error;
@@ -979,30 +607,14 @@ class StaffService {
 
   async getVehicleDailyChecks(userId = null, limitCount = null) {
     try {
-      const reportsRef = collection(db, "vehicleDailyChecks");
-      let q;
+      let q = supabase.from("vehicle_daily_checks").select("*");
+      if (userId) q = q.eq("submitted_by_user_id", userId);
+      q = q.order("created_at", { ascending: false });
+      if (limitCount) q = q.limit(limitCount);
 
-      if (userId) {
-        q = limitCount
-          ? query(
-              reportsRef,
-              where("submittedBy.userId", "==", userId),
-              orderBy("createdAt", "desc"),
-              limit(limitCount),
-            )
-          : query(
-              reportsRef,
-              where("submittedBy.userId", "==", userId),
-              orderBy("createdAt", "desc"),
-            );
-      } else {
-        q = limitCount
-          ? query(reportsRef, orderBy("createdAt", "desc"), limit(limitCount))
-          : query(reportsRef, orderBy("createdAt", "desc"));
-      }
-
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data || []).map(fromVehicleCheckRow);
     } catch (error) {
       console.error("Failed to get vehicle daily checks:", error);
       return [];
@@ -1011,8 +623,13 @@ class StaffService {
 
   async getVehicleDailyCheckById(formId) {
     try {
-      const snap = await getDoc(doc(db, "vehicleDailyChecks", formId));
-      return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+      const { data, error } = await supabase
+        .from("vehicle_daily_checks")
+        .select("*")
+        .eq("id", formId)
+        .maybeSingle();
+      if (error) throw error;
+      return fromVehicleCheckRow(data);
     } catch (error) {
       console.error("Failed to get vehicle daily check:", error);
       throw error;
@@ -1021,18 +638,19 @@ class StaffService {
 
   async updateVehicleDailyCheck(reportId, formData, userId, userName) {
     try {
-      const reportRef = doc(db, "vehicleDailyChecks", reportId);
-      const reportDoc = await getDoc(reportRef);
+      const { data: currentRow, error: fetchError } = await supabase
+        .from("vehicle_daily_checks")
+        .select("*")
+        .eq("id", reportId)
+        .maybeSingle();
+      if (fetchError) throw fetchError;
+      if (!currentRow) throw new Error("Report not found");
 
-      if (!reportDoc.exists()) {
-        throw new Error("Report not found");
-      }
-
-      const currentData = reportDoc.data();
+      const currentData = fromVehicleCheckRow(currentRow);
       const editHistory = currentData.editHistory || [];
       editHistory.push({
         editedBy: { userId, name: userName },
-        editedAt: new Date(),
+        editedAt: new Date().toISOString(),
         previousSubmittedBy: currentData.submittedBy,
       });
 
@@ -1040,14 +658,20 @@ class StaffService {
         ? extractSchemeId(formData.scheme)
         : currentData.schemeId;
 
-      await updateDoc(reportRef, {
-        ...formData,
-        schemeId,
-        schemeIds: [schemeId],
-        editHistory,
-        lastEditedBy: { userId, name: userName },
-        updatedAt: serverTimestamp(),
-      });
+      const row = {
+        ...toVehicleCheckRow(formData),
+        scheme_id: schemeId,
+        scheme_ids: [schemeId],
+        edit_history: editHistory,
+        last_edited_by_user_id: userId,
+        last_edited_by_name: userName,
+      };
+
+      const { error } = await supabase
+        .from("vehicle_daily_checks")
+        .update(row)
+        .eq("id", reportId);
+      if (error) throw error;
 
       await this.logActivity({
         type: "form_edited",
@@ -1066,16 +690,21 @@ class StaffService {
 
   async deleteVehicleDailyCheck(formId, userId, userName) {
     try {
-      const formRef = doc(db, "vehicleDailyChecks", formId);
-      const formDoc = await getDoc(formRef);
+      const { data: currentRow, error: fetchError } = await supabase
+        .from("vehicle_daily_checks")
+        .select("*")
+        .eq("id", formId)
+        .maybeSingle();
+      if (fetchError) throw fetchError;
+      if (!currentRow) throw new Error("Form not found");
 
-      if (!formDoc.exists()) {
-        throw new Error("Form not found");
-      }
+      const currentData = fromVehicleCheckRow(currentRow);
 
-      const currentData = formDoc.data();
-
-      await deleteDoc(formRef);
+      const { error } = await supabase
+        .from("vehicle_daily_checks")
+        .delete()
+        .eq("id", formId);
+      if (error) throw error;
 
       await this.logActivity({
         type: "form_deleted",
@@ -1103,18 +732,23 @@ class StaffService {
         false,
       );
 
-      const allocationsRef = collection(db, "dailyAllocations");
-      const docRef = await addDoc(allocationsRef, {
-        ...formData,
-        schemeIds: [formData.schemeId],
-        referenceId,
-        submittedBy: { userId, name: userName },
+      const row = {
+        ...toDailyAllocationRow(formData),
+        scheme_ids: [formData.schemeId],
+        reference_id: referenceId,
+        submitted_by_user_id: userId,
+        submitted_by_name: userName,
         status: "submitted",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+      };
 
-      return { id: docRef.id, referenceId };
+      const { data, error } = await supabase
+        .from("daily_allocations")
+        .insert(row)
+        .select("id")
+        .single();
+      if (error) throw error;
+
+      return { id: data.id, referenceId };
     } catch (error) {
       console.error("Failed to submit daily allocation:", error);
       throw error;
@@ -1123,28 +757,35 @@ class StaffService {
 
   async updateDailyAllocation(allocationId, formData, userId, userName) {
     try {
-      const allocationRef = doc(db, "dailyAllocations", allocationId);
-      const allocationDoc = await getDoc(allocationRef);
+      const { data: currentRow, error: fetchError } = await supabase
+        .from("daily_allocations")
+        .select("*")
+        .eq("id", allocationId)
+        .maybeSingle();
+      if (fetchError) throw fetchError;
+      if (!currentRow) throw new Error("Allocation not found");
 
-      if (!allocationDoc.exists()) {
-        throw new Error("Allocation not found");
-      }
-
-      const currentData = allocationDoc.data();
+      const currentData = fromDailyAllocationRow(currentRow);
       const editHistory = currentData.editHistory || [];
       editHistory.push({
         editedBy: { userId, name: userName },
-        editedAt: new Date(),
+        editedAt: new Date().toISOString(),
         previousSubmittedBy: currentData.submittedBy,
       });
 
-      await updateDoc(allocationRef, {
-        ...formData,
-        schemeIds: [formData.schemeId],
-        editHistory,
-        lastEditedBy: { userId, name: userName },
-        updatedAt: serverTimestamp(),
-      });
+      const row = {
+        ...toDailyAllocationRow(formData),
+        scheme_ids: [formData.schemeId],
+        edit_history: editHistory,
+        last_edited_by_user_id: userId,
+        last_edited_by_name: userName,
+      };
+
+      const { error } = await supabase
+        .from("daily_allocations")
+        .update(row)
+        .eq("id", allocationId);
+      if (error) throw error;
 
       return allocationId;
     } catch (error) {
@@ -1155,8 +796,13 @@ class StaffService {
 
   async getDailyAllocationById(allocationId) {
     try {
-      const snap = await getDoc(doc(db, "dailyAllocations", allocationId));
-      return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+      const { data, error } = await supabase
+        .from("daily_allocations")
+        .select("*")
+        .eq("id", allocationId)
+        .maybeSingle();
+      if (error) throw error;
+      return fromDailyAllocationRow(data);
     } catch (error) {
       console.error("Failed to get daily allocation:", error);
       throw error;
@@ -1167,46 +813,18 @@ class StaffService {
     return this.deleteReport("dailyAllocations", allocationId);
   }
 
-  async deleteAssetDamageReport(reportId, userId, userName) {
-    try {
-      const reportRef = doc(db, "assetDamageReports", reportId);
-      const reportDoc = await getDoc(reportRef);
-
-      if (!reportDoc.exists()) {
-        throw new Error("Report not found");
-      }
-
-      const currentData = reportDoc.data();
-
-      await deleteDoc(reportRef);
-
-      // Keep the live dashboard counter in step (decoupled, non-fatal).
-      this._applyCountDelta(
-        "assetDamageReports",
-        currentData.schemeId === DEMO_SCHEME_ID,
-        -1,
-      );
-
-      await this.logActivity({
-        type: "form_deleted",
-        staffId: userId,
-        staffName: userName,
-        description: `${userName} deleted Asset Damage Report ${currentData.referenceId}`,
-        relatedFormId: reportId,
-      });
-
-      return reportId;
-    } catch (error) {
-      console.error("Failed to delete asset damage report:", error);
-      throw error;
-    }
-  }
-
-  // Generic delete report function for admin use
+  // Generic delete report function for admin use.
   async deleteReport(collectionName, reportId) {
+    const supabaseTable = SUPABASE_BACKED_TABLES[collectionName]?.table;
+    if (!supabaseTable) {
+      throw new Error(`Unknown or non-Supabase collection: ${collectionName}`);
+    }
     try {
-      const reportRef = doc(db, collectionName, reportId);
-      await deleteDoc(reportRef);
+      const { error } = await supabase
+        .from(supabaseTable)
+        .delete()
+        .eq("id", reportId);
+      if (error) throw error;
       return reportId;
     } catch (error) {
       console.error(`Failed to delete report from ${collectionName}:`, error);
@@ -1231,37 +849,23 @@ class StaffService {
       const perTypeLimit = pageSize;
 
       const [
-        cctvForms,
         incidentReports,
-        assetDamageReports,
         cabinSafetyChecks,
         vehicleDailyChecks,
       ] = await Promise.all([
-        this.fetchPaginatedForms(
-          "cctvCheckForms",
-          perTypeLimit,
-          cursors.cctv,
-          schemeIds,
-        ),
-        this.fetchPaginatedForms(
+        this.fetchPaginatedFormsAny(
           "incidentReports",
           perTypeLimit,
           cursors.incident,
           schemeIds,
         ),
-        this.fetchPaginatedForms(
-          "assetDamageReports",
-          perTypeLimit,
-          cursors.assetDamage,
-          schemeIds,
-        ),
-        this.fetchPaginatedForms(
+        this.fetchPaginatedFormsAny(
           "cabinHealthSafetyChecks",
           perTypeLimit,
           cursors.cabinSafety,
           schemeIds,
         ),
-        this.fetchPaginatedForms(
+        this.fetchPaginatedFormsAny(
           "vehicleDailyChecks",
           perTypeLimit,
           cursors.vehicleCheck,
@@ -1271,20 +875,10 @@ class StaffService {
 
       // Transform and combine all forms — tag each with its source for cursor tracking
       const allForms = [
-        ...cctvForms.docs.map((f) => ({
-          ...f,
-          type: "CCTV Check Sheet",
-          _source: "cctv",
-        })),
         ...incidentReports.docs.map((f) => ({
           ...f,
           type: "Incident Report",
           _source: "incident",
-        })),
-        ...assetDamageReports.docs.map((f) => ({
-          ...f,
-          type: "Asset Damage",
-          _source: "assetDamage",
         })),
         ...cabinSafetyChecks.docs.map((f) => ({
           ...f,
@@ -1300,34 +894,28 @@ class StaffService {
 
       // Sort by createdAt and take only pageSize items
       const sortedForms = allForms
-        .sort((a, b) => {
-          const timeA = a.createdAt?.seconds || 0;
-          const timeB = b.createdAt?.seconds || 0;
-          return timeB - timeA;
-        })
+        .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
         .slice(0, pageSize);
 
       // Only advance cursors for collections that had docs included in the final slice.
       // This prevents skipping unseen docs from collections that were fetched but not displayed.
       const newCursors = { ...cursors };
       sortedForms.forEach((form) => {
-        if (form._firestoreDoc) {
-          newCursors[form._source] = form._firestoreDoc;
+        if (form._cursor) {
+          newCursors[form._source] = form._cursor;
         }
       });
 
       // Clean internal tracking fields before returning
       const cleanForms = sortedForms.map(
-        ({ _source, _firestoreDoc, ...rest }) => rest,
+        ({ _source, _cursor, ...rest }) => rest,
       );
 
       return {
         forms: cleanForms,
         cursors: newCursors,
         hasMore:
-          cctvForms.hasMore ||
           incidentReports.hasMore ||
-          assetDamageReports.hasMore ||
           cabinSafetyChecks.hasMore ||
           vehicleDailyChecks.hasMore,
       };
@@ -1348,12 +936,7 @@ class StaffService {
     schemeId = null,
   ) {
     const configMap = {
-      "cctv-check": { collection: "cctvCheckForms", label: "CCTV Check Sheet" },
       incident: { collection: "incidentReports", label: "Incident Report" },
-      "asset-damage": {
-        collection: "assetDamageReports",
-        label: "Asset Damage",
-      },
       "cabin-safety": {
         collection: "cabinHealthSafetyChecks",
         label: "Cabin H&S Check",
@@ -1367,13 +950,13 @@ class StaffService {
     if (!config) return { forms: [], lastDoc: null, hasMore: false };
 
     try {
-      const result = await this.fetchPaginatedForms(
+      const result = await this.fetchPaginatedFormsAny(
         config.collection,
         pageSize,
         lastDoc,
         schemeId,
       );
-      const forms = result.docs.map(({ _firestoreDoc, ...f }) => ({
+      const forms = result.docs.map(({ _cursor, ...f }) => ({
         ...f,
         type: config.label,
       }));
@@ -1384,44 +967,51 @@ class StaffService {
     }
   }
 
-  /**
-   * Helper method to fetch paginated documents from a collection
-   */
-  async fetchPaginatedForms(
-    collectionName,
-    limitCount,
-    lastDoc,
-    schemeIds = null,
-  ) {
+  // Looks up which Supabase table backs this form type — every form type is
+  // Supabase-backed now, so this is a straight lookup, not a fallback.
+  async fetchPaginatedFormsAny(collectionName, limitCount, cursor, schemeIds = null) {
+    const supabaseTable = SUPABASE_BACKED_TABLES[collectionName];
+    if (!supabaseTable) {
+      console.error(`Unknown or non-Supabase collection: ${collectionName}`);
+      return { docs: [], lastDoc: null, hasMore: false };
+    }
+    return this.fetchPaginatedSupabaseTable(
+      supabaseTable.table,
+      limitCount,
+      cursor,
+      schemeIds,
+      supabaseTable.fromRow,
+    );
+  }
+
+  // Keyset pagination (created_at cursor) for a Supabase-backed table —
+  // Supabase equivalent of fetchPaginatedForms below.
+  async fetchPaginatedSupabaseTable(tableName, limitCount, cursor, schemeIds, fromRow) {
     try {
-      const collectionRef = collection(db, collectionName);
-      // Build query constraints: optional scheme filter + orderBy + optional cursor + limit
-      const constraints = [];
+      let q = supabase
+        .from(tableName)
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(limitCount);
       if (schemeIds && schemeIds.length > 0) {
-        constraints.push(where("schemeIds", "array-contains-any", schemeIds));
+        q = q.overlaps("scheme_ids", schemeIds);
       }
-      constraints.push(orderBy("createdAt", "desc"));
-      if (lastDoc) {
-        constraints.push(startAfter(lastDoc));
+      if (cursor) {
+        q = q.lt("created_at", cursor);
       }
-      constraints.push(limit(limitCount));
-
-      const q = query(collectionRef, ...constraints);
-
-      const snapshot = await getDocs(q);
-      const docs = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        _firestoreDoc: doc, // Keep raw snapshot for cursor tracking
+      const { data, error } = await q;
+      if (error) throw error;
+      const docs = (data || []).map((row) => ({
+        ...fromRow(row),
+        _cursor: row.created_at,
       }));
-
       return {
         docs,
-        lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
-        hasMore: snapshot.docs.length === limitCount,
+        lastDoc: docs.length > 0 ? docs[docs.length - 1]._cursor : cursor,
+        hasMore: docs.length === limitCount,
       };
     } catch (error) {
-      console.error(`Error fetching from ${collectionName}:`, error);
+      console.error(`Error fetching from ${tableName}:`, error);
       return { docs: [], lastDoc: null, hasMore: false };
     }
   }
@@ -1429,18 +1019,40 @@ class StaffService {
   /**
    * Count a collection scoped to a viewer's scheme set.
    * schemeScope: array of scheme IDs the viewer may see (real staff → internal
-   * schemes; TP staff → company schemes; demo → demo scheme). Always scoped via
-   * `schemeIds array-contains-any`, so the count matches exactly what the list
-   * query returns. Falls back to the cached non-demo aggregate if no scope.
+   * schemes; TP staff → company schemes; demo → demo scheme). Every form
+   * type is Supabase-backed now, so this is a straight pass-through.
    */
   countForScope(collectionName, schemeScope) {
-    if (schemeScope && schemeScope.length > 0) {
-      return this.getCollectionCountServerBySchemeIds(
-        collectionName,
-        schemeScope,
-      );
+    const supabaseTable = SUPABASE_BACKED_TABLES[collectionName]?.table;
+    if (!supabaseTable) {
+      console.warn(`Unknown or non-Supabase collection: ${collectionName}`);
+      return Promise.resolve(0);
     }
-    return this.getCollectionCountCached(collectionName, { excludeDemo: true });
+    return this.getSupabaseCount(supabaseTable, {
+      schemeScope,
+      excludeDemo: true,
+    });
+  }
+
+  // Live count for a Supabase-backed table, scoped the same way as the
+  // Firestore path above: schemeScope (array-overlap on scheme_ids) when
+  // given, otherwise excludeDemo (no cache needed — Supabase counts are
+  // cheap, unlike Firestore's billed-per-read aggregation queries).
+  async getSupabaseCount(tableName, { schemeScope = null, excludeDemo = false } = {}) {
+    try {
+      let q = supabase.from(tableName).select("*", { count: "exact", head: true });
+      if (schemeScope && schemeScope.length > 0) {
+        q = q.overlaps("scheme_ids", schemeScope);
+      } else if (excludeDemo) {
+        q = q.neq("scheme_id", DEMO_SCHEME_ID);
+      }
+      const { count, error } = await q;
+      if (error) throw error;
+      return count || 0;
+    } catch (error) {
+      console.warn(`Could not get Supabase count for ${tableName}:`, error);
+      return 0;
+    }
   }
 
   /**
@@ -1451,27 +1063,14 @@ class StaffService {
     try {
       const countFn = (col) => this.countForScope(col, schemeScope);
 
-      const [
-        cctvCount,
-        incidentCount,
-        assetCount,
-        cabinSafetyCount,
-        vehicleCheckCount,
-      ] = await Promise.all([
-        countFn("cctvCheckForms"),
-        countFn("incidentReports"),
-        countFn("assetDamageReports"),
-        countFn("cabinHealthSafetyChecks"),
-        countFn("vehicleDailyChecks"),
-      ]);
+      const [incidentCount, cabinSafetyCount, vehicleCheckCount] =
+        await Promise.all([
+          countFn("incidentReports"),
+          countFn("cabinHealthSafetyChecks"),
+          countFn("vehicleDailyChecks"),
+        ]);
 
-      return (
-        cctvCount +
-        incidentCount +
-        assetCount +
-        cabinSafetyCount +
-        vehicleCheckCount
-      );
+      return incidentCount + cabinSafetyCount + vehicleCheckCount;
     } catch (error) {
       console.warn("Could not get total forms count:", error);
       return 0;
@@ -1486,32 +1085,21 @@ class StaffService {
     try {
       const countFn = (col) => this.countForScope(col, schemeScope);
 
-      const [
-        cctvCount,
-        incidentCount,
-        assetCount,
-        cabinSafetyCount,
-        vehicleCheckCount,
-      ] = await Promise.all([
-        countFn("cctvCheckForms"),
-        countFn("incidentReports"),
-        countFn("assetDamageReports"),
-        countFn("cabinHealthSafetyChecks"),
-        countFn("vehicleDailyChecks"),
-      ]);
+      const [incidentCount, cabinSafetyCount, vehicleCheckCount] =
+        await Promise.all([
+          countFn("incidentReports"),
+          countFn("cabinHealthSafetyChecks"),
+          countFn("vehicleDailyChecks"),
+        ]);
       return {
-        cctvCheckTotal: cctvCount,
         incidentReportTotal: incidentCount,
-        assetDamageTotal: assetCount,
         cabinSafetyTotal: cabinSafetyCount,
         vehicleCheckTotal: vehicleCheckCount,
       };
     } catch (error) {
       console.warn("Could not get forms count by type:", error);
       return {
-        cctvCheckTotal: 0,
         incidentReportTotal: 0,
-        assetDamageTotal: 0,
         cabinSafetyTotal: 0,
         vehicleCheckTotal: 0,
       };
@@ -1525,9 +1113,7 @@ class StaffService {
    */
   async getFormCountForType(formType, schemeScope = null) {
     const collectionMap = {
-      "cctv-check": "cctvCheckForms",
       incident: "incidentReports",
-      "asset-damage": "assetDamageReports",
       "cabin-safety": "cabinHealthSafetyChecks",
       "vehicle-check": "vehicleDailyChecks",
     };
@@ -1536,140 +1122,12 @@ class StaffService {
     return await this.countForScope(collectionName, schemeScope);
   }
 
-  /**
-   * Helper: count documents excluding demo submissions.
-   * Uses two positive aggregations (total − demo) instead of a `!=` inequality
-   * scan — same result for these schemeId-bearing collections, but avoids the
-   * inequality index scan.
-   */
-  async getCollectionCountServerExcludeDemo(collectionName) {
-    try {
-      const collectionRef = collection(db, collectionName);
-      const [totalSnap, demoSnap] = await Promise.all([
-        getCountFromServer(collectionRef),
-        getCountFromServer(
-          query(collectionRef, where("schemeId", "==", DEMO_SCHEME_ID)),
-        ),
-      ]);
-      return totalSnap.data().count - demoSnap.data().count;
-    } catch (error) {
-      console.warn(
-        `Could not get non-demo count for ${collectionName}:`,
-        error,
-      );
-      return 0;
-    }
-  }
-
-  async getCollectionCountServerBySchemeIds(collectionName, schemeIds) {
-    try {
-      const collectionRef = collection(db, collectionName);
-      const q = query(collectionRef, where("schemeIds", "array-contains-any", schemeIds));
-      const snapshot = await getCountFromServer(q);
-      return snapshot.data().count;
-    } catch (error) {
-      console.warn(`Could not get scheme-scoped count for ${collectionName}:`, error);
-      return 0;
-    }
-  }
-
-  /**
-   * Hybrid live counter. Reads a shared summary doc (1 read). The doc's `count`
-   * is kept LIVE by `_applyCountDelta` (+1 on create, −1 on delete), so reads
-   * are both cheap and up-to-the-second. A full recount runs at most once per
-   * SELF_HEAL window: if the stored count was last reconciled longer ago than
-   * that (or the doc is missing), we recompute the true count via aggregation
-   * and reset the baseline — so any missed/incorrect increment self-corrects.
-   * Used for the all-time dashboard totals (not date-range counts).
-   */
-  async getCollectionCountCached(collectionName, { excludeDemo = false } = {}) {
-    const SELF_HEAL_TTL_MS = 60 * 60 * 1000; // recount baseline at most hourly
-    const cacheRef = doc(
-      db,
-      "collectionStatsCache",
-      excludeDemo ? `${collectionName}__nondemo` : collectionName,
-    );
-
-    try {
-      const snap = await getDoc(cacheRef);
-      if (snap.exists()) {
-        const cached = snap.data();
-        if (
-          typeof cached.count === "number" &&
-          cached.cachedAt &&
-          Date.now() - cached.cachedAt.toMillis() < SELF_HEAL_TTL_MS
-        ) {
-          return cached.count;
-        }
-      }
-    } catch {
-      // Cache read failed — fall through to a fresh aggregation.
-    }
-
-    const count = excludeDemo
-      ? await this.getCollectionCountServerExcludeDemo(collectionName)
-      : await this.getCollectionCountServer(collectionName);
-
-    // Fire-and-forget cache write (don't block or fail the read).
-    setDoc(cacheRef, {
-      count,
-      collectionName,
-      excludeDemo,
-      cachedAt: serverTimestamp(),
-    }).catch(() => {});
-
-    return count;
-  }
-
-  /**
-   * Keep the live counters in step with a create (+1) or delete (−1). Updates
-   * the collection total and, when the doc isn't a demo submission, the
-   * non-demo total. Fire-and-forget and fully decoupled from the form write —
-   * if it fails (e.g. rules not yet deployed) the form is unaffected and the
-   * hourly recount in getCollectionCountCached corrects the number.
-   */
-  _applyCountDelta(collectionName, isDemo, delta) {
-    try {
-      setDoc(
-        doc(db, "collectionStatsCache", collectionName),
-        { count: increment(delta) },
-        { merge: true },
-      ).catch(() => {});
-      if (!isDemo) {
-        setDoc(
-          doc(db, "collectionStatsCache", `${collectionName}__nondemo`),
-          { count: increment(delta) },
-          { merge: true },
-        ).catch(() => {});
-      }
-    } catch {
-      // Never let counter maintenance affect the caller.
-    }
-  }
-
-  /**
-   * Force a fresh recount of one counter doc and write it as the new baseline.
-   * Used by the admin "Backfill collection stats" utility to seed/reset the
-   * live counters to the true values. Returns the computed count.
-   */
-  async recountCollectionStat(collectionName, excludeDemo = false) {
-    const count = excludeDemo
-      ? await this.getCollectionCountServerExcludeDemo(collectionName)
-      : await this.getCollectionCountServer(collectionName);
-    const cacheRef = doc(
-      db,
-      "collectionStatsCache",
-      excludeDemo ? `${collectionName}__nondemo` : collectionName,
-    );
-    await setDoc(cacheRef, {
-      count,
-      collectionName,
-      excludeDemo,
-      cachedAt: serverTimestamp(),
-    });
-    return count;
-  }
-
+  // Searches across the 3 Supabase-backed form types by reference-id or
+  // submitted-by-name prefix (case-insensitive). Uses offset pagination
+  // (stored on lastDocs.offset) over the merged, re-sorted result set --
+  // simpler than per-table keyset pagination and fine for the small result
+  // sets this kind of search returns. `collections` (when given) is an
+  // array of the type keys below, used to scope to the active filter.
   async searchFormsPaginated(
     searchTerm,
     pageSize = 10,
@@ -1694,154 +1152,53 @@ class StaffService {
       return false;
     };
 
-    const termRef = raw.toUpperCase();
-    const termName = raw;
-    const termRefEnd = termRef + "";
-    const termNameEnd = termName + "";
-
-    const COLLECTIONS = [
-      { name: "incidentReports",        key: "incident",        type: "Incident Report" },
-      { name: "assetDamageReports",     key: "assetDamage",     type: "Asset Damage" },
-      { name: "cctvCheckForms",         key: "cctv",            type: "CCTV Check Sheet" },
-      { name: "cabinHealthSafetyChecks", key: "cabinSafety",    type: "Cabin H&S Check" },
-      { name: "vehicleDailyChecks",     key: "vehicleCheck",    type: "Vehicle Daily Check" },
+    const ALL_TYPES = [
+      { key: "incident", table: "incident_reports", fromRow: fromIncidentRow, type: "Incident Report" },
+      { key: "cabinSafety", table: "cabin_health_safety_checks", fromRow: fromCabinSafetyRow, type: "Cabin H&S Check" },
+      { key: "vehicleCheck", table: "vehicle_daily_checks", fromRow: fromVehicleCheckRow, type: "Vehicle Daily Check" },
     ];
+    const TYPES = collections && collections.length > 0
+      ? ALL_TYPES.filter((t) => collections.includes(t.key))
+      : ALL_TYPES;
 
-    // Fetch pageSize+1 per collection so we can detect hasMore
-    const fetchLimit = pageSize + 1;
-
-    const buildQuery = (collName, field, start, end, cursor) => {
-      const constraints = [
-        where(field, ">=", start),
-        where(field, "<=", end),
-        orderBy(field, "asc"),
-      ];
-      if (cursor) constraints.push(startAfter(cursor));
-      constraints.push(limit(fetchLimit));
-      return query(collection(db, collName), ...constraints);
-    };
-
-    // Per collection: run refId query + name query in parallel, deduplicate
-    const perCollectionResults = await Promise.all(
-      COLLECTIONS.map(async ({ name, key, type }) => {
-        const cursor = lastDocs[key] || null;
-        const [refSnap, nameSnap] = await Promise.all([
-          getDocs(buildQuery(name, "referenceId",      termRef,  termRefEnd,  cursor)),
-          getDocs(buildQuery(name, "submittedBy.name", termName, termNameEnd, cursor)),
-        ]);
-
-        const seen = new Set();
-        const docs = [];
-        for (const snap of [refSnap, nameSnap]) {
-          for (const d of snap.docs) {
-            if (seen.has(d.id)) continue;
-            seen.add(d.id);
-            docs.push({ id: d.id, ...d.data(), type, _firestoreDoc: d, _key: key });
-          }
-        }
-        return docs;
-      })
-    );
-
-    const allDocs = perCollectionResults.flat().filter(inScope);
-
-    // Sort by createdAt desc
-    allDocs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-
-    const hasMore = allDocs.length > pageSize;
-    const page = allDocs.slice(0, pageSize);
-
-    // Build new cursor map from the last doc of each collection that appeared in this page
-    const newLastDocs = { ...lastDocs };
-    page.forEach((doc) => {
-      newLastDocs[doc._key] = doc._firestoreDoc;
-    });
-
-    const results = page.map(({ _firestoreDoc, _key, ...rest }) => rest);
-
-    return { results, lastDocs: newLastDocs, hasMore };
-  }
-
-  async searchFormsByReferenceId(searchTerm) {
-    const raw = searchTerm.trim();
-    if (!raw) return [];
-    const termRef = raw.toUpperCase();
-    const termName = raw;
-    const termRefEnd = termRef + "\uf8ff";
-    const termNameEnd = termName + "\uf8ff";
-
-    const COLLECTIONS = [
-      { name: "incidentReports", type: "Incident Report" },
-      { name: "assetDamageReports", type: "Asset Damage" },
-      { name: "cctvCheckForms", type: "CCTV Check Sheet" },
-      { name: "cabinHealthSafetyChecks", type: "Cabin H&S Check" },
-      { name: "vehicleDailyChecks", type: "Vehicle Daily Check" },
-    ];
-
-    // Run referenceId and submittedBy.name queries in parallel
-    const [refSnapshots, nameSnapshots] = await Promise.all([
-      Promise.all(
-        COLLECTIONS.map(({ name }) =>
-          getDocs(
-            query(
-              collection(db, name),
-              where("referenceId", ">=", termRef),
-              where("referenceId", "<=", termRefEnd),
-              limit(10),
-            ),
-          ),
-        ),
-      ),
-      Promise.all(
-        COLLECTIONS.map(({ name }) =>
-          getDocs(
-            query(
-              collection(db, name),
-              where("submittedBy.name", ">=", termName),
-              where("submittedBy.name", "<=", termNameEnd),
-              limit(10),
-            ),
-          ),
-        ),
-      ),
-    ]);
-
-    const seen = new Set();
-    const results = [];
-
-    const addDocs = (snapshots) => {
-      snapshots.forEach((snap, i) => {
-        const { type } = COLLECTIONS[i];
-        snap.docs.forEach((d) => {
-          if (seen.has(d.id)) return;
-          seen.add(d.id);
-          results.push({ id: d.id, ...d.data(), type });
-        });
-      });
-    };
-
-    addDocs(refSnapshots);
-    addDocs(nameSnapshots);
-
-    results.sort(
-      (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0),
-    );
-    return results.slice(0, 20);
-  }
-
-  /**
-   * Helper to get count from a collection using server-side counting (includes all docs)
-   */
-  async getCollectionCountServer(collectionName) {
     try {
-      const collectionRef = collection(db, collectionName);
-      const snapshot = await getCountFromServer(collectionRef);
-      return snapshot.data().count;
+      const perTypeResults = await Promise.all(
+        TYPES.map(async ({ table, fromRow, type }) => {
+          const [byRef, byName] = await Promise.all([
+            supabase.from(table).select("*").ilike("reference_id", `${raw}%`).limit(50),
+            supabase.from(table).select("*").ilike("submitted_by_name", `${raw}%`).limit(50),
+          ]);
+          if (byRef.error) throw byRef.error;
+          if (byName.error) throw byName.error;
+
+          const seen = new Set();
+          const docs = [];
+          for (const row of [...(byRef.data || []), ...(byName.data || [])]) {
+            if (seen.has(row.id)) continue;
+            seen.add(row.id);
+            docs.push({ ...fromRow(row), type });
+          }
+          return docs;
+        })
+      );
+
+      const allDocs = perTypeResults.flat().filter(inScope);
+      allDocs.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+
+      const offset = lastDocs.offset || 0;
+      const page = allDocs.slice(offset, offset + pageSize);
+
+      return {
+        results: page,
+        lastDocs: { offset: offset + page.length },
+        hasMore: offset + page.length < allDocs.length,
+      };
     } catch (error) {
-      console.warn(`Could not get count for ${collectionName}:`, error);
-      return 0;
+      console.error("Search failed:", error);
+      return { results: [], lastDocs: {}, hasMore: false };
     }
   }
+
 }
 
 export const staffService = new StaffService();

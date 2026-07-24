@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { authService } from '../../services/authService';
 import { useAuth } from '../../hooks/useAuth';
-import { auth } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 
 const EmailVerification = () => {
   const [loading, setLoading] = useState(false);
@@ -25,13 +25,12 @@ const EmailVerification = () => {
   const handleCheckVerified = async () => {
     setCheckingVerified(true);
     try {
-      // Reload the user from Firebase so emailVerified is up to date
-      await auth.currentUser.reload();
+      // Force a fresh session from the server so email_confirmed_at is up to date
+      const { data, error } = await supabase.auth.refreshSession();
+      if (error) throw error;
 
-      if (auth.currentUser.emailVerified) {
-        // Force a new token so Firestore rules see email_verified: true immediately
-        await auth.currentUser.getIdToken(true);
-        // Reload the page — AuthContext will re-init with the fresh verified token
+      if (data.user?.email_confirmed_at) {
+        // Reload the page — AuthContext will re-init with the fresh session
         window.location.reload();
       } else {
         toast.error('Email not verified yet. Please check your inbox and click the link.');

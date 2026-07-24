@@ -1,18 +1,9 @@
 import { useState } from "react";
-import { collection, query, where, getDocs, doc, setDoc } from "firebase/firestore";
-import { db } from "../../config/firebase";
+import { supabase } from "../../config/supabase";
 import { SCHEMES } from "../../utils/schemes";
+import { countVehicles } from "../../utils/incidentStats";
+import { fromIncidentRow } from "../../utils/incidentRowMapper";
 import { CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
-
-const countVehicles = (recoveryRequested) => {
-  if (!recoveryRequested || typeof recoveryRequested !== "object") return 0;
-  return (
-    (recoveryRequested.light || 0) +
-    (recoveryRequested.heavy || 0) +
-    (recoveryRequested.ipv || 0) +
-    (recoveryRequested.hetos || 0)
-  );
-};
 
 const BackfillVehicleStatsPage = () => {
   const [results, setResults] = useState({});
@@ -26,23 +17,26 @@ const BackfillVehicleStatsPage = () => {
       setResults((prev) => ({ ...prev, [scheme.id]: { status: "running" } }));
 
       try {
-        const q = query(
-          collection(db, "incidentReports"),
-          where("schemeIds", "array-contains", scheme.id)
+        const { data, error } = await supabase
+          .from("incident_reports")
+          .select("*")
+          .overlaps("scheme_ids", [scheme.id]);
+        if (error) throw error;
+
+        const rows = data || [];
+        const total = rows.reduce(
+          (sum, row) => sum + countVehicles(fromIncidentRow(row)),
+          0,
         );
-        const snapshot = await getDocs(q);
 
-        let total = 0;
-        snapshot.forEach((d) => {
-          total += countVehicles(d.data().recoveryRequested);
-        });
-
-        const statsRef = doc(db, "schemeStats", scheme.id);
-        await setDoc(statsRef, { totalVehiclesDispatched: total }, { merge: true });
+        const { error: upsertError } = await supabase
+          .from("scheme_stats")
+          .upsert({ scheme_id: scheme.id, total_vehicles_dispatched: total });
+        if (upsertError) throw upsertError;
 
         setResults((prev) => ({
           ...prev,
-          [scheme.id]: { status: "done", total, docs: snapshot.size },
+          [scheme.id]: { status: "done", total, docs: rows.length },
         }));
       } catch (error) {
         setResults((prev) => ({
@@ -63,7 +57,7 @@ const BackfillVehicleStatsPage = () => {
       <h1 className="text-2xl font-bold text-gray-800 mb-2">Backfill Vehicle Stats</h1>
       <p className="text-gray-500 text-sm mb-6">
         One-time utility. Reads all existing incident reports per scheme and writes the
-        total vehicles dispatched to <code>schemeStats/&#123;schemeId&#125;</code>. Run once, then ignore.
+        total vehicles dispatched to <code>scheme_stats</code>. Run once, then ignore.
       </p>
 
       {allDone && (

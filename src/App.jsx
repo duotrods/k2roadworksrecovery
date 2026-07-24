@@ -32,19 +32,16 @@
   // so the sign-in path has no loading flash.
   const Dashboard = lazy(() => import("./pages/shared/Dashboard"));
   const FormsSelectionPage = lazy(() => import("./pages/staff/FormsSelectionPage"));
-  const CCTVCheckFormPage = lazy(() => import("./pages/staff/CCTVCheckFormPage"));
   const IncidentReportFormPage = lazy(() => import("./pages/staff/IncidentReportFormPage"));
   const StaffReportsListPage = lazy(() => import("./pages/staff/StaffReportsListPage"));
   const CabinSafetyCheckFormPage = lazy(() => import("./pages/staff/CabinSafetyCheckFormPage"));
   const VehicleDailyCheckFormPage = lazy(() => import("./pages/staff/VehicleDailyCheckFormPage"));
   const IncidentReportView = lazy(() => import("./pages/staff/IncidentReportView"));
-  const CCTVCheckView = lazy(() => import("./pages/staff/CCTVCheckView"));
   const CabinSafetyCheckView = lazy(() => import("./pages/staff/CabinSafetyCheckView"));
   const VehicleDailyCheckView = lazy(() => import("./pages/staff/VehicleDailyCheckView"));
   const OTPManagementPage = lazy(() => import("./pages/admin/OTPManagementPage"));
   const BackfillVehicleStatsPage = lazy(() => import("./pages/admin/BackfillVehicleStatsPage"));
   const BackfillHasVideoPage = lazy(() => import("./pages/admin/BackfillHasVideoPage"));
-  const BackfillCollectionStatsPage = lazy(() => import("./pages/admin/BackfillCollectionStatsPage"));
   const ReferenceIdManagerPage = lazy(() => import("./pages/admin/ReferenceIdManagerPage"));
   const SchemeAssignmentPage = lazy(() => import("./pages/admin/SchemeAssignmentPage"));
   const StaffManagementPage = lazy(() => import("./pages/admin/StaffManagementPage"));
@@ -53,7 +50,6 @@
   const DailyAllocationsFormPage = lazy(() => import("./pages/admin/DailyAllocationsFormPage"));
   const ClientChartsPage = lazy(() => import("./pages/admin/ClientChartsPage"));
   const IncidentReportDetailPage = lazy(() => import("./pages/admin/IncidentReportDetailPage"));
-  const CCTVCheckDetailPage = lazy(() => import("./pages/admin/CCTVCheckDetailPage"));
   const CabinSafetyCheckDetailPage = lazy(() => import("./pages/admin/CabinSafetyCheckDetailPage"));
   const VehicleDailyCheckDetailPage = lazy(() => import("./pages/admin/VehicleDailyCheckDetailPage"));
 
@@ -67,7 +63,6 @@
   const ReportsPage = lazy(() => import("./pages/client/ReportsPage"));
   const CCTVRecordingsPage = lazy(() => import("./pages/client/CCTVRecordingsPage"));
   const ClientIncidentReportView = lazy(() => import("./pages/client/IncidentReportView"));
-  const ClientCCTVCheckView = lazy(() => import("./pages/client/CCTVCheckView"));
   const ClientLiveIncidentsPage = lazy(() => import("./pages/client/LiveIncidentsPage"));
   const DocumentsPage = lazy(() => import("./pages/client/DocumentsPage"));
   const StaffDocumentsPage = lazy(() => import("./pages/staff/StaffDocumentsPage"));
@@ -145,15 +140,6 @@
                   element={
                     <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
                       <BackfillHasVideoPage />
-                    </ProtectedRoute>
-                  }
-                />
-
-                <Route
-                  path="/dashboard/admin/backfill-collection-stats"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
-                      <BackfillCollectionStatsPage />
                     </ProtectedRoute>
                   }
                 />
@@ -242,15 +228,6 @@
                 />
 
                 <Route
-                  path="/dashboard/admin/staff-reports/cctv/:id"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
-                      <CCTVCheckDetailPage />
-                    </ProtectedRoute>
-                  }
-                />
-
-                <Route
                   path="/dashboard/admin/staff-reports/cabin-safety/:id"
                   element={
                     <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
@@ -283,15 +260,6 @@
                   element={
                     <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
                       <FormsSelectionPage />
-                    </ProtectedRoute>
-                  }
-                />
-
-                <Route
-                  path="/dashboard/staff/forms/cctv-check"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
-                      <CCTVCheckFormPage />
                     </ProtectedRoute>
                   }
                 />
@@ -347,15 +315,6 @@
                   element={
                     <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
                       <StaffDocumentsPage />
-                    </ProtectedRoute>
-                  }
-                />
-
-                <Route
-                  path="/dashboard/staff/reports/cctv-check/:id"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
-                      <CCTVCheckView />
                     </ProtectedRoute>
                   }
                 />
@@ -451,14 +410,6 @@
                   element={
                     <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT]}>
                       <ClientIncidentReportView />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/dashboard/client/reports/cctv-check/:id"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT]}>
-                      <ClientCCTVCheckView />
                     </ProtectedRoute>
                   }
                 />

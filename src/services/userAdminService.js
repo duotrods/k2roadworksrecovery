@@ -39,6 +39,137 @@ const logAudit = (action, performedBy, targetUser, details) => {
 };
 
 class UserAdminService {
+  // All users (no role filter), offset-paginated — backs the admin
+  // "User Management" dashboard.
+  async getUsersPaginated(page = 1, pageSize = 10) {
+    try {
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      const { data, error, count } = await supabase
+        .from('users')
+        .select('*, user_schemes(scheme_id, scheme_name)', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
+      if (error) throw error;
+
+      return {
+        users: (data || []).map(mapUserRow),
+        total: count || 0,
+        hasMore: from + (data?.length || 0) < (count || 0),
+      };
+    } catch (error) {
+      throw new AppError('Failed to fetch users', 'supabase/read-error', error);
+    }
+  }
+
+  async promoteToAdmin(targetUid, adminUid) {
+    try {
+      const { data: targetRow, error: fetchError } = await supabase
+        .from('users')
+        .select('role, email, display_name')
+        .eq('id', targetUid)
+        .maybeSingle();
+      if (fetchError) throw fetchError;
+      if (!targetRow) throw new AppError('User not found', 'supabase/not-found');
+      if (targetRow.role !== USER_ROLES.STAFF) {
+        throw new AppError('Can only promote staff users to admin', 'supabase/permission-denied');
+      }
+      if (targetUid === adminUid) {
+        throw new AppError('Cannot promote yourself', 'supabase/invalid-operation');
+      }
+
+      const { error } = await supabase
+        .from('users')
+        .update({ role: USER_ROLES.ADMIN })
+        .eq('id', targetUid);
+      if (error) throw error;
+
+      logAudit('promote_to_admin', adminUid, targetUid, {
+        oldValue: USER_ROLES.STAFF,
+        newValue: USER_ROLES.ADMIN,
+        targetUserEmail: targetRow.email,
+        targetUserName: targetRow.display_name,
+      });
+
+      return { success: true, message: 'User promoted to admin successfully' };
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      throw new AppError('Failed to promote user', 'supabase/update-error', error);
+    }
+  }
+
+  // Calls the server-side delete-user-account proxy (api/delete-user-account.js,
+  // a Vercel function holding the service-role key — same pattern as the R2
+  // upload proxy in api/upload.js). Deletes the auth.users row; public.users
+  // cascades automatically.
+  async deleteUserAccount(targetUid) {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const response = await fetch('/api/delete-user-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ targetUid }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new AppError(data?.error || 'Failed to delete user', 'supabase/function-error');
+      }
+      return data;
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      throw new AppError('Failed to delete user', 'supabase/function-error', error);
+    }
+  }
+
+  // Admin-only login audit log (login_logs_select RLS restricts SELECT to
+  // admins). Offset-paginated.
+  async getLoginLogsPaginated(page = 1, pageSize = 10) {
+    try {
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      const { data, error, count } = await supabase
+        .from('login_logs')
+        .select('*', { count: 'exact' })
+        .order('login_at', { ascending: false })
+        .range(from, to);
+      if (error) throw error;
+
+      return {
+        logs: (data || []).map((row) => ({
+          id: row.id,
+          displayName: row.display_name,
+          email: row.email,
+          role: row.role,
+          loginAt: row.login_at,
+          expireAt: row.expire_at,
+        })),
+        total: count || 0,
+        hasMore: from + (data?.length || 0) < (count || 0),
+      };
+    } catch (error) {
+      throw new AppError('Failed to fetch login logs', 'supabase/read-error', error);
+    }
+  }
+
+  async getLoginLogsCount() {
+    try {
+      const { count, error } = await supabase
+        .from('login_logs')
+        .select('*', { count: 'exact', head: true });
+      if (error) throw error;
+      return count || 0;
+    } catch (error) {
+      throw new AppError('Failed to count login logs', 'supabase/read-error', error);
+    }
+  }
+
   async getUsersByRolePaginated(role, page = 1, pageSize = 10) {
     try {
       const from = (page - 1) * pageSize;

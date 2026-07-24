@@ -1,6 +1,5 @@
 import { jsPDF } from "jspdf";
 import lenselogo from "../assets/chellanpng.png";
-import { SCHEMES } from "./schemes";
 import {
   SERVICE_ACCEPTANCE_STATEMENTS,
   VEHICLE_CONDITION_SECTIONS,
@@ -81,14 +80,9 @@ const loadImageAsDataUrl = (url) => {
 /**
  * Generate PDF for any report type
  * @param {Object} report - The report data
- * @param {string} reportType - Type of report (incident, asset-damage, cctv-check)
- * @param {string} filterSchemeId - Optional scheme ID to filter CCTV sections (for client view)
+ * @param {string} reportType - Type of report (incident, cabin-safety, vehicle-check)
  */
-export const generateReportPDF = async (
-  report,
-  reportType,
-  filterSchemeId = null,
-) => {
+export const generateReportPDF = async (report, reportType) => {
   const doc = new jsPDF({ compress: true });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 20;
@@ -187,8 +181,6 @@ export const generateReportPDF = async (
   // Report Title Section
   const reportTitles = {
     incident: "K2 Vehicle Recovery Job Sheet",
-    "asset-damage": "Asset Damage Report",
-    "cctv-check": "CCTV Check Report",
     "cabin-safety": "Cabin Health & Safety Inspection Report",
     "vehicle-check": "Recovery Vehicle Daily Check Sheet",
   };
@@ -271,31 +263,16 @@ export const generateReportPDF = async (
   // Basic Information Section
   addSectionHeader("BASIC INFORMATION");
 
-  // For CCTV Check forms, date and time are already in the correct format
-  if (reportType === "cctv-check") {
-    if (report.date) addField("Report Date", report.date);
-    if (report.time) addField("Report Time", report.time);
-  } else {
-    addField(
-      "Report Date",
-      formatDate(report.createdAt || report.timestamp || report.date),
-    );
-    addField(
-      "Report Time",
-      formatTime(report.createdAt || report.timestamp || report.time),
-    );
-  }
+  addField(
+    "Report Date",
+    formatDate(report.createdAt || report.timestamp || report.date),
+  );
+  addField(
+    "Report Time",
+    formatTime(report.createdAt || report.timestamp || report.time),
+  );
 
-  // For CCTV check reports: show filtered scheme if client view, otherwise "All Schemes"
-  if (reportType === "cctv-check") {
-    if (filterSchemeId) {
-      const schemeObj = SCHEMES.find((s) => s.id === filterSchemeId);
-      const schemeName = schemeObj ? schemeObj.fullName : filterSchemeId;
-      addField("Scheme/Location", schemeName);
-    } else {
-      addField("Scheme/Location", "All Schemes");
-    }
-  } else if (report.scheme || report.schemeId) {
+  if (report.scheme || report.schemeId) {
     addField("Scheme/Location", report.scheme || report.schemeId);
   }
 
@@ -457,107 +434,6 @@ export const generateReportPDF = async (
       }
       break;
     }
-
-    case "asset-damage":
-      if (report.damageType) addField("Damage Type", report.damageType, true);
-      if (report.assetName) addField("Asset Name", report.assetName);
-      if (report.severity) addField("Severity", report.severity);
-      if (report.description) addField("Description", report.description);
-      if (report.estimatedCost)
-        addField("Estimated Cost", `£${report.estimatedCost}`);
-      if (report.repairStatus) addField("Repair Status", report.repairStatus);
-      break;
-
-    case "cctv-check":
-      // Display submitted by name
-      if (report.firstName) {
-        addField("Checked By", report.firstName);
-      }
-
-      // A66-WJ Section - only show if no filter OR filter matches A66-WJ
-      if (
-        (!filterSchemeId || filterSchemeId === "A66-WJ") &&
-        ((report.a66Cameras && report.a66Cameras.length > 0) || (report.a66Comments && report.a66Comments.trim() !== ""))
-      ) {
-        yPosition += 3;
-        doc.setFillColor(245, 245, 245);
-        doc.rect(margin, yPosition - 3, contentWidth, 10, "F");
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "bold");
-        doc.text("A66-WJ", margin + 3, yPosition + 3);
-        yPosition += 12;
-
-        if (report.a66Cameras && report.a66Cameras.length > 0) {
-          const isNone = report.a66Cameras.includes("NONE");
-          if (isNone) {
-            addField(
-              "CCTV Status",
-              "NONE - All cameras working correctly",
-              true,
-            );
-          } else {
-            addField(
-              "CCTV Issues Reported",
-              report.a66Cameras.join(", "),
-              true,
-            );
-          }
-        }
-        {
-          const blackspot = report.a66Blackspot;
-          const blackspotYes = blackspot === true || (Array.isArray(blackspot) && blackspot.length > 0 && blackspot[0] !== "All Working Correctly");
-          addField("Blackspot Cameras", blackspotYes ? "Yes" : "No");
-          addField("TSS Informed", report.a66TssInformed ? "Yes" : "No");
-        }
-        if (report.a66Comments && report.a66Comments.trim() !== "") {
-          addField("Comments", report.a66Comments);
-        }
-        yPosition += 3;
-      }
-
-      // Demo Section - only show if explicitly filtered to DMO1 (never in staff full download)
-      if (
-        filterSchemeId === "DMO1" &&
-        (report.demoCameras || report.demoComments)
-      ) {
-        yPosition += 3;
-        doc.setFillColor(245, 245, 245);
-        doc.rect(margin, yPosition - 3, contentWidth, 10, "F");
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "bold");
-        doc.text("Demo Scheme", margin + 3, yPosition + 3);
-        yPosition += 12;
-
-        if (report.demoCameras && report.demoCameras.length > 0) {
-          const isNone = report.demoCameras.includes("NONE");
-          if (isNone) {
-            addField(
-              "CCTV Status",
-              "NONE - All cameras working correctly",
-              true,
-            );
-          } else {
-            addField(
-              "CCTV Issues Reported",
-              report.demoCameras.join(", "),
-              true,
-            );
-          }
-        }
-        {
-          const blackspot = report.demoBlackspot;
-          const blackspotYes = blackspot === true || (Array.isArray(blackspot) && blackspot.length > 0 && blackspot[0] !== "All Working Correctly");
-          addField("Blackspot Cameras", blackspotYes ? "Yes" : "No");
-          addField("TSS Informed", report.demoTssInformed ? "Yes" : "No");
-        }
-        if (report.demoComments && report.demoComments.trim() !== "") {
-          addField("Comments", report.demoComments);
-        }
-        yPosition += 3;
-      }
-      break;
 
     case "cabin-safety": {
       if (report.cabinOrPlotNo)

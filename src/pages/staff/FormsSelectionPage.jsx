@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { FileText, Camera, ShieldCheck, Car } from 'lucide-react';
+import { FileText, ShieldCheck, Car } from 'lucide-react';
 import StaffSidebarLayout from '../../components/layout/StaffSidebarLayout';
 import { getStaffBasePath } from '../../utils/constants';
 
@@ -17,14 +17,6 @@ const FormsSelectionPage = () => {
       color: 'from-teal-400 to-teal-500',
       bgColor: 'bg-teal-50',
       path: `${basePath}/forms/incident-report`
-    },
-    {
-      title: 'Camera Check Sheet',
-      description: 'Verify CCTV camera operational status',
-      icon: Camera,
-      color: 'from-purple-400 to-purple-500',
-      bgColor: 'bg-purple-50',
-      path: `${basePath}/forms/cctv-check`
     },
     {
       title: 'Cabin Health & Safety Check',

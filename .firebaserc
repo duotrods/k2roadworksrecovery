@@ -1,8 +1,0 @@
-{
-  "projects": {
-    "default": "lensebychellan",
-    "staging": "lensebychellan-staging",
-    "production": "lensebychellan",
-    "thirdparty": "lensebychellan-thirdparty"
-  }
-}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { firestoreService } from "../../services/firestoreService";
+import { userAdminService } from "../../services/userAdminService";
 import { RefreshCw, LogIn, ChevronLeft, ChevronRight, Shield, Clock } from "lucide-react";
 
 const ROLE_BADGE = {
@@ -24,41 +24,30 @@ const LoginLogs = () => {
   const [loading, setLoading]     = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [cursors, setCursors]     = useState([]); // cursors[i] = lastDoc for page i+1
   const [hasMore, setHasMore]     = useState(true);
 
   const totalPages = Math.ceil(totalCount / LOGS_PER_PAGE);
 
   useEffect(() => {
-    loadPage(1, null);
+    loadPage(1);
     loadCount();
   }, []);
 
   const loadCount = async () => {
     try {
-      const count = await firestoreService.getLoginLogsCount();
+      const count = await userAdminService.getLoginLogsCount();
       setTotalCount(count);
     } catch (err) {
       console.warn("Could not load login log count:", err);
     }
   };
 
-  const loadPage = async (page, lastDoc) => {
+  const loadPage = async (page) => {
     setLoading(true);
     try {
-      const result = await firestoreService.getLoginLogsPaginated(LOGS_PER_PAGE, lastDoc);
+      const result = await userAdminService.getLoginLogsPaginated(page, LOGS_PER_PAGE);
       setLogs(result.logs);
       setHasMore(result.hasMore);
-
-      // Store cursor for navigating to the next page from this one
-      if (result.lastDoc) {
-        setCursors(prev => {
-          const next = [...prev];
-          next[page - 1] = result.lastDoc;
-          return next;
-        });
-      }
-
       setCurrentPage(page);
     } catch (err) {
       console.error("Failed to load login logs:", err);
@@ -69,24 +58,18 @@ const LoginLogs = () => {
 
   const handleNextPage = () => {
     if (hasMore && currentPage < totalPages) {
-      const cursor = cursors[currentPage - 1] || null;
-      loadPage(currentPage + 1, cursor);
+      loadPage(currentPage + 1);
     }
   };
 
   const handlePrevPage = () => {
     if (currentPage > 1) {
-      // Go back to page 1 and paginate forward to page-2 using stored cursors
-      const targetPage = currentPage - 1;
-      const cursor = targetPage === 1 ? null : (cursors[targetPage - 2] || null);
-      loadPage(targetPage, cursor);
+      loadPage(currentPage - 1);
     }
   };
 
   const handleRefresh = () => {
-    setCursors([]);
-    setCurrentPage(1);
-    loadPage(1, null);
+    loadPage(1);
     loadCount();
   };
 
@@ -118,7 +101,7 @@ const LoginLogs = () => {
         <div className="bg-white rounded-lg shadow p-4 col-span-2">
           <p className="text-sm text-gray-500 mb-1">Retention Policy</p>
           <p className="text-sm text-gray-700 mt-1">
-            Logs are automatically deleted after <span className="font-semibold">15 days</span> via Firestore TTL on the <code className="bg-gray-100 px-1 rounded">expireAt</code> field.
+            Logs are automatically deleted after <span className="font-semibold">15 days</span> via a scheduled cleanup job on the <code className="bg-gray-100 px-1 rounded">expire_at</code> column.
           </p>
         </div>
       </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { firestoreService } from '../../services/firestoreService';
+import { userAdminService } from '../../services/userAdminService';
 import { useAuth } from '../../hooks/useAuth';
 import { Key, Users, UserCog, Trash2 } from 'lucide-react';
 
@@ -10,7 +10,6 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalUsers, setTotalUsers] = useState(0);
-  const [lastDoc, setLastDoc] = useState(null);
   const [hasMore, setHasMore] = useState(false);
   const [promoteModal, setPromoteModal] = useState({ isOpen: false, user: null });
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, user: null });
@@ -29,12 +28,11 @@ const AdminDashboard = () => {
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const { users: paginatedUsers, total, lastDoc: lastVisible, hasMore: more } =
-        await firestoreService.getUsersPaginated(usersPerPage, currentPage > 1 ? lastDoc : null);
+      const { users: paginatedUsers, total, hasMore: more } =
+        await userAdminService.getUsersPaginated(currentPage, usersPerPage);
 
       setUsers(paginatedUsers);
       setTotalUsers(total);
-      setLastDoc(lastVisible);
       setHasMore(more);
     } catch (error) {
       console.error('Failed to load users:', error);
@@ -45,7 +43,7 @@ const AdminDashboard = () => {
 
   const loadRoleCounts = async () => {
     try {
-      const counts = await firestoreService.getUsersCountByRole();
+      const counts = await userAdminService.getUsersCountByRole();
       setRoleCounts(counts);
     } catch (error) {
       console.warn('Could not load role counts:', error);
@@ -61,7 +59,6 @@ const AdminDashboard = () => {
   const handlePrevPage = () => {
     if (currentPage > 1) {
       setCurrentPage(prev => prev - 1);
-      setLastDoc(null); // Reset for previous page
     }
   };
 
@@ -70,7 +67,7 @@ const AdminDashboard = () => {
 
     try {
       setActionLoading(true);
-      await firestoreService.promoteToAdmin(promoteModal.user.uid, userProfile.uid);
+      await userAdminService.promoteToAdmin(promoteModal.user.uid, userProfile.uid);
       toast.success(`${promoteModal.user.displayName} has been promoted to admin`);
       setPromoteModal({ isOpen: false, user: null });
       await loadUsers(); // Reload users to reflect changes
@@ -87,17 +84,12 @@ const AdminDashboard = () => {
 
     try {
       setActionLoading(true);
-      await firestoreService.deleteUser(deleteModal.user.uid, userProfile.uid);
+      await userAdminService.deleteUserAccount(deleteModal.user.uid);
       toast.success(`${deleteModal.user.displayName} has been deleted from the system`);
       setDeleteModal({ isOpen: false, user: null });
       await loadUsers(); // Reload users to reflect changes
     } catch (error) {
       console.error('Failed to delete user:', error);
-      console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        cause: error.cause
-      });
       toast.error(error.message || 'Failed to delete user');
     } finally {
       setActionLoading(false);

@@ -123,8 +123,6 @@ const ReportsPage = () => {
   const [reportTypeCounts, setReportTypeCounts] = useState({
     incident: 0,
     pureIncident: 0,
-    assetDamage: 0,
-    cctvCheck: 0,
     freeRecovery: 0,
     driveOff: 0,
     incursions: 0,
@@ -410,8 +408,6 @@ const ReportsPage = () => {
     if (filterType === "incident" && subFilter === "pure")
       return reportTypeCounts.pureIncident;
     if (filterType === "incident") return reportTypeCounts.incident;
-    if (filterType === "asset-damage") return reportTypeCounts.assetDamage;
-    if (filterType === "cctv-check") return reportTypeCounts.cctvCheck;
     return reportTypeCounts.total;
   };
   const activeCount = getActiveCount();
@@ -477,8 +473,6 @@ const ReportsPage = () => {
     // Navigate to appropriate view page based on report type
     const reportTypeRoutes = {
       incident: `${basePath}/reports/incident/${report.id}`,
-      "asset-damage": `${basePath}/reports/asset-damage/${report.id}`,
-      "cctv-check": `${basePath}/reports/cctv-check/${report.id}`,
     };
 
     const route = reportTypeRoutes[report.reportType];
@@ -491,10 +485,7 @@ const ReportsPage = () => {
 
   const handleDownloadReport = async (report) => {
     try {
-      // For CCTV check reports, pass the active scheme ID to filter the PDF content
-      const activeSchemeId =
-        userProfile?.activeSchemeId || userProfile?.schemeId;
-      await generateReportPDF(report, report.reportType, activeSchemeId);
+      await generateReportPDF(report, report.reportType);
       toast.success(`Downloaded ${report.referenceId || "report"} as PDF`);
     } catch (error) {
       console.error("Failed to generate PDF:", error);
@@ -506,7 +497,6 @@ const ReportsPage = () => {
     total: reportTypeCounts.total,
     incident: reportTypeCounts.incident,
     pureIncident: reportTypeCounts.pureIncident,
-    cctvCheck: reportTypeCounts.cctvCheck,
     freeRecovery:
       (reportTypeCounts.freeRecovery || 0) + (reportTypeCounts.driveOff || 0),
     incursions: reportTypeCounts.incursions,
@@ -695,7 +685,6 @@ const ReportsPage = () => {
               >
                 <option value="all">All Types</option>
                 <option value="incident">Incident Reports</option>
-                <option value="cctv-check">CCTV Checks</option>
               </select>
             </div>
           </div>

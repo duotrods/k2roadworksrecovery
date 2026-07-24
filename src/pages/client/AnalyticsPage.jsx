@@ -14,7 +14,6 @@ import {
 const AnalyticsPage = () => {
   const { userProfile } = useAuth();
   const [stats, setStats] = useState(null);
-  const [cctvUptime, setCctvUptime] = useState(null);
   const [timeSeriesData, setTimeSeriesData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState('30');
@@ -30,14 +29,12 @@ const AnalyticsPage = () => {
     try {
       setLoading(true);
       const activeScheme = userProfile.activeSchemeId || userProfile.schemeId;
-      const [schemeStats, uptimeData, weeklyData] = await Promise.all([
+      const [schemeStats, weeklyData] = await Promise.all([
         clientDataService.getSchemeStats(activeScheme),
-        clientDataService.getCCTVUptime(activeScheme),
         clientDataService.getTimeSeriesData(activeScheme, parseInt(dateRange))
       ]);
 
       setStats(schemeStats);
-      setCctvUptime(uptimeData);
       setTimeSeriesData(weeklyData);
     } catch (error) {
       console.error('Failed to load analytics data:', error);
@@ -84,15 +81,6 @@ const AnalyticsPage = () => {
       color: 'text-blue-500',
       bgColor: 'bg-blue-50',
       description: 'Total dispatches'
-    },
-    {
-      title: 'CCTV Uptime',
-      value: loading ? '...' : `${cctvUptime?.uptime || 0}%`,
-      change: '+2%',
-      icon: Camera,
-      color: 'text-green-500',
-      bgColor: 'bg-green-50',
-      description: `${cctvUptime?.workingChecks || 0}/${cctvUptime?.totalChecks || 0} checks`
     },
     {
       title: 'Avg Response Time',
@@ -247,30 +235,7 @@ const AnalyticsPage = () => {
             <h3 className="text-lg font-bold text-gray-800">Performance Metrics</h3>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* CCTV Performance */}
-            <div className="p-4 bg-green-50 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Camera className="w-5 h-5 text-green-600" />
-                <h4 className="font-semibold text-green-800">CCTV Performance</h4>
-              </div>
-              <div className="mt-4">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-600">Uptime</span>
-                  <span className="font-semibold text-green-700">{cctvUptime?.uptime || 0}%</span>
-                </div>
-                <div className="w-full bg-green-200 rounded-full h-2">
-                  <div
-                    className="bg-green-600 h-2 rounded-full"
-                    style={{ width: `${cctvUptime?.uptime || 0}%` }}
-                  ></div>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  {cctvUptime?.workingChecks || 0} of {cctvUptime?.totalChecks || 0} checks passed
-                </p>
-              </div>
-            </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Response Efficiency */}
             <div className="p-4 bg-blue-50 rounded-lg">
               <div className="flex items-center gap-2 mb-2">

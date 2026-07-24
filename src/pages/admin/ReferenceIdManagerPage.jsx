@@ -1,16 +1,15 @@
 import { useState } from "react";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "../../config/firebase";
+import { supabase } from "../../config/supabase";
 import { referenceIdService } from "../../services/referenceIdService";
 import AdminSidebarLayout from "../../components/layout/AdminSidebarLayout";
 import { Hash, RotateCcw, Pencil, CheckCircle2, AlertTriangle } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 const FORM_TYPES = [
-  { type: "cctvCheck",       label: "CCTV Check",           prefix: "CC" },
-  { type: "incident",        label: "Incident Report",      prefix: "IN" },
-  { type: "assetDamage",     label: "Asset Damage",         prefix: "AD" },
-  { type: "dailyAllocation", label: "Daily Allocations",    prefix: "DA" },
+  { type: "incident",        label: "Incident Report",           prefix: "IN" },
+  { type: "cabinSafety",     label: "Cabin H&S Check",           prefix: "CH" },
+  { type: "vehicleCheck",    label: "Vehicle Daily Check",        prefix: "VC" },
+  { type: "dailyAllocation", label: "Daily Allocations",          prefix: "DA" },
 ];
 
 // Returns every counter name that exists for a given form type
@@ -31,9 +30,12 @@ const CounterRow = ({ formType, counterName, label, prefix, suffix }) => {
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
-    const snap = await getDoc(doc(db, "counters", counterName));
-    const val = snap.exists() ? (snap.data().current ?? 0) : 0;
-    setCurrent(val);
+    const { data } = await supabase
+      .from("counters")
+      .select("current")
+      .eq("name", counterName)
+      .maybeSingle();
+    setCurrent(data?.current ?? 0);
     setLoaded(true);
   };
 
@@ -50,7 +52,11 @@ const CounterRow = ({ formType, counterName, label, prefix, suffix }) => {
     }
     setSaving(true);
     try {
-      await setDoc(doc(db, "counters", counterName), { current: num });
+      const { error } = await supabase.rpc("admin_set_counter", {
+        p_name: counterName,
+        p_value: num,
+      });
+      if (error) throw error;
       setCurrent(num);
       setEditing(false);
       const nextId = num === 0
@@ -58,7 +64,7 @@ const CounterRow = ({ formType, counterName, label, prefix, suffix }) => {
         : `${prefix}${String(num + 1).padStart(2, "0")}${suffix}`;
       toast.success(`Counter set to ${num}. Next ID will be ${nextId}`);
     } catch {
-      toast.error("Failed to save. Check Firestore permissions.");
+      toast.error("Failed to save. Check Supabase permissions.");
     } finally {
       setSaving(false);
     }
@@ -67,12 +73,16 @@ const CounterRow = ({ formType, counterName, label, prefix, suffix }) => {
   const handleReset = async () => {
     setSaving(true);
     try {
-      await setDoc(doc(db, "counters", counterName), { current: 0 });
+      const { error } = await supabase.rpc("admin_set_counter", {
+        p_name: counterName,
+        p_value: 0,
+      });
+      if (error) throw error;
       setCurrent(0);
       setEditing(false);
       toast.success(`Counter reset to 0. Next ID will be ${prefix}01${suffix}`);
     } catch {
-      toast.error("Failed to reset. Check Firestore permissions.");
+      toast.error("Failed to reset. Check Supabase permissions.");
     } finally {
       setSaving(false);
     }

@@ -11,7 +11,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Menu,
-  MonitorCheck,
   FolderOpen,
   Sparkles,
 } from "lucide-react";
@@ -62,11 +61,6 @@ const ClientSidebarLayout = ({ children, basePath: basePathProp }) => {
       name: "CCTV Recordings",
       path: `${basePath}/cctv-recordings`,
       icon: Video,
-    },
-    {
-      name: "CCTV Uptime",
-      path: `${basePath}/cctv-uptime`,
-      icon: MonitorCheck,
     },
     {
       name: "Documents",

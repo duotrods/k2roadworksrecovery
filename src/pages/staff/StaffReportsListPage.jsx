@@ -322,10 +322,6 @@ const StaffReportsListPage = () => {
     switch (type) {
       case "Incident Report":
         return <AlertTriangle className="w-5 h-5 text-amber-500" />;
-      case "CCTV Check Sheet":
-        return <Eye className="w-5 h-5 text-green-500" />;
-      case "Asset Damage":
-        return <FileText className="w-5 h-5 text-red-500" />;
       case "Cabin H&S Check":
         return <ShieldCheck className="w-5 h-5 text-green-500" />;
       case "Vehicle Daily Check":
@@ -338,8 +334,6 @@ const StaffReportsListPage = () => {
   const getFormTypeBadge = (type) => {
     const badges = {
       "Incident Report": "badge-warning",
-      "Asset Damage": "badge-error",
-      "CCTV Check Sheet": "badge-success",
       "Cabin H&S Check": "badge-success",
       "Vehicle Daily Check": "badge-warning",
     };
@@ -348,11 +342,6 @@ const StaffReportsListPage = () => {
 
   // Get scheme(s) from form - handles different form structures
   const getFormScheme = (form) => {
-    // For CCTV Check Sheet - covers all schemes
-    if (form.type === "CCTV Check Sheet") {
-      return "All Schemes";
-    }
-    // For Incident Report and Asset Damage - single scheme field
     return form.scheme || "N/A";
   };
 
@@ -397,7 +386,6 @@ const StaffReportsListPage = () => {
   // Type filter is handled server-side; text search uses Firestore query
   const filteredForms = latestForms.filter((form) => {
     const formTypeMap = {
-      "CCTV Check Sheet": "cctv-check",
       "Incident Report": "incident",
       "Cabin H&S Check": "cabin-safety",
       "Vehicle Daily Check": "vehicle-check",
@@ -442,9 +430,7 @@ const StaffReportsListPage = () => {
       totalCount,
       pageCache: { ...pageCacheRef.current },
     };
-    if (form.type === "CCTV Check Sheet") {
-      navigate(`${basePath}/reports/cctv-check/${form.id}`);
-    } else if (form.type === "Incident Report") {
+    if (form.type === "Incident Report") {
       navigate(`${basePath}/reports/incident/${form.id}`);
     } else if (form.type === "Cabin H&S Check") {
       navigate(`${basePath}/reports/cabin-safety-check/${form.id}`);
@@ -465,9 +451,7 @@ const StaffReportsListPage = () => {
       totalCount,
       pageCache: { ...pageCacheRef.current },
     };
-    if (form.type === "CCTV Check Sheet") {
-      navigate(`${basePath}/forms/cctv-check?edit=${form.id}`);
-    } else if (form.type === "Incident Report") {
+    if (form.type === "Incident Report") {
       navigate(`${basePath}/forms/incident-report?edit=${form.id}`);
     } else if (form.type === "Cabin H&S Check") {
       navigate(`${basePath}/forms/cabin-safety-check?edit=${form.id}`);
@@ -479,9 +463,7 @@ const StaffReportsListPage = () => {
   const handleDownloadForm = async (form) => {
     try {
       let reportType;
-      if (form.type === "CCTV Check Sheet") {
-        reportType = "cctv-check";
-      } else if (form.type === "Incident Report") {
+      if (form.type === "Incident Report") {
         reportType = "incident";
       } else if (form.type === "Cabin H&S Check") {
         reportType = "cabin-safety";
@@ -555,7 +537,6 @@ const StaffReportsListPage = () => {
                   >
                     <option value="all">All Types</option>
                     <option value="incident">Job Sheets</option>
-                    <option value="cctv-check">CCTV Checks</option>
                     <option value="cabin-safety">Cabin H&S Checks</option>
                     <option value="vehicle-check">Vehicle Daily Checks</option>
                   </select>

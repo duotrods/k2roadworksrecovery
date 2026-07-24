@@ -1,236 +1,107 @@
 /* eslint-disable no-unused-vars */
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  orderBy,
-  limit,
-  Timestamp,
-  onSnapshot,
-  startAfter,
-  getCountFromServer,
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp,
-} from "firebase/firestore";
-import { db } from "../config/firebase";
 import { supabase } from "../config/supabase";
 import { AppError } from "../utils/errorHandling";
 import { isVideoFile } from "../utils/fileType";
 import { fromIncidentRow } from "../utils/incidentRowMapper";
+import { subscribeRealtimeList } from "../utils/realtimeSubscription";
+
+// Normalizes createdAt — defensive against any lingering Firestore
+// Timestamp shape, though every read in this file is Supabase (ISO string)
+// now.
+const toMillis = (createdAt) => {
+  if (!createdAt) return 0;
+  if (typeof createdAt === "string") return new Date(createdAt).getTime();
+  if (typeof createdAt.seconds === "number") return createdAt.seconds * 1000;
+  if (typeof createdAt.toDate === "function") return createdAt.toDate().getTime();
+  return 0;
+};
 
 class ClientDataService {
-  // Real-time listener for live incidents (uses onSnapshot - only charges when data changes)
+  // Real-time listener for live incidents in a scheme. Postgres Realtime
+  // (postgres_changes) — requires incident_reports to be added to the
+  // supabase_realtime publication, see
+  // supabase/migrations/0007_enable_realtime_incident_reports.sql.
   subscribeLiveIncidents(schemeId, callback, onError) {
-    const incidentsRef = collection(db, "incidentReports");
-
-    // Query for live incidents only
-    const q = query(
-      incidentsRef,
-      where("schemeIds", "array-contains", schemeId),
-      where("status", "==", "live"),
-      orderBy("createdAt", "desc"),
-      limit(50), // Limit to 50 most recent live incidents
-    );
-
-    // Track fallback unsubscribe so it can be cleaned up together with the primary
-    let fallbackUnsub = null;
-
-    const primaryUnsub = onSnapshot(
-      q,
-      (snapshot) => {
-        const incidents = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        callback(incidents);
-      },
-      (error) => {
-        // If index error, fall back to simpler query
-        if (
-          error.code === "failed-precondition" ||
-          error.message?.includes("index")
-        ) {
-          console.warn(
-            "Index not available for live incidents, using fallback query",
-          );
-          const simpleQuery = query(
-            incidentsRef,
-            where("schemeIds", "array-contains", schemeId),
-            limit(100),
-          );
-          fallbackUnsub = onSnapshot(
-            simpleQuery,
-            (snapshot) => {
-              const incidents = snapshot.docs
-                .map((doc) => ({ id: doc.id, ...doc.data() }))
-                .filter((doc) => doc.status === "live")
-                .sort(
-                  (a, b) =>
-                    (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0),
-                )
-                .slice(0, 50);
-              callback(incidents);
-            },
-            onError,
-          );
-          return;
-        }
-        if (onError) onError(error);
-      },
-    );
-
-    // Return a combined unsubscribe that cancels both primary and fallback
-    return () => {
-      primaryUnsub();
-      if (fallbackUnsub) fallbackUnsub();
-    };
+    return subscribeRealtimeList({
+      table: "incident_reports",
+      initialFetch: () =>
+        supabase
+          .from("incident_reports")
+          .select("*")
+          .overlaps("scheme_ids", [schemeId])
+          .eq("status", "live")
+          .order("created_at", { ascending: false })
+          .limit(50),
+      matches: (row) =>
+        row.status === "live" &&
+        Array.isArray(row.scheme_ids) &&
+        row.scheme_ids.includes(schemeId),
+      limit: 50,
+      callback: (rows) => callback(rows.map(fromIncidentRow)),
+      onError,
+    });
   }
 
-  // Real-time listener for all scheme incidents (live + completed)
+  // Real-time listener for all scheme incidents (live + completed).
   subscribeSchemeIncidents(schemeId, callback, onError) {
-    const incidentsRef = collection(db, "incidentReports");
-
-    const q = query(
-      incidentsRef,
-      where("schemeIds", "array-contains", schemeId),
-      orderBy("createdAt", "desc"),
-      limit(100), // Limit to 100 most recent incidents
-    );
-
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        const incidents = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        callback(incidents);
-      },
-      (error) => {
-        if (
-          error.code === "failed-precondition" ||
-          error.message?.includes("index")
-        ) {
-          console.warn("Index not available, using fallback query");
-          const simpleQuery = query(
-            incidentsRef,
-            where("schemeIds", "array-contains", schemeId),
-            limit(100),
-          );
-          return onSnapshot(
-            simpleQuery,
-            (snapshot) => {
-              const incidents = snapshot.docs
-                .map((doc) => ({ id: doc.id, ...doc.data() }))
-                .sort(
-                  (a, b) =>
-                    (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0),
-                );
-              callback(incidents);
-            },
-            onError,
-          );
-        }
-        if (onError) onError(error);
-      },
-    );
+    return subscribeRealtimeList({
+      table: "incident_reports",
+      initialFetch: () =>
+        supabase
+          .from("incident_reports")
+          .select("*")
+          .overlaps("scheme_ids", [schemeId])
+          .order("created_at", { ascending: false })
+          .limit(100),
+      matches: (row) =>
+        Array.isArray(row.scheme_ids) && row.scheme_ids.includes(schemeId),
+      limit: 100,
+      callback: (rows) => callback(rows.map(fromIncidentRow)),
+      onError,
+    });
   }
 
-  // Paginated query for completed incidents (only reads 10 docs per page - saves costs!)
+  // Paginated query for completed incidents — keyset pagination on created_at.
   async getCompletedIncidentsPaginated(
     schemeId,
     pageSize = 10,
     lastDoc = null,
   ) {
     try {
-      const incidentsRef = collection(db, "incidentReports");
+      let q = supabase
+        .from("incident_reports")
+        .select("*")
+        .overlaps("scheme_ids", [schemeId])
+        .eq("status", "completed")
+        .order("created_at", { ascending: false })
+        .limit(pageSize);
+      if (lastDoc) q = q.lt("created_at", lastDoc);
 
-      // Build query with cursor if we have a last document
-      let q;
-      if (lastDoc) {
-        q = query(
-          incidentsRef,
-          where("schemeIds", "array-contains", schemeId),
-          where("status", "==", "completed"),
-          orderBy("createdAt", "desc"),
-          startAfter(lastDoc),
-          limit(pageSize),
-        );
-      } else {
-        q = query(
-          incidentsRef,
-          where("schemeIds", "array-contains", schemeId),
-          where("status", "==", "completed"),
-          orderBy("createdAt", "desc"),
-          limit(pageSize),
-        );
-      }
+      const { data, error } = await q;
+      if (error) throw error;
+      const incidents = (data || []).map(fromIncidentRow);
 
-      const snapshot = await getDocs(q);
-      const incidents = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      // Return data + last doc for next page cursor
       return {
         incidents,
-        lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
-        hasMore: snapshot.docs.length === pageSize,
+        lastDoc: incidents.length > 0 ? data[data.length - 1].created_at : null,
+        hasMore: incidents.length === pageSize,
       };
     } catch (error) {
-      // Fallback for missing index
-      if (
-        error.code === "failed-precondition" ||
-        error.message?.includes("index")
-      ) {
-        console.warn("Index not available for paginated query, using fallback");
-        const simpleQuery = query(
-          collection(db, "incidentReports"),
-          where("schemeIds", "array-contains", schemeId),
-          limit(100),
-        );
-        const snapshot = await getDocs(simpleQuery);
-        const allCompleted = snapshot.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .filter((doc) => doc.status === "completed")
-          .sort(
-            (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0),
-          );
-
-        // Manual pagination on filtered results
-        const startIndex = lastDoc
-          ? allCompleted.findIndex((d) => d.id === lastDoc.id) + 1
-          : 0;
-        const incidents = allCompleted.slice(startIndex, startIndex + pageSize);
-
-        return {
-          incidents,
-          lastDoc:
-            incidents.length > 0
-              ? { id: incidents[incidents.length - 1].id }
-              : null,
-          hasMore: startIndex + pageSize < allCompleted.length,
-        };
-      }
-      throw error;
+      console.error("Failed to get paginated completed incidents:", error);
+      return { incidents: [], lastDoc: null, hasMore: false };
     }
   }
 
   // Get total count of completed incidents (for pagination display)
   async getCompletedIncidentsCount(schemeId) {
     try {
-      const incidentsRef = collection(db, "incidentReports");
-      const q = query(
-        incidentsRef,
-        where("schemeIds", "array-contains", schemeId),
-        where("status", "==", "completed"),
-      );
-      const snapshot = await getCountFromServer(q);
-      return snapshot.data().count;
+      const { count, error } = await supabase
+        .from("incident_reports")
+        .select("*", { count: "exact", head: true })
+        .overlaps("scheme_ids", [schemeId])
+        .eq("status", "completed");
+      if (error) throw error;
+      return count || 0;
     } catch (error) {
       console.warn("Could not get count:", error);
       return 0;
@@ -260,50 +131,14 @@ class ClientDataService {
   // Get live incidents for a specific scheme
   async getLiveIncidentsByScheme(schemeId) {
     try {
-      const incidentsRef = collection(db, "incidentReports");
-
-      try {
-        // Try compound query (requires index on schemeIds + status + createdAt)
-        const q = query(
-          incidentsRef,
-          where("schemeIds", "array-contains", schemeId),
-          where("status", "==", "live"),
-          orderBy("createdAt", "desc"),
-        );
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-      } catch (indexError) {
-        // If index doesn't exist, fall back to fetching by scheme and filtering in memory
-        if (
-          indexError.code === "failed-precondition" ||
-          indexError.message?.includes("index")
-        ) {
-          console.warn(
-            "Index not available for live incidents query, filtering in memory",
-          );
-          const simpleQuery = query(
-            incidentsRef,
-            where("schemeIds", "array-contains", schemeId),
-          );
-          const snapshot = await getDocs(simpleQuery);
-          const docs = snapshot.docs
-            .map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            }))
-            .filter((doc) => doc.status === "live")
-            .sort((a, b) => {
-              const timeA = a.createdAt?.seconds || 0;
-              const timeB = b.createdAt?.seconds || 0;
-              return timeB - timeA;
-            });
-          return docs;
-        }
-        throw indexError;
-      }
+      const { data, error } = await supabase
+        .from("incident_reports")
+        .select("*")
+        .overlaps("scheme_ids", [schemeId])
+        .eq("status", "live")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []).map(fromIncidentRow);
     } catch (error) {
       console.error("Error fetching live incidents:", error);
       throw new AppError(
@@ -317,124 +152,18 @@ class ClientDataService {
   // Get incidents for a specific scheme
   async getSchemeIncidents(schemeId, limitCount = 100) {
     try {
-      const incidentsRef = collection(db, "incidentReports");
-
-      // Try new schema first (schemeIds array)
-      try {
-        const q = query(
-          incidentsRef,
-          where("schemeIds", "array-contains", schemeId),
-          orderBy("createdAt", "desc"),
-          limit(limitCount),
-        );
-        const querySnapshot = await getDocs(q);
-        const results = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        console.log(
-          `Found ${results.length} incidents for scheme ${schemeId} using array-contains`,
-        );
-        return results;
-      } catch (indexError) {
-        // Check if it's an index error or permissions error
-        if (
-          indexError.code === "failed-precondition" ||
-          indexError.message?.includes("index")
-        ) {
-          // If index doesn't exist, try without ordering
-          console.warn(
-            "Index not available for incidentReports, trying simplified query",
-          );
-          const simpleQuery = query(
-            incidentsRef,
-            where("schemeIds", "array-contains", schemeId),
-            limit(limitCount),
-          );
-          const snapshot = await getDocs(simpleQuery);
-          const docs = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
-          console.log(
-            `Found ${docs.length} incidents for scheme ${schemeId} (simplified query)`,
-          );
-          if (docs.length > 0) {
-            console.log(
-              "Sample incident schemeIds:",
-              docs[0].schemeIds,
-              "Sample incident data:",
-              docs[0],
-            );
-          }
-          // Sort in memory
-          return docs.sort((a, b) => {
-            const timeA = a.createdAt?.seconds || 0;
-            const timeB = b.createdAt?.seconds || 0;
-            return timeB - timeA;
-          });
-        }
-        // If it's a permissions error or other error, rethrow
-        throw indexError;
-      }
+      const { data, error } = await supabase
+        .from("incident_reports")
+        .select("*")
+        .overlaps("scheme_ids", [schemeId])
+        .order("created_at", { ascending: false })
+        .limit(limitCount);
+      if (error) throw error;
+      return (data || []).map(fromIncidentRow);
     } catch (error) {
       console.error("Error fetching incidents:", error);
       throw new AppError(
         "Failed to fetch scheme incidents",
-        "client-data/fetch-error",
-        error,
-      );
-    }
-  }
-
-  // Get CCTV check reports for a specific scheme
-  async getSchemeCCTVChecks(schemeId, limitCount = 100) {
-    try {
-      const cctvRef = collection(db, "cctvCheckForms");
-
-      try {
-        const q = query(
-          cctvRef,
-          where("schemeIds", "array-contains", schemeId),
-          orderBy("createdAt", "desc"),
-          limit(limitCount),
-        );
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-      } catch (indexError) {
-        // Check if it's an index error or permissions error
-        if (
-          indexError.code === "failed-precondition" ||
-          indexError.message?.includes("index")
-        ) {
-          console.warn(
-            "Index not available for cctvCheckForms, trying simplified query",
-          );
-          const simpleQuery = query(
-            cctvRef,
-            where("schemeIds", "array-contains", schemeId),
-            limit(limitCount),
-          );
-          const snapshot = await getDocs(simpleQuery);
-          const docs = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
-          return docs.sort((a, b) => {
-            const timeA = a.createdAt?.seconds || 0;
-            const timeB = b.createdAt?.seconds || 0;
-            return timeB - timeA;
-          });
-        }
-        throw indexError;
-      }
-    } catch (error) {
-      console.error("Error fetching CCTV checks:", error);
-      throw new AppError(
-        "Failed to fetch CCTV checks",
         "client-data/fetch-error",
         error,
       );
@@ -448,14 +177,13 @@ class ClientDataService {
       const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
       // Get recent incidents
-      const incidentsRef = collection(db, "incidentReports");
-      const incidentsQuery = query(
-        incidentsRef,
-        where("schemeIds", "array-contains", schemeId),
-        where("createdAt", ">=", Timestamp.fromDate(startDate)),
-      );
-      const incidentsSnapshot = await getDocs(incidentsQuery);
-      const incidents = incidentsSnapshot.docs.map((doc) => doc.data());
+      const { data, error } = await supabase
+        .from("incident_reports")
+        .select("*")
+        .overlaps("scheme_ids", [schemeId])
+        .gte("created_at", startDate.toISOString());
+      if (error) throw error;
+      const incidents = (data || []).map(fromIncidentRow);
 
       // Calculate statistics
       const stats = {
@@ -754,63 +482,25 @@ class ClientDataService {
     return total;
   }
 
-  // Get CCTV uptime statistics
-  async getCCTVUptime(schemeId) {
-    try {
-      const now = new Date();
-      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-      const cctvRef = collection(db, "cctvCheckForms");
-      const q = query(
-        cctvRef,
-        where("schemeIds", "array-contains", schemeId),
-        where("createdAt", ">=", Timestamp.fromDate(thirtyDaysAgo)),
-      );
-
-      const querySnapshot = await getDocs(q);
-      const checks = querySnapshot.docs.map((doc) => doc.data());
-
-      if (checks.length === 0) {
-        return { uptime: 0, totalChecks: 0 };
-      }
-
-      const workingChecks = checks.filter(
-        (check) => check.status === "operational" || check.allWorking === true,
-      );
-      const uptime = ((workingChecks.length / checks.length) * 100).toFixed(1);
-
-      return {
-        uptime: parseFloat(uptime),
-        totalChecks: checks.length,
-        workingChecks: workingChecks.length,
-      };
-    } catch (error) {
-      console.error("Failed to fetch CCTV uptime:", error);
-      return { uptime: 0, totalChecks: 0 };
-    }
-  }
-
   // Get time-series data for charts
   async getTimeSeriesData(schemeId, days = 30) {
     try {
       const now = new Date();
       const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
-      const incidentsRef = collection(db, "incidentReports");
-      const q = query(
-        incidentsRef,
-        where("schemeIds", "array-contains", schemeId),
-        where("createdAt", ">=", Timestamp.fromDate(startDate)),
-        orderBy("createdAt", "asc"),
-      );
-
-      const querySnapshot = await getDocs(q);
-      const incidents = querySnapshot.docs.map((doc) => doc.data());
+      const { data, error } = await supabase
+        .from("incident_reports")
+        .select("*")
+        .overlaps("scheme_ids", [schemeId])
+        .gte("created_at", startDate.toISOString())
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      const incidents = (data || []).map(fromIncidentRow);
 
       // Group by week
       const weeklyData = {};
       incidents.forEach((incident) => {
-        const date = incident.createdAt.toDate();
+        const date = new Date(incident.createdAt);
         const weekKey = `Week ${this.getWeekNumber(date)}`;
 
         weeklyData[weekKey] = (weeklyData[weekKey] || 0) + 1;
@@ -856,57 +546,14 @@ class ClientDataService {
       endDate.setHours(23, 59, 59, 999); // End of day
 
       // Get recent incidents
-      const incidentsRef = collection(db, "incidentReports");
-      let incidents = [];
-
-      try {
-        // Try compound query with date range (requires index)
-        const incidentsQuery = query(
-          incidentsRef,
-          where("schemeIds", "array-contains", schemeId),
-          where("createdAt", ">=", Timestamp.fromDate(startDate)),
-          where("createdAt", "<=", Timestamp.fromDate(endDate)),
-        );
-        const incidentsSnapshot = await getDocs(incidentsQuery);
-        incidents = incidentsSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        console.log(
-          `Found ${incidents.length} incidents for scheme ${schemeId} in date range`,
-        );
-      } catch (indexError) {
-        // If index doesn't exist, fall back to fetching all and filtering in memory
-        if (
-          indexError.code === "failed-precondition" ||
-          indexError.message?.includes("index")
-        ) {
-          console.warn(
-            "Index not available for date range query, filtering in memory",
-          );
-          const simpleQuery = query(
-            incidentsRef,
-            where("schemeIds", "array-contains", schemeId),
-          );
-          const snapshot = await getDocs(simpleQuery);
-          const allIncidents = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
-
-          // Filter by date range in memory
-          incidents = allIncidents.filter((incident) => {
-            if (!incident.createdAt) return false;
-            const incidentDate = incident.createdAt.toDate();
-            return incidentDate >= startDate && incidentDate <= endDate;
-          });
-          console.log(
-            `Filtered ${incidents.length} incidents from ${allIncidents.length} total for scheme ${schemeId}`,
-          );
-        } else {
-          throw indexError;
-        }
-      }
+      const { data, error } = await supabase
+        .from("incident_reports")
+        .select("*")
+        .overlaps("scheme_ids", [schemeId])
+        .gte("created_at", startDate.toISOString())
+        .lte("created_at", endDate.toISOString());
+      if (error) throw error;
+      const incidents = (data || []).map(fromIncidentRow);
 
       // Calculate statistics (same as getSchemeStats)
       const stats = {
@@ -970,58 +617,21 @@ class ClientDataService {
       const endDate = new Date(endDateStr);
       endDate.setHours(23, 59, 59, 999);
 
-      const incidentsRef = collection(db, "incidentReports");
-      let incidents = [];
-
-      try {
-        // Try compound query with date range and ordering (requires index)
-        const q = query(
-          incidentsRef,
-          where("schemeIds", "array-contains", schemeId),
-          where("createdAt", ">=", Timestamp.fromDate(startDate)),
-          where("createdAt", "<=", Timestamp.fromDate(endDate)),
-          orderBy("createdAt", "asc"),
-        );
-        const querySnapshot = await getDocs(q);
-        incidents = querySnapshot.docs.map((doc) => doc.data());
-      } catch (indexError) {
-        // If index doesn't exist, fall back to fetching all and filtering in memory
-        if (
-          indexError.code === "failed-precondition" ||
-          indexError.message?.includes("index")
-        ) {
-          console.warn(
-            "Index not available for time series query, filtering in memory",
-          );
-          const simpleQuery = query(
-            incidentsRef,
-            where("schemeIds", "array-contains", schemeId),
-          );
-          const snapshot = await getDocs(simpleQuery);
-          const allIncidents = snapshot.docs.map((doc) => doc.data());
-
-          // Filter by date range and sort in memory
-          incidents = allIncidents
-            .filter((incident) => {
-              if (!incident.createdAt) return false;
-              const incidentDate = incident.createdAt.toDate();
-              return incidentDate >= startDate && incidentDate <= endDate;
-            })
-            .sort((a, b) => {
-              const timeA = a.createdAt?.seconds || 0;
-              const timeB = b.createdAt?.seconds || 0;
-              return timeA - timeB;
-            });
-        } else {
-          throw indexError;
-        }
-      }
+      const { data, error } = await supabase
+        .from("incident_reports")
+        .select("*")
+        .overlaps("scheme_ids", [schemeId])
+        .gte("created_at", startDate.toISOString())
+        .lte("created_at", endDate.toISOString())
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      const incidents = (data || []).map(fromIncidentRow);
 
       // Group by month (e.g., "January 2026")
       const monthlyData = {};
       const monthOrder = []; // Track order of months for sorting
       incidents.forEach((incident) => {
-        const date = incident.createdAt.toDate();
+        const date = new Date(incident.createdAt);
         const monthKey = date.toLocaleDateString("en-US", {
           month: "short",
           year: "numeric",
@@ -1058,20 +668,6 @@ class ClientDataService {
         return [];
       });
 
-      const assetDamage = await this.getSchemeAssetDamage(schemeId).catch(
-        (err) => {
-          console.error("Failed to fetch asset damage:", err);
-          return [];
-        },
-      );
-
-      const cctvChecks = await this.getSchemeCCTVChecks(schemeId).catch(
-        (err) => {
-          console.error("Failed to fetch CCTV checks:", err);
-          return [];
-        },
-      );
-
       // Transform and combine all reports
       const allReports = [
         ...incidents.map((report) => ({
@@ -1080,26 +676,10 @@ class ClientDataService {
           type: report.incidentType,
           timestamp: report.createdAt,
         })),
-        ...assetDamage.map((report) => ({
-          ...report,
-          reportType: "asset-damage",
-          type: report.damageType,
-          timestamp: report.createdAt,
-        })),
-        ...cctvChecks.map((report) => ({
-          ...report,
-          reportType: "cctv-check",
-          title: "CCTV Check",
-          timestamp: report.createdAt,
-        })),
       ];
 
       // Sort by timestamp (newest first)
-      return allReports.sort((a, b) => {
-        const timeA = a.timestamp?.seconds || 0;
-        const timeB = b.timestamp?.seconds || 0;
-        return timeB - timeA;
-      });
+      return allReports.sort((a, b) => toMillis(b.timestamp) - toMillis(a.timestamp));
     } catch (error) {
       console.error("Error in getAllReports:", error);
       throw new AppError(
@@ -1111,96 +691,34 @@ class ClientDataService {
   }
 
   // Get all reports with server-side pagination (COST-OPTIMIZED!)
-  // Fetches reports from all collections and merges them with cursor-based pagination
+  // Fetches paginated incident reports and merges them with cursor-based pagination.
+  // Only "incident" is a client-visible report type now (Cabin Safety/Vehicle
+  // Check/Daily Allocations have no client access) — kept as a single-source
+  // "merge" for interface parity with the multi-type shape ReportsPage.jsx expects.
   async getAllReportsPaginated(schemeId, pageSize = 10, cursors = {}, dateRange = null) {
     try {
-      // Fetch pageSize from each type so the merged result is truly chronological
-      const perTypeLimit = pageSize;
-
-      // Fetch with cursors
-      const [incidents, assetDamage, cctvChecks] =
-        await Promise.all([
-          this.fetchPaginatedCollection(
-            "incidentReports",
-            schemeId,
-            perTypeLimit,
-            cursors.incidents,
-            null,
-            dateRange,
-          ),
-          this.fetchPaginatedCollection(
-            "assetDamageReports",
-            schemeId,
-            perTypeLimit,
-            cursors.assetDamage,
-            null,
-            dateRange,
-          ),
-          this.fetchPaginatedCollection(
-            "cctvCheckForms",
-            schemeId,
-            perTypeLimit,
-            cursors.cctvChecks,
-            null,
-            dateRange,
-          ),
-        ]);
-
-      // Transform and combine all reports — tag each with source for cursor tracking
-      const allReports = [
-        ...incidents.docs.map((report) => ({
-          ...report,
-          reportType: "incident",
-          _source: "incidents",
-          type: report.incidentType,
-          timestamp: report.createdAt,
-        })),
-        ...assetDamage.docs.map((report) => ({
-          ...report,
-          reportType: "asset-damage",
-          _source: "assetDamage",
-          type: report.damageType,
-          timestamp: report.createdAt,
-        })),
-        ...cctvChecks.docs.map((report) => ({
-          ...report,
-          reportType: "cctv-check",
-          _source: "cctvChecks",
-          title: "CCTV Check",
-          timestamp: report.createdAt,
-        })),
-      ];
-
-      // Sort by timestamp and take only pageSize items
-      const sortedReports = allReports
-        .sort((a, b) => {
-          const timeA = a.timestamp?.seconds || 0;
-          const timeB = b.timestamp?.seconds || 0;
-          return timeB - timeA;
-        })
-        .slice(0, pageSize);
-
-      // Only advance cursors for collections that had docs included in the final slice.
-      // This prevents skipping unseen docs from collections that were fetched but not displayed.
-      const newCursors = { ...cursors };
-      sortedReports.forEach((report) => {
-        if (report._firestoreDoc) {
-          newCursors[report._source] = report._firestoreDoc;
-        }
-      });
-
-      // Clean internal tracking fields before returning
-      const cleanReports = sortedReports.map(
-        ({ _source, _firestoreDoc, ...rest }) => rest,
+      const incidents = await this.fetchPaginatedIncidents(
+        schemeId,
+        pageSize,
+        cursors.incidents,
+        null,
+        dateRange,
       );
 
+      const reports = incidents.docs.map((report) => ({
+        ...report,
+        reportType: "incident",
+        type: report.incidentType,
+        timestamp: report.createdAt,
+      }));
+
+      const newCursors = { ...cursors };
+      if (incidents.lastDoc) newCursors.incidents = incidents.lastDoc;
+
       return {
-        reports: cleanReports,
+        reports,
         cursors: newCursors,
-        hasMore:
-          incidents.hasMore ||
-          assetDamage.hasMore ||
-          cctvChecks.hasMore,
+        hasMore: incidents.hasMore,
       };
     } catch (error) {
       console.error("Error in getAllReportsPaginated:", error);
@@ -1212,96 +730,45 @@ class ClientDataService {
     }
   }
 
-  // Helper method to fetch paginated documents from a collection
-  async fetchPaginatedCollection(
-    collectionName,
-    schemeId,
-    limitCount,
-    lastDoc,
-    extraWhere = null,
-    dateRange = null, // { startDate: Date, endDate: Date }
-  ) {
+  // Keyset pagination (created_at cursor) for incident_reports, scoped to a scheme.
+  // extraWhere: { field, op, value } for server-side sub-filters (field is
+  // camelCase, converted to the snake_case column name).
+  async fetchPaginatedIncidents(schemeId, limitCount, cursor, extraWhere = null, dateRange = null) {
     try {
-      const collectionRef = collection(db, collectionName);
-      let q;
+      let q = supabase
+        .from("incident_reports")
+        .select("*")
+        .overlaps("scheme_ids", [schemeId])
+        .order("created_at", { ascending: false })
+        .limit(limitCount);
 
-      const baseConstraints = [
-        where("schemeIds", "array-contains", schemeId),
-        ...(extraWhere
-          ? [where(extraWhere.field, extraWhere.op, extraWhere.value)]
-          : []),
-        ...(dateRange
-          ? [
-              where("createdAt", ">=", Timestamp.fromDate(dateRange.startDate)),
-              where("createdAt", "<=", Timestamp.fromDate(dateRange.endDate)),
-            ]
-          : []),
-        orderBy("createdAt", "desc"),
-      ];
-
-      if (lastDoc) {
-        q = query(
-          collectionRef,
-          ...baseConstraints,
-          startAfter(lastDoc),
-          limit(limitCount),
-        );
-      } else {
-        q = query(collectionRef, ...baseConstraints, limit(limitCount));
+      if (extraWhere) {
+        const column = extraWhere.field.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+        q = extraWhere.op === "in"
+          ? q.in(column, extraWhere.value)
+          : q.eq(column, extraWhere.value);
       }
+      if (dateRange) {
+        q = q
+          .gte("created_at", dateRange.startDate.toISOString())
+          .lte("created_at", dateRange.endDate.toISOString());
+      }
+      if (cursor) q = q.lt("created_at", cursor);
 
-      const snapshot = await getDocs(q);
-      const docs = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        _firestoreDoc: doc, // Keep raw snapshot for cursor tracking
+      const { data, error } = await q;
+      if (error) throw error;
+      const docs = (data || []).map((row) => ({
+        ...fromIncidentRow(row),
+        _cursor: row.created_at,
       }));
 
       return {
         docs,
-        lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
-        hasMore: snapshot.docs.length === limitCount,
+        lastDoc: docs.length > 0 ? docs[docs.length - 1]._cursor : null,
+        hasMore: docs.length === limitCount,
       };
     } catch (error) {
-      // If index error, fall back to a query without orderBy
-      // startAfter still works without orderBy (uses doc ID order), so pagination is preserved.
-      // Docs are sorted in memory per page. Order across pages won't be perfectly chronological
-      // until the composite index is deployed, but navigation will work correctly.
-      if (
-        error.code === "failed-precondition" ||
-        error.message?.includes("index")
-      ) {
-        console.warn(
-          `Index not available for ${collectionName}, using fallback (deploy indexes to fix ordering)`,
-        );
-        const collRef = collection(db, collectionName);
-        const fallbackQuery = lastDoc
-          ? query(
-              collRef,
-              where("schemeIds", "array-contains", schemeId),
-              startAfter(lastDoc),
-              limit(limitCount),
-            )
-          : query(
-              collRef,
-              where("schemeIds", "array-contains", schemeId),
-              limit(limitCount),
-            );
-
-        const snapshot = await getDocs(fallbackQuery);
-        const docs = snapshot.docs
-          .map((doc) => ({ id: doc.id, ...doc.data(), _firestoreDoc: doc }))
-          .sort(
-            (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0),
-          );
-
-        return {
-          docs,
-          lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
-          hasMore: snapshot.docs.length === limitCount,
-        };
-      }
-      console.error(`Error fetching from ${collectionName}:`, error);
+      console.error("Error fetching paginated incidents:", error);
       return { docs: [], lastDoc: null, hasMore: false };
     }
   }
@@ -1309,87 +776,11 @@ class ClientDataService {
   // Get total count of all reports for a scheme (for pagination display)
   async getAllReportsCount(schemeId) {
     try {
-      const [incidentCount, assetCount, cctvCount] = await Promise.all([
-        this.getCollectionCount("incidentReports", schemeId),
-        this.getCollectionCount("assetDamageReports", schemeId),
-        this.getCollectionCount("cctvCheckForms", schemeId),
-      ]);
-
-      return incidentCount + assetCount + cctvCount;
+      return await this.getCollectionCount("incidentReports", schemeId);
     } catch (error) {
       console.warn("Could not get total reports count:", error);
       return 0;
     }
-  }
-
-  // CCTV-specific paginated fetch: runs TWO separate array-contains queries and merges them.
-  // This avoids array-contains-any + orderBy (which needs a composite index that may not exist).
-  // Query 1: forms explicitly tagged with schemeId (forms with faults for this scheme)
-  // Query 2: forms tagged "all-schemes" (backward-compat clean-check forms from before the fix)
-  async getCCTVReportsPaginated(schemeId, pageSize, cursors) {
-    const cctvRef = collection(db, "cctvCheckForms");
-    const specificCursor = cursors?.specific ?? null;
-    const allSchemesCursor = cursors?.allSchemes ?? null;
-
-    const buildQ = (value, cursor) =>
-      cursor
-        ? query(
-            cctvRef,
-            where("schemeIds", "array-contains", value),
-            orderBy("createdAt", "desc"),
-            startAfter(cursor),
-            limit(pageSize),
-          )
-        : query(
-            cctvRef,
-            where("schemeIds", "array-contains", value),
-            orderBy("createdAt", "desc"),
-            limit(pageSize),
-          );
-
-    // Run each query independently so one failing doesn't block the other
-    const fetchSafe = async (q) => {
-      try {
-        return await getDocs(q);
-      } catch {
-        return { docs: [] };
-      }
-    };
-
-    const [snap1, snap2] = await Promise.all([
-      fetchSafe(buildQ(schemeId, specificCursor)),
-      fetchSafe(buildQ("all-schemes", allSchemesCursor)),
-    ]);
-
-    // Merge, deduplicate (same form could theoretically match both), sort newest first
-    const seen = new Set();
-    const merged = [...snap1.docs, ...snap2.docs]
-      .filter((d) => !seen.has(d.id) && seen.add(d.id))
-      .map((d) => ({
-        id: d.id,
-        ...d.data(),
-        reportType: "cctv-check",
-        title: "CCTV Check",
-        timestamp: d.data().createdAt,
-      }))
-      .sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0))
-      .slice(0, pageSize);
-
-    return {
-      reports: merged,
-      lastDoc: {
-        specific:
-          snap1.docs?.length > 0
-            ? snap1.docs[snap1.docs.length - 1]
-            : specificCursor,
-        allSchemes:
-          snap2.docs?.length > 0
-            ? snap2.docs[snap2.docs.length - 1]
-            : allSchemesCursor,
-      },
-      hasMore:
-        snap1.docs?.length === pageSize || snap2.docs?.length === pageSize,
-    };
   }
 
   // Get reports for a single type with true server-side pagination
@@ -1402,44 +793,24 @@ class ClientDataService {
     extraWhere = null, // { field, op, value } for server-side sub-filters
     dateRange = null, // { startDate: Date, endDate: Date }
   ) {
-    // CCTV uses a dual-query approach to include both scheme-specific and "all-schemes" forms
-    if (reportType === "cctv-check") {
-      return await this.getCCTVReportsPaginated(schemeId, pageSize, lastDoc);
+    if (reportType !== "incident") {
+      return { reports: [], lastDoc: null, hasMore: false };
     }
 
-    const collectionMap = {
-      incident: "incidentReports",
-      "asset-damage": "assetDamageReports",
-    };
-    const collectionName = collectionMap[reportType];
-    if (!collectionName) return { reports: [], lastDoc: null, hasMore: false };
-
     try {
-      const result = await this.fetchPaginatedCollection(
-        collectionName,
+      const result = await this.fetchPaginatedIncidents(
         schemeId,
         pageSize,
         lastDoc,
         extraWhere,
         dateRange,
       );
-      const reports = result.docs.map((report) => {
-        if (reportType === "incident")
-          return {
-            ...report,
-            reportType: "incident",
-            type: report.incidentType,
-            timestamp: report.createdAt,
-          };
-        if (reportType === "asset-damage")
-          return {
-            ...report,
-            reportType: "asset-damage",
-            type: report.damageType,
-            timestamp: report.createdAt,
-          };
-        return { ...report, reportType, timestamp: report.createdAt };
-      });
+      const reports = result.docs.map(({ _cursor, ...report }) => ({
+        ...report,
+        reportType: "incident",
+        type: report.incidentType,
+        timestamp: report.createdAt,
+      }));
       return { reports, lastDoc: result.lastDoc, hasMore: result.hasMore };
     } catch (error) {
       console.error("Error fetching typed reports:", error);
@@ -1452,8 +823,6 @@ class ClientDataService {
     try {
       const [
         incidentCount,
-        assetCount,
-        cctvCount,
         freeRecoveryCount,
         driveOffCount,
         incursionsCount,
@@ -1462,8 +831,6 @@ class ClientDataService {
         pureIncidentCount,
       ] = await Promise.all([
         this.getCollectionCount("incidentReports", schemeId, dateRange),
-        this.getCollectionCount("assetDamageReports", schemeId, dateRange),
-        this.getCollectionCount("cctvCheckForms", schemeId, dateRange),
         this.getCollectionCountWithFilter(
           "incidentReports",
           schemeId,
@@ -1499,22 +866,18 @@ class ClientDataService {
       return {
         incident: incidentCount, // raw total — used by filter dropdown
         pureIncident: pureIncidentCount, // exact pure count — used by Incidents card
-        assetDamage: assetCount,
-        cctvCheck: cctvCount,
         freeRecovery: freeRecoveryCount,
         driveOff: driveOffCount,
         incursions: incursionsCount,
         vehiclesDispatched: vehiclesDispatchedCount,
         incidentAssetDamage: incidentAssetDamageCount,
-        total: incidentCount + assetCount + cctvCount,
+        total: incidentCount,
       };
     } catch (error) {
       console.warn("Could not get reports count by type:", error);
       return {
         incident: 0,
         pureIncident: 0,
-        assetDamage: 0,
-        cctvCheck: 0,
         freeRecovery: 0,
         driveOff: 0,
         incursions: 0,
@@ -1526,63 +889,63 @@ class ClientDataService {
   }
 
   // Count pure incidents using the isPureIncident field written at submit/edit time.
-  // Simple equality query — 1 read, no complex filtering needed.
   async getPureIncidentCount(schemeId, dateRange = null) {
     try {
-      const constraints = [
-        where("schemeIds", "array-contains", schemeId),
-        where("isPureIncident", "==", true),
-        ...(dateRange
-          ? [
-              where("createdAt", ">=", Timestamp.fromDate(dateRange.startDate)),
-              where("createdAt", "<=", Timestamp.fromDate(dateRange.endDate)),
-            ]
-          : []),
-      ];
-      const q = query(collection(db, "incidentReports"), ...constraints);
-      const snapshot = await getCountFromServer(q);
-      return snapshot.data().count;
-    } catch (error) {
-      const indexLink = error.message?.match(/https:\/\/console\.firebase\.google\.com\S+/)?.[0];
-      if (indexLink) {
-        console.log("Create missing Firestore index for Incidents card:", indexLink);
-      } else {
-        console.warn("Pure incident count unavailable:", error.message);
+      let q = supabase
+        .from("incident_reports")
+        .select("*", { count: "exact", head: true })
+        .overlaps("scheme_ids", [schemeId])
+        .eq("is_pure_incident", true);
+      if (dateRange) {
+        q = q
+          .gte("created_at", dateRange.startDate.toISOString())
+          .lte("created_at", dateRange.endDate.toISOString());
       }
+      const { count, error } = await q;
+      if (error) throw error;
+      return count || 0;
+    } catch (error) {
+      console.warn("Pure incident count unavailable:", error.message);
       return 0;
     }
   }
 
   async getVehiclesDispatchedCount(schemeId) {
     try {
-      const { doc, getDoc } = await import("firebase/firestore");
-      const statsRef = doc(db, "schemeStats", schemeId);
-      const snapshot = await getDoc(statsRef);
-      return snapshot.exists()
-        ? snapshot.data().totalVehiclesDispatched || 0
-        : 0;
+      const { data, error } = await supabase
+        .from("scheme_stats")
+        .select("total_vehicles_dispatched")
+        .eq("scheme_id", schemeId)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.total_vehicles_dispatched || 0;
     } catch (error) {
       console.warn("Could not get vehicles dispatched count:", error);
       return 0;
     }
   }
 
+  // field is camelCase (e.g. "isPureIncident"), converted to the snake_case
+  // column name. Note: a few sub-filters wired up on the client Reports page
+  // (incidentType/incursion/propertyDamage) predate the K2 rebrand and no
+  // longer correspond to real columns on this table — those queries will
+  // fail fast and fall back to 0 here, same visible behavior as before.
   async getCollectionCountWithFilter(collectionName, schemeId, field, value, dateRange = null) {
     try {
-      const collectionRef = collection(db, collectionName);
-      const constraints = [
-        where("schemeIds", "array-contains", schemeId),
-        where(field, "==", value),
-        ...(dateRange
-          ? [
-              where("createdAt", ">=", Timestamp.fromDate(dateRange.startDate)),
-              where("createdAt", "<=", Timestamp.fromDate(dateRange.endDate)),
-            ]
-          : []),
-      ];
-      const q = query(collectionRef, ...constraints);
-      const snapshot = await getCountFromServer(q);
-      return snapshot.data().count;
+      const column = field.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+      let q = supabase
+        .from("incident_reports")
+        .select("*", { count: "exact", head: true })
+        .overlaps("scheme_ids", [schemeId])
+        .eq(column, value);
+      if (dateRange) {
+        q = q
+          .gte("created_at", dateRange.startDate.toISOString())
+          .lte("created_at", dateRange.endDate.toISOString());
+      }
+      const { count, error } = await q;
+      if (error) throw error;
+      return count || 0;
     } catch (error) {
       console.warn(
         `Could not get filtered count for ${collectionName}:`,
@@ -1592,132 +955,53 @@ class ClientDataService {
     }
   }
 
-  // Helper to get count from a collection
+  // Helper to get count from incident_reports (the only client-visible
+  // report type — collectionName is kept for call-site compatibility)
   async getCollectionCount(collectionName, schemeId, dateRange = null) {
     try {
-      const collectionRef = collection(db, collectionName);
-      // For cctvCheckForms, also count "all-schemes" docs (backward compatibility)
-      const schemeFilter =
-        collectionName === "cctvCheckForms"
-          ? where("schemeIds", "array-contains-any", [schemeId, "all-schemes"])
-          : where("schemeIds", "array-contains", schemeId);
-      const dateConstraints = dateRange
-        ? [
-            where("createdAt", ">=", Timestamp.fromDate(dateRange.startDate)),
-            where("createdAt", "<=", Timestamp.fromDate(dateRange.endDate)),
-          ]
-        : [];
-      const q = query(collectionRef, schemeFilter, ...dateConstraints);
-      const snapshot = await getCountFromServer(q);
-      return snapshot.data().count;
+      let q = supabase
+        .from("incident_reports")
+        .select("*", { count: "exact", head: true })
+        .overlaps("scheme_ids", [schemeId]);
+      if (dateRange) {
+        q = q
+          .gte("created_at", dateRange.startDate.toISOString())
+          .lte("created_at", dateRange.endDate.toISOString());
+      }
+      const { count, error } = await q;
+      if (error) throw error;
+      return count || 0;
     } catch (error) {
       console.warn(`Could not get count for ${collectionName}:`, error);
       return 0;
     }
   }
 
-  // Get asset damage reports for a specific scheme
-  async getSchemeAssetDamage(schemeId, limitCount = 100) {
-    try {
-      const damageRef = collection(db, "assetDamageReports");
-
-      try {
-        const q = query(
-          damageRef,
-          where("schemeIds", "array-contains", schemeId),
-          orderBy("createdAt", "desc"),
-          limit(limitCount),
-        );
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-      } catch (indexError) {
-        // Check if it's an index error or permissions error
-        if (
-          indexError.code === "failed-precondition" ||
-          indexError.message?.includes("index")
-        ) {
-          console.warn(
-            "Index not available for assetDamageReports, trying simplified query",
-          );
-          const simpleQuery = query(
-            damageRef,
-            where("schemeIds", "array-contains", schemeId),
-            limit(limitCount),
-          );
-          const snapshot = await getDocs(simpleQuery);
-          const docs = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
-          return docs.sort((a, b) => {
-            const timeA = a.createdAt?.seconds || 0;
-            const timeB = b.createdAt?.seconds || 0;
-            return timeB - timeA;
-          });
-        }
-        throw indexError;
-      }
-    } catch (error) {
-      console.error("Error fetching asset damage:", error);
-      throw new AppError(
-        "Failed to fetch asset damage reports",
-        "client-data/fetch-error",
-        error,
-      );
-    }
-  }
-
-  // Get CCTV recordings for a specific scheme — pulls from incidentReports with video/image files
+  // Get CCTV recordings for a specific scheme — pulls from incident_reports with video/image files.
+  // The has_video == true filter means Postgres returns ONLY reports that
+  // actually have a video — reads scale with the number of recordings, not
+  // with total incidents (requires the one-time hasVideo backfill on
+  // existing reports, admin → Backfill hasVideo).
   async getCCTVRecordings(schemeId) {
     try {
-      const reportsRef = collection(db, "incidentReports");
-
-      // Two queries cover both the new `schemeIds` array and the legacy
-      // single-string `schemeId`. The `hasVideo == true` filter means Firestore
-      // returns ONLY reports that actually have a video — reads scale with the
-      // number of recordings, not with total incidents. Requires the composite
-      // indexes in firestore.indexes.json and a one-time backfill of the
-      // hasVideo flag on existing reports (admin → Backfill hasVideo).
-      const [arrSnapshot, legacySnapshot] = await Promise.all([
-        getDocs(
-          query(
-            reportsRef,
-            where("schemeIds", "array-contains", schemeId),
-            where("hasVideo", "==", true),
-            orderBy("createdAt", "desc"),
-          ),
-        ),
-        getDocs(
-          query(
-            reportsRef,
-            where("schemeId", "==", schemeId),
-            where("hasVideo", "==", true),
-            orderBy("createdAt", "desc"),
-          ),
-        ),
-      ]);
-
-      const byId = new Map();
-      [...arrSnapshot.docs, ...legacySnapshot.docs].forEach((d) => {
-        if (!byId.has(d.id)) {
-          byId.set(d.id, { id: d.id, ...d.data(), dateTime: d.data().createdAt });
-        }
-      });
+      const { data, error } = await supabase
+        .from("incident_reports")
+        .select("*")
+        .overlaps("scheme_ids", [schemeId])
+        .eq("has_video", true)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
 
       // Only return reports that have video files (detected by MIME *or* file
-      // extension), strip out non-video files, then sort newest-first.
-      return [...byId.values()]
-        .map((doc) => ({
-          ...doc,
-          files: (doc.files || []).filter(isVideoFile),
+      // extension), strip out non-video files.
+      return (data || [])
+        .map(fromIncidentRow)
+        .map((report) => ({
+          ...report,
+          dateTime: report.createdAt,
+          files: (report.files || []).filter(isVideoFile),
         }))
-        .filter((doc) => doc.files.length > 0)
-        .sort(
-          (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0),
-        );
+        .filter((report) => report.files.length > 0);
     } catch (error) {
       console.error("Error fetching CCTV recordings:", error);
       throw new AppError(
@@ -1735,215 +1019,108 @@ class ClientDataService {
   async searchReportsByReferenceId(schemeId, searchTerm, filterType = null) {
     const raw = searchTerm.trim();
     if (!raw) return [];
-    const termRef = raw.toUpperCase();
-    const termName = raw;
-    const termRefEnd = termRef + "\uf8ff";
-    const termNameEnd = termName + "\uf8ff";
-
-    const ALL_COLLECTIONS = [
-      { name: "incidentReports", type: "incident", typeField: "incidentType" },
-      {
-        name: "assetDamageReports",
-        type: "asset-damage",
-        typeField: "damageType",
-      },
-      { name: "cctvCheckForms", type: "cctv-check", typeField: null },
-    ];
-
-    // Scope to the active filter type — avoids querying all collections when unnecessary
-    const typeToCollection = {
-      incident: "incidentReports",
-      "asset-damage": "assetDamageReports",
-      "cctv-check": "cctvCheckForms",
-    };
-    const COLLECTIONS = filterType && typeToCollection[filterType]
-      ? ALL_COLLECTIONS.filter((c) => c.name === typeToCollection[filterType])
-      : ALL_COLLECTIONS;
-
-    // Run referenceId and submittedBy.name queries in parallel.
-    // schemeIds filter is included so Firestore only scans this scheme's docs.
-    // Requires composite indexes: schemeIds (array-contains) + referenceId / submittedBy.name
-    const [refSnapshots, nameSnapshots] = await Promise.all([
-      Promise.all(
-        COLLECTIONS.map(({ name }) =>
-          getDocs(
-            query(
-              collection(db, name),
-              where("schemeIds", "array-contains", schemeId),
-              where("referenceId", ">=", termRef),
-              where("referenceId", "<=", termRefEnd),
-              limit(10),
-            ),
-          ).catch(() =>
-            getDocs(
-              query(
-                collection(db, name),
-                where("referenceId", ">=", termRef),
-                where("referenceId", "<=", termRefEnd),
-                limit(10),
-              ),
-            ),
-          ),
-        ),
-      ),
-      Promise.all(
-        COLLECTIONS.map(({ name }) =>
-          getDocs(
-            query(
-              collection(db, name),
-              where("schemeIds", "array-contains", schemeId),
-              where("submittedBy.name", ">=", termName),
-              where("submittedBy.name", "<=", termNameEnd),
-              limit(10),
-            ),
-          ).catch(() =>
-            getDocs(
-              query(
-                collection(db, name),
-                where("submittedBy.name", ">=", termName),
-                where("submittedBy.name", "<=", termNameEnd),
-                limit(10),
-              ),
-            ),
-          ),
-        ),
-      ),
-    ]);
-
-    const seen = new Set();
-    const results = [];
-
-    const addDocs = (snapshots) => {
-      snapshots.forEach((snap, i) => {
-        const { type, typeField } = COLLECTIONS[i];
-        snap.docs.forEach((d) => {
-          if (seen.has(d.id)) return;
-          const data = d.data();
-          // Filter by scheme client-side
-          const inScheme =
-            (Array.isArray(data.schemeIds) &&
-              data.schemeIds.includes(schemeId)) ||
-            data.schemeId === schemeId;
-          if (!inScheme) return;
-          seen.add(d.id);
-          results.push({
-            id: d.id,
-            ...data,
-            reportType: type,
-            type: typeField ? data[typeField] : data.type,
-            timestamp: data.createdAt,
-          });
-        });
-      });
-    };
-
-    addDocs(refSnapshots);
-    addDocs(nameSnapshots);
-
-    // Sort newest first, cap to 10
-    results.sort(
-      (a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0),
-    );
-    return results.slice(0, 10);
+    if (filterType && filterType !== "incident") return [];
+    return this._searchIncidentsByReferenceId(schemeId, raw);
   }
 
+  async _searchIncidentsByReferenceId(schemeId, raw) {
+    try {
+      const [byRef, byName] = await Promise.all([
+        supabase
+          .from("incident_reports")
+          .select("*")
+          .overlaps("scheme_ids", [schemeId])
+          .ilike("reference_id", `${raw}%`)
+          .limit(10),
+        supabase
+          .from("incident_reports")
+          .select("*")
+          .overlaps("scheme_ids", [schemeId])
+          .ilike("submitted_by_name", `${raw}%`)
+          .limit(10),
+      ]);
+      if (byRef.error) throw byRef.error;
+      if (byName.error) throw byName.error;
+
+      const seen = new Set();
+      const results = [];
+      for (const row of [...(byRef.data || []), ...(byName.data || [])]) {
+        if (seen.has(row.id)) continue;
+        seen.add(row.id);
+        const report = fromIncidentRow(row);
+        results.push({
+          ...report,
+          reportType: "incident",
+          type: report.incidentType,
+          timestamp: report.createdAt,
+        });
+      }
+
+      results.sort((a, b) => toMillis(b.timestamp) - toMillis(a.timestamp));
+      return results.slice(0, 10);
+    } catch (error) {
+      console.error("Search failed:", error);
+      return [];
+    }
+  }
+
+  // Paginated version of the above search — uses offset pagination (stored
+  // on lastDocs.offset) rather than true keyset pagination, since results are
+  // merged from two independent prefix queries (reference_id, submitted_by_name)
+  // then re-sorted by timestamp; fine for the small result sets a search like
+  // this returns.
   async searchReportsPaginated(schemeId, searchTerm, pageSize = 10, lastDocs = {}, filterType = null) {
     const raw = searchTerm.trim();
     if (!raw) return { results: [], lastDocs: {}, hasMore: false };
     if (raw.length > 100) return { results: [], lastDocs: {}, hasMore: false };
+    if (filterType && filterType !== "incident") {
+      return { results: [], lastDocs: {}, hasMore: false };
+    }
 
-    const termRef = raw.toUpperCase();
-    const termName = raw;
-    const termRefEnd = termRef + "";
-    const termNameEnd = termName + "";
+    try {
+      const offset = lastDocs.offset || 0;
+      const [byRef, byName] = await Promise.all([
+        supabase
+          .from("incident_reports")
+          .select("*")
+          .overlaps("scheme_ids", [schemeId])
+          .ilike("reference_id", `${raw}%`)
+          .limit(200),
+        supabase
+          .from("incident_reports")
+          .select("*")
+          .overlaps("scheme_ids", [schemeId])
+          .ilike("submitted_by_name", `${raw}%`)
+          .limit(200),
+      ]);
+      if (byRef.error) throw byRef.error;
+      if (byName.error) throw byName.error;
 
-    const ALL_COLLECTIONS = [
-      { name: "incidentReports",        key: "incident",        type: "incident",         typeField: "incidentType" },
-      { name: "assetDamageReports",     key: "assetDamage",     type: "asset-damage",     typeField: "damageType"   },
-      { name: "cctvCheckForms",         key: "cctvCheck",       type: "cctv-check",       typeField: null           },
-    ];
+      const seen = new Set();
+      const allResults = [];
+      for (const row of [...(byRef.data || []), ...(byName.data || [])]) {
+        if (seen.has(row.id)) continue;
+        seen.add(row.id);
+        const report = fromIncidentRow(row);
+        allResults.push({
+          ...report,
+          reportType: "incident",
+          type: report.incidentType,
+          timestamp: report.createdAt,
+        });
+      }
+      allResults.sort((a, b) => toMillis(b.timestamp) - toMillis(a.timestamp));
 
-    const typeToCollection = {
-      incident: "incidentReports",
-      "asset-damage": "assetDamageReports",
-      "cctv-check": "cctvCheckForms",
-    };
-    const COLLECTIONS = filterType && typeToCollection[filterType]
-      ? ALL_COLLECTIONS.filter((c) => c.name === typeToCollection[filterType])
-      : ALL_COLLECTIONS;
-
-    const fetchLimit = pageSize + 1;
-
-    const buildQuery = (collName, field, start, end, cursor) => {
-      const tryWithScheme = async () => {
-        const constraints = [
-          where("schemeIds", "array-contains", schemeId),
-          where(field, ">=", start),
-          where(field, "<=", end),
-          orderBy(field, "asc"),
-        ];
-        if (cursor) constraints.push(startAfter(cursor));
-        constraints.push(limit(fetchLimit));
-        return getDocs(query(collection(db, collName), ...constraints));
+      const page = allResults.slice(offset, offset + pageSize);
+      return {
+        results: page,
+        lastDocs: { offset: offset + page.length },
+        hasMore: offset + page.length < allResults.length,
       };
-      const tryWithoutScheme = async () => {
-        const constraints = [
-          where(field, ">=", start),
-          where(field, "<=", end),
-          orderBy(field, "asc"),
-        ];
-        if (cursor) constraints.push(startAfter(cursor));
-        constraints.push(limit(fetchLimit));
-        return getDocs(query(collection(db, collName), ...constraints));
-      };
-      return tryWithScheme().catch(() => tryWithoutScheme());
-    };
-
-    const perCollectionResults = await Promise.all(
-      COLLECTIONS.map(async ({ name, key, type, typeField }) => {
-        const cursor = lastDocs[key] || null;
-        const [refSnap, nameSnap] = await Promise.all([
-          buildQuery(name, "referenceId",      termRef,  termRefEnd,  cursor),
-          buildQuery(name, "submittedBy.name", termName, termNameEnd, cursor),
-        ]);
-
-        const seen = new Set();
-        const docs = [];
-        for (const snap of [refSnap, nameSnap]) {
-          for (const d of snap.docs) {
-            if (seen.has(d.id)) continue;
-            const data = d.data();
-            const inScheme =
-              (Array.isArray(data.schemeIds) && data.schemeIds.includes(schemeId)) ||
-              data.schemeId === schemeId;
-            if (!inScheme) continue;
-            seen.add(d.id);
-            docs.push({
-              id: d.id,
-              ...data,
-              reportType: type,
-              type: typeField ? data[typeField] : data.type,
-              timestamp: data.createdAt,
-              _firestoreDoc: d,
-              _key: key,
-            });
-          }
-        }
-        return docs;
-      })
-    );
-
-    const allDocs = perCollectionResults.flat();
-    allDocs.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
-
-    const hasMore = allDocs.length > pageSize;
-    const page = allDocs.slice(0, pageSize);
-
-    const newLastDocs = { ...lastDocs };
-    page.forEach((doc) => { newLastDocs[doc._key] = doc._firestoreDoc; });
-
-    const results = page.map(({ _firestoreDoc, _key, ...rest }) => rest);
-    return { results, lastDocs: newLastDocs, hasMore };
+    } catch (error) {
+      console.error("Search failed:", error);
+      return { results: [], lastDocs: {}, hasMore: false };
+    }
   }
 }
 

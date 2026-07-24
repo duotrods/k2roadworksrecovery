@@ -1,9 +1,4 @@
-import {
-  FileText,
-  AlertTriangle,
-  Eye,
-  Package,
-} from "lucide-react";
+import { FileText, AlertTriangle } from "lucide-react";
 
 // Presentation helpers shared by the client Reports page (table, modal, cards).
 // Kept in one place so the page component stays focused on data/pagination logic.
@@ -41,14 +36,9 @@ export const parseBritishDate = (dateStr) => {
   return null;
 };
 
-// Display date for a report — form date for incident/asset/cctv, else createdAt.
+// Display date for a report — form date for incident, else createdAt.
 export const getReportDisplayDate = (report) => {
-  if (
-    (report.reportType === "incident" ||
-      report.reportType === "asset-damage" ||
-      report.reportType === "cctv-check") &&
-    report.date
-  ) {
+  if (report.reportType === "incident" && report.date) {
     const date = parseBritishDate(report.date);
     if (date) {
       return date.toLocaleDateString("en-GB", {
@@ -67,13 +57,6 @@ export const getReportDisplayTime = (report) => {
   if (report.reportType === "incident" && report.timeSpotted) {
     return report.timeSpotted;
   }
-  if (
-    (report.reportType === "asset-damage" ||
-      report.reportType === "cctv-check") &&
-    report.time
-  ) {
-    return report.time;
-  }
   return formatTime(report.timestamp);
 };
 
@@ -81,10 +64,6 @@ export const getReportTypeIcon = (type) => {
   switch (type) {
     case "incident":
       return <AlertTriangle className="w-5 h-5 text-orange-500" />;
-    case "asset-damage":
-      return <Package className="w-5 h-5 text-red-500" />;
-    case "cctv-check":
-      return <Eye className="w-5 h-5 text-green-500" />;
     default:
       return <FileText className="w-5 h-5 text-gray-500" />;
   }
@@ -93,8 +72,6 @@ export const getReportTypeIcon = (type) => {
 export const getReportTypeBadge = (type) => {
   const badges = {
     incident: "badge-warning",
-    "asset-damage": "badge-error",
-    "cctv-check": "badge-success",
   };
   return badges[type] || "badge-ghost";
 };

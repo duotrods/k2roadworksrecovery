@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { collection, getDocs, writeBatch, doc } from "firebase/firestore";
-import { db } from "../../config/firebase";
+import { supabase } from "../../config/supabase";
 import { isVideoFile } from "../../utils/fileType";
 import { CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
 
-// Firestore allows up to 500 writes per batch.
-const BATCH_LIMIT = 500;
+// Number of concurrent update requests — a one-time admin utility, not
+// performance-critical, so this just caps concurrency rather than batching.
+const CONCURRENCY = 20;
 
 const BackfillHasVideoPage = () => {
   const [result, setResult] = useState(null);
@@ -18,37 +18,37 @@ const BackfillHasVideoPage = () => {
     setError(null);
 
     try {
-      const snapshot = await getDocs(collection(db, "incidentReports"));
+      const { data, error: fetchError } = await supabase
+        .from("incident_reports")
+        .select("id, files, has_video");
+      if (fetchError) throw fetchError;
 
+      const rows = data || [];
       let scanned = 0;
       let withVideo = 0;
       let updated = 0;
 
-      let batch = writeBatch(db);
-      let opsInBatch = 0;
-
-      for (const d of snapshot.docs) {
+      // Only update when the stored value is missing or wrong — keeps the
+      // backfill idempotent and minimizes writes on re-runs.
+      const mismatches = [];
+      for (const row of rows) {
         scanned += 1;
-        const data = d.data();
-        const computed = (data.files || []).some(isVideoFile);
+        const computed = (row.files || []).some(isVideoFile);
         if (computed) withVideo += 1;
-
-        // Only write when the stored value is missing or wrong — keeps the
-        // backfill idempotent and minimises billed writes on re-runs.
-        if (data.hasVideo !== computed) {
-          batch.update(doc(db, "incidentReports", d.id), { hasVideo: computed });
-          updated += 1;
-          opsInBatch += 1;
-
-          if (opsInBatch === BATCH_LIMIT) {
-            await batch.commit();
-            batch = writeBatch(db);
-            opsInBatch = 0;
-          }
-        }
+        if (row.has_video !== computed) mismatches.push({ id: row.id, has_video: computed });
       }
 
-      if (opsInBatch > 0) await batch.commit();
+      for (let i = 0; i < mismatches.length; i += CONCURRENCY) {
+        const chunk = mismatches.slice(i, i + CONCURRENCY);
+        const results = await Promise.all(
+          chunk.map(({ id, has_video }) =>
+            supabase.from("incident_reports").update({ has_video }).eq("id", id),
+          ),
+        );
+        const failed = results.find((r) => r.error);
+        if (failed) throw failed.error;
+        updated += chunk.length;
+      }
 
       setResult({ scanned, withVideo, updated });
     } catch (err) {

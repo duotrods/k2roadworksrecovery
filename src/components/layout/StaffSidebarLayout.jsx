@@ -20,8 +20,6 @@ import headerLogo from "../../assets/headerlogo.svg";
 import k2logo from "../../assets/k2logo.svg";
 import logomark from "../../assets/Logomark.svg";
 import k2icon from "../../assets/k2iconlogo.svg";
-import CCTVCheckReminder from "../staff/CCTVCheckReminder";
-import { useCCTVReminder } from "../../hooks/useCCTVReminder";
 import { isDemoUser } from "../../utils/schemes";
 import { getStaffBasePath } from "../../utils/constants";
 
@@ -38,7 +36,6 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
 
   // Close mobile sidebar on route change
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
-  const { showReminder, dismissReminder } = useCCTVReminder();
 
   const handleSignOut = async (note) => {
     // Log handover note BEFORE signOut (userProfile becomes null after)
@@ -90,9 +87,6 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
           noteEnabled={true}
         />
       )}
-      {/* CCTV Check Reminder Modal */}
-      {showReminder && <CCTVCheckReminder onDismiss={dismissReminder} basePath={basePath} />}
-
       {/* Mobile backdrop */}
       {mobileOpen && (
         <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setMobileOpen(false)} />

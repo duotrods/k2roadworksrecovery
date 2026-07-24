@@ -18,7 +18,9 @@ const NoticeBoard = ({ isOpen, onClose }) => {
   const loadActivities = async () => {
     try {
       setLoading(true);
-      const lastLogout = userProfile?.lastLogoutAt?.toDate() || new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const lastLogout = userProfile?.lastLogoutAt
+        ? new Date(userProfile.lastLogoutAt)
+        : new Date(Date.now() - 24 * 60 * 60 * 1000);
       const recentActivities = await staffService.getRecentActivities(currentUser.uid, lastLogout, staffGroup);
       // Handover notes always appear at the top
       const sorted = [
@@ -35,7 +37,7 @@ const NoticeBoard = ({ isOpen, onClose }) => {
 
   const formatTime = (timestamp) => {
     if (!timestamp) return '';
-    const date = timestamp.toDate();
+    const date = new Date(timestamp);
     const now = new Date();
     const diff = now - date;
     const hours = Math.floor(diff / (1000 * 60 * 60));

@@ -2,11 +2,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { clientDataService } from "../services/clientDataService";
 
 /**
- * Custom hook for real-time live incidents using Firebase onSnapshot
- * This is much more cost-effective than polling because:
- * - Only charges when data actually changes
- * - No repeated reads every 30 seconds
- * - Instant updates when incidents change status
+ * Custom hook for real-time live incidents using Supabase Realtime
+ * (postgres_changes). More cost-effective than polling because updates
+ * only arrive when data actually changes, instantly.
  */
 export function useLiveIncidents(schemeId) {
   const [liveIncidents, setLiveIncidents] = useState([]);
@@ -47,7 +45,7 @@ export function useLiveIncidents(schemeId) {
 
 /**
  * Custom hook for real-time scheme incidents (both live and completed)
- * Uses Firebase onSnapshot for efficient real-time updates
+ * Uses Supabase Realtime (postgres_changes) for efficient real-time updates
  */
 export function useSchemeIncidents(schemeId) {
   const [incidents, setIncidents] = useState([]);
@@ -92,7 +90,7 @@ export function useSchemeIncidents(schemeId) {
 
 /**
  * Hook for paginated completed incidents - TRUE server-side pagination
- * Only reads 10 documents at a time from Firebase (massive cost savings!)
+ * Only reads 10 rows at a time (massive cost savings!)
  *
  * Example: 1000 completed incidents
  * - Old way: 1000 reads every time
@@ -121,7 +119,7 @@ export function usePaginatedCompletedIncidents(schemeId, pageSize = 10) {
       .catch(console.error);
   }, [schemeId]);
 
-  // Fetch page data (checks cache first, only hits Firestore on cache miss)
+  // Fetch page data (checks cache first, only hits Supabase on cache miss)
   const fetchPage = useCallback(async (page) => {
     if (!schemeId) return;
 

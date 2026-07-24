@@ -3,11 +3,8 @@ import { staffService } from "../services/staffService";
 
 /**
  * Custom hook for real-time live incidents (Live Operator Dashboard)
- * Uses Firebase onSnapshot for instant updates - only charges when data changes
- *
- * Cost comparison:
- * - Polling every 30s: ~120 reads/hour per user
- * - onSnapshot: ~5-10 reads/hour (only when data changes)
+ * Uses Supabase Realtime (postgres_changes) for instant updates - only
+ * fires when data actually changes, unlike polling.
  */
 export function useLiveOperatorIncidents() {
   const [liveIncidents, setLiveIncidents] = useState([]);
@@ -42,7 +39,7 @@ export function useLiveOperatorIncidents() {
 
 /**
  * Hook for paginated completed incidents - TRUE server-side pagination
- * Only reads `pageSize` documents at a time from Firebase (massive cost savings!)
+ * Only reads `pageSize` rows at a time (massive cost savings!)
  *
  * Example: 1000 completed incidents
  * - Old way: 1000 reads every time
@@ -70,7 +67,7 @@ export function usePaginatedCompletedIncidentsForOperator(pageSize = 10) {
       .catch(console.error);
   }, []);
 
-  // Fetch page data (checks cache first, only hits Firestore on cache miss)
+  // Fetch page data (checks cache first, only hits Supabase on cache miss)
   const fetchPage = useCallback(async (page) => {
     setError(null);
 

@@ -5,7 +5,6 @@ import AdminSidebarLayout from "../../components/layout/AdminSidebarLayout";
 import { SCHEMES, DEMO_SCHEME_ID } from "../../utils/schemes";
 import {
   FileText,
-  Camera,
   AlertTriangle,
   Eye,
   Download,
@@ -61,15 +60,13 @@ const StaffReportsPage = () => {
   const [hasMore, setHasMore] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [typeCount, setTypeCount] = useState(0);
-  const [formCounts, setFormCounts] = useState({ cctvCheckTotal: 0, incidentReportTotal: 0, assetDamageTotal: 0, cabinSafetyTotal: 0, vehicleCheckTotal: 0 });
+  const [formCounts, setFormCounts] = useState({ incidentReportTotal: 0, cabinSafetyTotal: 0, vehicleCheckTotal: 0 });
   const [vehicleCheckDefects, setVehicleCheckDefects] = useState([]);
   const reportsPerPage = 10;
 
   // Maps admin display filter values → staffService type keys
   const adminTypeToServiceType = {
-    'CCTV Check':      'cctv-check',
     'Incident Report': 'incident',
-    'Asset Damage':    'asset-damage',
     'Cabin H&S Check': 'cabin-safety',
     'Vehicle Daily Check': 'vehicle-check',
   };
@@ -121,8 +118,6 @@ const StaffReportsPage = () => {
 
   const typeToCollectionKey = {
     'Incident Report': ['incident'],
-    'Asset Damage':    ['assetDamage'],
-    'CCTV Check':      ['cctv'],
     'Cabin H&S Check': ['cabinSafety'],
     'Vehicle Daily Check': ['vehicleCheck'],
   };
@@ -130,8 +125,6 @@ const StaffReportsPage = () => {
   const mapSearchResults = (results) => {
     const typeMap = {
       'Incident Report':  { type: 'Incident Report', icon: FileText,      color: 'bg-teal-100 text-teal-600'    },
-      'Asset Damage':     { type: 'Asset Damage',    icon: AlertTriangle, color: 'bg-orange-100 text-orange-600' },
-      'CCTV Check Sheet': { type: 'CCTV Check',      icon: Camera,        color: 'bg-purple-100 text-purple-600' },
       'Cabin H&S Check':  { type: 'Cabin H&S Check', icon: ShieldCheck,   color: 'bg-green-100 text-green-600'  },
       'Vehicle Daily Check': { type: 'Vehicle Daily Check', icon: Car,    color: 'bg-amber-100 text-amber-600'  },
     };
@@ -258,18 +251,10 @@ const StaffReportsPage = () => {
       const mappedReports = rawForms.map(f => {
         let type, icon, color;
 
-        if (f.type === 'CCTV Check Sheet') {
-          type = "CCTV Check";
-          icon = Camera;
-          color = "bg-purple-100 text-purple-600";
-        } else if (f.type === 'Incident Report') {
+        if (f.type === 'Incident Report') {
           type = "Incident Report";
           icon = FileText;
           color = "bg-teal-100 text-teal-600";
-        } else if (f.type === 'Asset Damage') {
-          type = "Asset Damage";
-          icon = AlertTriangle;
-          color = "bg-orange-100 text-orange-600";
         } else if (f.type === 'Cabin H&S Check') {
           type = "Cabin H&S Check";
           icon = ShieldCheck;
@@ -382,12 +367,8 @@ const StaffReportsPage = () => {
   const handleViewReport = (report) => {
     _staffReportsRestore = { page: currentPage, filter: filterType, scheme: filterScheme, reports, hasMore, cursors, typeCursor, typeCount, totalCount, pageCache: { ...pageCacheRef.current } };
     // Navigate to appropriate view page based on report type
-    if (report.type === "CCTV Check") {
-      navigate(`/dashboard/admin/staff-reports/cctv/${report.id}`);
-    } else if (report.type === "Incident Report") {
+    if (report.type === "Incident Report") {
       navigate(`/dashboard/admin/staff-reports/incident/${report.id}`);
-    } else if (report.type === "Asset Damage") {
-      navigate(`/dashboard/admin/staff-reports/asset/${report.id}`);
     } else if (report.type === "Cabin H&S Check") {
       navigate(`/dashboard/admin/staff-reports/cabin-safety/${report.id}`);
     } else if (report.type === "Vehicle Daily Check") {
@@ -399,9 +380,7 @@ const StaffReportsPage = () => {
     try {
       // Map display type to PDF generator type
       const typeMap = {
-        "CCTV Check": "cctv-check",
         "Incident Report": "incident",
-        "Asset Damage": "asset-damage",
         "Cabin H&S Check": "cabin-safety",
         "Vehicle Daily Check": "vehicle-check",
       };
@@ -462,10 +441,6 @@ const StaffReportsPage = () => {
     switch (type) {
       case "Incident Report":
         return <AlertTriangle className="w-5 h-5 text-orange-500" />;
-      case "CCTV Check":
-        return <Eye className="w-5 h-5 text-green-500" />;
-      case "Asset Damage":
-        return <FileText className="w-5 h-5 text-red-500" />;
       case "Cabin H&S Check":
         return <ShieldCheck className="w-5 h-5 text-green-500" />;
       case "Vehicle Daily Check":
@@ -478,8 +453,6 @@ const StaffReportsPage = () => {
   const getFormTypeBadge = (type) => {
     const badges = {
       "Incident Report": "badge-warning",
-      "Asset Damage": "badge-error",
-      "CCTV Check": "badge-success",
       "Cabin H&S Check": "badge-success",
       "Vehicle Daily Check": "badge-warning",
     };
@@ -488,11 +461,6 @@ const StaffReportsPage = () => {
 
   // Get scheme(s) from form - handles different form structures
   const getFormScheme = (report) => {
-    // For CCTV Check - covers all schemes
-    if (report.type === "CCTV Check") {
-      return "All Schemes";
-    }
-    // For Incident Report and Asset Damage - single scheme field
     return report.scheme || "N/A";
   };
 
@@ -540,9 +508,7 @@ const StaffReportsPage = () => {
     try {
       // Map report type to collection name
       const collectionMap = {
-        "CCTV Check": "cctvCheckForms",
         "Incident Report": "incidentReports",
-        "Asset Damage": "assetDamageReports",
         "Cabin H&S Check": "cabinHealthSafetyChecks",
         "Vehicle Daily Check": "vehicleDailyChecks",
       };
@@ -567,9 +533,7 @@ const StaffReportsPage = () => {
   // Statistics - all counts from aggregation queries (no per-page counting)
   const stats = {
     total: totalCount,
-    cctvCheck: formCounts.cctvCheckTotal,
     incident: formCounts.incidentReportTotal,
-    assetDamage: formCounts.assetDamageTotal,
     cabinSafety: formCounts.cabinSafetyTotal,
     vehicleCheck: formCounts.vehicleCheckTotal,
   };
@@ -600,35 +564,11 @@ const StaffReportsPage = () => {
           <div className="bg-white rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-500 text-sm">CCTV Checks</p>
-                <p className="text-3xl font-bold text-purple-600 mt-1">{stats.cctvCheck}</p>
-              </div>
-              <div className="bg-purple-100 p-3 rounded-lg">
-                <Camera className="w-6 h-6 text-purple-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
                 <p className="text-gray-500 text-sm">Incidents</p>
                 <p className="text-3xl font-bold text-teal-600 mt-1">{stats.incident}</p>
               </div>
               <div className="bg-teal-100 p-3 rounded-lg">
                 <FileText className="w-6 h-6 text-teal-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 text-sm">Asset Damage</p>
-                <p className="text-3xl font-bold text-orange-600 mt-1">{stats.assetDamage}</p>
-              </div>
-              <div className="bg-orange-100 p-3 rounded-lg">
-                <AlertTriangle className="w-6 h-6 text-orange-600" />
               </div>
             </div>
           </div>
@@ -720,9 +660,7 @@ const StaffReportsPage = () => {
               className="select bg-white border-gray-300 rounded-lg w-full"
             >
               <option value="all">All Types</option>
-              <option value="CCTV Check">CCTV Check</option>
               <option value="Incident Report">Incident Report</option>
-              <option value="Asset Damage">Asset Damage</option>
               <option value="Cabin H&S Check">Cabin H&S Check</option>
               <option value="Vehicle Daily Check">Vehicle Daily Check</option>
             </select>
