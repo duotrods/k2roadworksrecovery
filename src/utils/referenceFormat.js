@@ -6,9 +6,7 @@
 const REFERENCE_CONFIGS = {
   incident: { prefix: "IN", digits: 2, counterName: "incidentReports" },
   assetDamage: { prefix: "AD", digits: 2, counterName: "assetDamage" },
-  dailyOccurrence: { prefix: "DO", digits: 2, counterName: "dailyOccurrence" },
   cctvCheck: { prefix: "CC", digits: 2, counterName: "cctvCheck" },
-  cctvFaults: { prefix: "CF", digits: 2, counterName: "cctvFaults" },
   dailyAllocation: { prefix: "DA", digits: 2, counterName: "dailyAllocation" },
   cabinSafety: { prefix: "CH", digits: 2, counterName: "cabinSafety" },
   vehicleCheck: { prefix: "VC", digits: 2, counterName: "vehicleCheck" },

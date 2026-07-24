@@ -10,7 +10,6 @@ import {
   LogOut,
   HelpCircle,
   ChevronDown,
-  CameraOff,
   PanelLeftClose,
   PanelLeftOpen,
   Menu,
@@ -23,9 +22,8 @@ import logomark from "../../assets/Logomark.svg";
 import k2icon from "../../assets/k2iconlogo.svg";
 import CCTVCheckReminder from "../staff/CCTVCheckReminder";
 import { useCCTVReminder } from "../../hooks/useCCTVReminder";
-import { isDemoUser, getViewerSchemeScope } from "../../utils/schemes";
+import { isDemoUser } from "../../utils/schemes";
 import { getStaffBasePath } from "../../utils/constants";
-import { StaffCCTVFaultsProvider, useStaffCCTVFaultsContext } from "../../context/StaffCCTVFaultsContext";
 
 const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) => {
   const { userProfile } = useAuth();
@@ -41,7 +39,6 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
   // Close mobile sidebar on route change
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
   const { showReminder, dismissReminder } = useCCTVReminder();
-  const { faults: liveFaults } = useStaffCCTVFaultsContext();
 
   const handleSignOut = async (note) => {
     // Log handover note BEFORE signOut (userProfile becomes null after)
@@ -279,19 +276,12 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
 };
 
 const StaffSidebarLayout = ({ children, basePath: basePathProp }) => {
-  const { userProfile, role } = useAuth();
+  const { role } = useAuth();
   // Derive the base path from role when not explicitly provided, so pages that
   // render this layout without a basePath (e.g. StaffDocumentsPage) still link
   // to the staff dashboard routes.
   const basePath = basePathProp ?? getStaffBasePath(role);
-  // Scopes the live CCTV faults feed to the viewer's schemes
-  // (real staff → internal schemes; demo → demo scheme).
-  const schemeScope = getViewerSchemeScope(userProfile);
-  return (
-    <StaffCCTVFaultsProvider schemeScope={schemeScope}>
-      <StaffSidebarLayoutInner basePath={basePath}>{children}</StaffSidebarLayoutInner>
-    </StaffCCTVFaultsProvider>
-  );
+  return <StaffSidebarLayoutInner basePath={basePath}>{children}</StaffSidebarLayoutInner>;
 };
 
 export default StaffSidebarLayout;

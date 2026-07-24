@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
-import { firestoreService } from "../../services/firestoreService";
+import { userAdminService } from "../../services/userAdminService";
 import { useAuth } from "../../hooks/useAuth";
 import { SCHEMES } from "../../utils/schemes";
 import {
@@ -13,18 +13,9 @@ import {
   ArchiveRestore,
   ChevronLeft,
   ChevronRight,
-  CameraOff,
   LayoutGrid,
   Users,
 } from "lucide-react";
-
-// Filter keys used by this page. "client" queries role == 'client' directly;
-// "cctv-managers" queries clients with canManageCCTVFaults == true (the
-// migrated cohort of the removed 'cctvfaultoperator' role).
-const ROLE_CONFIG = {
-  client: { label: "Client", color: "teal", icon: User },
-  "cctv-managers": { label: "CCTV Fault Manager", color: "pink", icon: CameraOff },
-};
 
 const SchemeAssignment = () => {
   const { userProfile } = useAuth();
@@ -37,7 +28,6 @@ const SchemeAssignment = () => {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [formData, setFormData] = useState({ schemeId: "", schemeName: "" });
-  const [lastDoc, setLastDoc] = useState(null);
   const [hasMore, setHasMore] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -48,28 +38,17 @@ const SchemeAssignment = () => {
   const [overviewLoading, setOverviewLoading] = useState(false);
 
   useEffect(() => {
-    loadUsers(true, roleFilter);
-    loadTotalCount(roleFilter);
+    loadUsers(1, roleFilter);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadUsers = async (resetPage = false, role = roleFilter) => {
+  const loadUsers = async (page, role = roleFilter) => {
     setLoading(true);
     try {
-      const result =
-        role === "cctv-managers"
-          ? await firestoreService.getCCTVFaultManagersPaginated(
-              usersPerPage,
-              resetPage ? null : lastDoc
-            )
-          : await firestoreService.getAllUsersPaginated(
-              usersPerPage,
-              resetPage ? null : lastDoc,
-              role
-            );
+      const result = await userAdminService.getUsersByRolePaginated(role, page, usersPerPage);
       setUsers(result.users);
-      setLastDoc(result.lastDoc);
       setHasMore(result.hasMore);
-      if (resetPage) setCurrentPage(1);
+      setTotalCount(result.total);
+      setCurrentPage(page);
     } catch (error) {
       console.error("Failed to load users:", error);
       toast.error("Failed to load users");
@@ -78,32 +57,16 @@ const SchemeAssignment = () => {
     }
   };
 
-  const loadTotalCount = async (role = roleFilter) => {
-    try {
-      const counts = await firestoreService.getUsersCountByRole();
-      setTotalCount(
-        role === "cctv-managers" ? counts.cctvManagers : counts[role] ?? 0
-      );
-    } catch (error) {
-      console.warn("Could not load total count:", error);
-    }
-  };
-
   const handleRoleFilterChange = (role) => {
     setRoleFilter(role);
-    setLastDoc(null);
-    loadUsers(true, role);
-    loadTotalCount(role);
+    loadUsers(1, role);
   };
 
   const loadOverview = async () => {
     setOverviewLoading(true);
     try {
-      const [clientResult, cctvManagersResult] = await Promise.all([
-        firestoreService.getAllUsersPaginated(100, null, "client"),
-        firestoreService.getCCTVFaultManagersPaginated(100, null),
-      ]);
-      setOverviewUsers([...clientResult.users, ...cctvManagersResult.users]);
+      const clientResult = await userAdminService.getUsersByRolePaginated("client", 1, 100);
+      setOverviewUsers(clientResult.users);
     } catch (error) {
       console.error("Failed to load scheme overview:", error);
       toast.error("Failed to load scheme overview");
@@ -116,9 +79,6 @@ const SchemeAssignment = () => {
     setActiveTab(tab);
     if (tab === "overview" && overviewUsers.length === 0) {
       loadOverview();
-    }
-    if (tab === "cctv") {
-      handleRoleFilterChange("cctv-managers");
     }
     if (tab === "assignments") {
       handleRoleFilterChange("client");
@@ -137,7 +97,7 @@ const SchemeAssignment = () => {
     }
     setLoading(true);
     try {
-      await firestoreService.assignSchemeToUser(
+      await userAdminService.assignSchemeToUser(
         selectedUser.uid,
         formData.schemeId,
         formData.schemeName,
@@ -147,7 +107,7 @@ const SchemeAssignment = () => {
       setFormData({ schemeId: "", schemeName: "" });
       setShowAssignModal(false);
       setSelectedUser(null);
-      loadUsers(true);
+      loadUsers(currentPage);
     } catch (error) {
       console.error("Failed to assign scheme:", error);
       if (error.code === "firestore/already-exists") {
@@ -164,9 +124,9 @@ const SchemeAssignment = () => {
     if (!confirm(`Remove scheme ${schemeId} from ${user.displayName}?`)) return;
     setLoading(true);
     try {
-      await firestoreService.removeSchemeFromUser(user.uid, schemeId, userProfile.uid);
+      await userAdminService.removeSchemeFromUser(user.uid, schemeId, userProfile.uid);
       toast.success(`Scheme ${schemeId} removed from ${user.displayName}`);
-      loadUsers(true);
+      loadUsers(currentPage);
     } catch (error) {
       console.error("Failed to remove scheme:", error);
       if (error.code === "firestore/invalid-operation") {
@@ -196,9 +156,9 @@ const SchemeAssignment = () => {
     if (!confirm(`Archive user ${user.displayName}? They will not be able to log in.`)) return;
     setLoading(true);
     try {
-      await firestoreService.archiveUser(user.uid, userProfile.uid);
+      await userAdminService.archiveUser(user.uid, userProfile.uid);
       toast.success(`User ${user.displayName} archived successfully`);
-      loadUsers(true);
+      loadUsers(currentPage);
     } catch (error) {
       console.error("Failed to archive user:", error);
       toast.error(error.message || "Failed to archive user");
@@ -211,9 +171,9 @@ const SchemeAssignment = () => {
     if (!confirm(`Unarchive user ${user.displayName}? They will be able to log in again.`)) return;
     setLoading(true);
     try {
-      await firestoreService.unarchiveUser(user.uid, userProfile.uid);
+      await userAdminService.unarchiveUser(user.uid, userProfile.uid);
       toast.success(`User ${user.displayName} unarchived successfully`);
-      loadUsers(true);
+      loadUsers(currentPage);
     } catch (error) {
       console.error("Failed to unarchive user:", error);
       toast.error(error.message || "Failed to unarchive user");
@@ -225,22 +185,14 @@ const SchemeAssignment = () => {
   const totalPages = Math.ceil(totalCount / usersPerPage);
 
   const handleNextPage = () => {
-    if (hasMore) {
-      setCurrentPage((prev) => prev + 1);
-      loadUsers(false);
-    }
+    if (hasMore) loadUsers(currentPage + 1);
   };
 
   const handlePrevPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage((prev) => prev - 1);
-      loadUsers(true);
-    }
+    if (currentPage > 1) loadUsers(currentPage - 1);
   };
 
   // Group overview users by scheme for the Scheme Overview tab.
-  // De-dupe by uid: a canManageCCTVFaults client appears in both the plain
-  // "client" query and the "cctv-managers" query that feed overviewUsers.
   const schemeOverview = SCHEMES.map((scheme) => {
     const usersInScheme = overviewUsers.filter(
       (u) =>
@@ -252,14 +204,9 @@ const SchemeAssignment = () => {
     );
     return {
       scheme,
-      clients: uniqueUsersInScheme.filter(
-        (u) => u.role === "client" && !u.canManageCCTVFaults
-      ),
-      cctvManagers: uniqueUsersInScheme.filter(
-        (u) => u.role === "client" && u.canManageCCTVFaults
-      ),
+      clients: uniqueUsersInScheme.filter((u) => u.role === "client"),
     };
-  }).filter((s) => s.clients.length + s.cctvManagers.length > 0);
+  }).filter((s) => s.clients.length > 0);
 
   return (
     <div className="p-6">
@@ -269,7 +216,7 @@ const SchemeAssignment = () => {
           <p className="text-gray-600 mt-1">Manage scheme access for users</p>
         </div>
         <button
-          onClick={activeTab === "assignments" ? () => loadUsers(true) : loadOverview}
+          onClick={activeTab === "assignments" ? () => loadUsers(currentPage) : loadOverview}
           disabled={loading || overviewLoading}
           className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
         >
@@ -284,7 +231,7 @@ const SchemeAssignment = () => {
           onClick={() => handleTabChange("assignments")}
           className={`flex items-center gap-2 px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
             activeTab === "assignments"
-              ? "border-teal-500 text-teal-600"
+              ? "border-brand-500 text-brand-600"
               : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >
@@ -292,21 +239,10 @@ const SchemeAssignment = () => {
           Client Assignments
         </button>
         <button
-          onClick={() => handleTabChange("cctv")}
-          className={`flex items-center gap-2 px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
-            activeTab === "cctv"
-              ? "border-orange-500 text-orange-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <CameraOff className="w-4 h-4" />
-          CCTV Fault Manager Assignments
-        </button>
-        <button
           onClick={() => handleTabChange("overview")}
           className={`flex items-center gap-2 px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
             activeTab === "overview"
-              ? "border-teal-500 text-teal-600"
+              ? "border-brand-500 text-brand-600"
               : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >
@@ -316,19 +252,17 @@ const SchemeAssignment = () => {
       </div>
 
       {/* ── CLIENT ASSIGNMENTS TAB ── */}
-      {(activeTab === "assignments" || activeTab === "cctv") && (
+      {activeTab === "assignments" && (
         <>
           {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="bg-white rounded-lg shadow p-4">
-              <p className="text-sm text-gray-500 mb-1">
-                {roleFilter === "cctv-managers" ? "Total CCTV Fault Managers" : "Total Clients"}
-              </p>
+              <p className="text-sm text-gray-500 mb-1">Total Clients</p>
               <p className="text-2xl font-bold text-gray-800">{totalCount}</p>
             </div>
             <div className="bg-white rounded-lg shadow p-4">
               <p className="text-sm text-gray-500 mb-1">Multi-Scheme Users (Current Page)</p>
-              <p className="text-2xl font-bold text-teal-600">
+              <p className="text-2xl font-bold text-brand-600">
                 {users.filter((u) => u.schemeIds?.length > 1).length}
               </p>
             </div>
@@ -399,7 +333,7 @@ const SchemeAssignment = () => {
                               effectiveSchemeIds.map((sid) => (
                                 <div
                                   key={sid}
-                                  className="flex items-center gap-1 px-2 py-1 bg-teal-50 text-teal-700 rounded text-sm"
+                                  className="flex items-center gap-1 px-2 py-1 bg-brand-50 text-brand-700 rounded text-sm"
                                 >
                                   <Building2 className="w-3 h-3" />
                                   <span>{user.schemeNames?.[sid] || sid}</span>
@@ -446,7 +380,7 @@ const SchemeAssignment = () => {
                               <button
                                 onClick={() => openAssignModal(user)}
                                 disabled={loading}
-                                className="flex items-center gap-1 px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded text-sm transition-colors"
+                                className="flex items-center gap-1 px-3 py-1 bg-brand-500 hover:bg-brand-600 text-white rounded text-sm transition-colors"
                               >
                                 <Plus className="w-4 h-4" />
                                 Assign
@@ -485,9 +419,7 @@ const SchemeAssignment = () => {
             {totalPages > 1 && (
               <div className="flex items-center justify-between p-4 border-t">
                 <p className="text-sm text-gray-600">
-                  Showing page {currentPage} of {totalPages} ({totalCount} total {
-                    roleFilter === "cctv-managers" ? "CCTV fault managers" : "clients"
-                  })
+                  Showing page {currentPage} of {totalPages} ({totalCount} total clients)
                 </p>
                 <div className="flex items-center gap-2">
                   <button
@@ -529,56 +461,48 @@ const SchemeAssignment = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {schemeOverview.map(({ scheme, clients, cctvManagers }) => (
+              {schemeOverview.map(({ scheme, clients }) => (
                 <div key={scheme.id} className="bg-white rounded-lg shadow overflow-hidden">
                   {/* Scheme Header */}
-                  <div className="bg-teal-600 px-5 py-4">
+                  <div className="bg-brand-600 px-5 py-4">
                     <div className="flex items-center gap-2">
-                      <Building2 className="w-5 h-5 text-teal-200" />
+                      <Building2 className="w-5 h-5 text-brand-200" />
                       <div>
                         <p className="font-bold text-white text-lg leading-tight">{scheme.id}</p>
-                        <p className="text-teal-100 text-sm">{scheme.shortName} · {scheme.contractor}</p>
+                        <p className="text-brand-100 text-sm">{scheme.shortName} · {scheme.contractor}</p>
                       </div>
                     </div>
-                    <div className="flex gap-4 mt-3 text-xs text-teal-100">
+                    <div className="flex gap-4 mt-3 text-xs text-brand-100">
                       <span>{clients.length} client{clients.length !== 1 ? "s" : ""}</span>
-                      <span>{cctvManagers.length} CCTV fault manager{cctvManagers.length !== 1 ? "s" : ""}</span>
                     </div>
                   </div>
 
-                  {/* Users by role */}
+                  {/* Clients */}
                   <div className="divide-y divide-gray-100">
-                    {[
-                      { role: "client", users: clients, label: "Clients", Icon: User, badgeClass: "bg-teal-100 text-teal-700" },
-                      { role: "cctv-managers", users: cctvManagers, label: "CCTV Fault Managers", Icon: CameraOff, badgeClass: "bg-pink-100 text-pink-700" },
-                    ].map(({ role, users: roleUsers, label, Icon, badgeClass }) => (
-                      roleUsers.length > 0 && (
-                        <div key={role} className="px-5 py-3">
-                          <p className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                            <Icon className="w-3 h-3" />
-                            {label}
-                          </p>
-                          <div className="space-y-1.5">
-                            {roleUsers.map((u) => (
-                              <div key={u.uid} className="flex items-center justify-between">
-                                <div>
-                                  <p className="text-sm font-medium text-gray-800">{u.displayName}</p>
-                                  <p className="text-xs text-gray-500">{u.email}</p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {u.isArchived && (
-                                    <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">Archived</span>
-                                  )}
-                                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badgeClass}`}>
-                                    {u.company || ROLE_CONFIG[role]?.label || role}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
+                    <div className="px-5 py-3">
+                      <p className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                        <User className="w-3 h-3" />
+                        Clients
+                      </p>
+                      <div className="space-y-1.5">
+                        {clients.map((u) => (
+                          <div key={u.uid} className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-gray-800">{u.displayName}</p>
+                              <p className="text-xs text-gray-500">{u.email}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {u.isArchived && (
+                                <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">Archived</span>
+                              )}
+                              <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-brand-100 text-brand-700">
+                                {u.company || "Client"}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      )
-                    ))}
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -628,7 +552,7 @@ const SchemeAssignment = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg transition-colors flex items-center gap-2"
+                  className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition-colors flex items-center gap-2"
                   disabled={loading}
                 >
                   {loading ? (

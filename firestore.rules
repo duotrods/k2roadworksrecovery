@@ -19,13 +19,6 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
 
-    // Helper: client-role users with elevated CCTV-fault note-writing rights
-    // (migrated from the removed 'cctvfaultoperator' role — see A0/A6 of the
-    // role-consolidation plan).
-    function canManageCCTVFaults() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.canManageCCTVFaults == true;
-    }
-
     // Helper: get user's scheme (backward compatibility)
     function getUserScheme() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.schemeId;
@@ -181,75 +174,6 @@ service cloud.firestore {
       );
     }
 
-    // Daily Occurrence Reports
-    match /dailyOccurrenceReports/{reportId} {
-      allow create: if isVerified() && (
-        getUserRole() == 'staff'
-      );
-
-      allow get: if isVerified() && (
-        getUserRole() == 'admin' ||
-        getUserRole() == 'staff' ||
-        (getUserRole() == 'client' && (
-          (resource.data.schemeIds != null && getUserSchemes() != null &&
-           resource.data.schemeIds.hasAny(getUserSchemes())) ||
-          hasOldSchemeAccess(resource.data.schemeId)
-        ))
-      );
-
-      allow list: if isVerified() && (
-        getUserRole() == 'admin' ||
-        getUserRole() == 'staff' ||
-        getUserRole() == 'client'
-      );
-
-      allow update, delete: if isVerified() && (
-        getUserRole() == 'staff' || getUserRole() == 'admin'
-      );
-    }
-
-    // CCTV Faults Reports
-    match /cctvFaultsReports/{reportId} {
-      allow create: if isVerified() && (
-        getUserRole() == 'staff'
-      );
-
-      allow get: if isVerified() && (
-        getUserRole() == 'admin' ||
-        getUserRole() == 'staff' ||
-        (getUserRole() == 'client' && (
-          hasSchemeAccess(resource.data.schemeIds) ||
-          hasOldSchemeAccess(resource.data.schemeId)
-        ))
-      );
-
-      allow list: if isVerified() && (
-        getUserRole() == 'admin' ||
-        getUserRole() == 'staff' ||
-        getUserRole() == 'client'
-      );
-
-      allow update: if isVerified() && (
-        getUserRole() == 'staff' || getUserRole() == 'admin' ||
-        (getUserRole() == 'client' &&
-          hasSchemeAccess(resource.data.schemeIds) &&
-          !canManageCCTVFaults() &&
-          request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['clientAcknowledged', 'acknowledgedAt', 'updatedAt'])
-        ) ||
-        (getUserRole() == 'client' &&
-          hasSchemeAccess(resource.data.schemeIds) &&
-          canManageCCTVFaults() &&
-          request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['clientAcknowledged', 'clientNote', 'clientNotes', 'acknowledgedAt', 'updatedAt'])
-        )
-      );
-
-      allow delete: if isVerified() && (
-        getUserRole() == 'staff' || getUserRole() == 'admin'
-      );
-    }
-
     // Cabin Health & Safety Checks (staff-only submission, admin review — no client access)
     match /cabinHealthSafetyChecks/{formId} {
       allow create: if isVerified() && (
@@ -271,32 +195,6 @@ service cloud.firestore {
       allow get, list: if isVerified() && (
         getUserRole() == 'admin' || getUserRole() == 'staff'
       );
-      allow update, delete: if isVerified() && (
-        getUserRole() == 'staff' || getUserRole() == 'admin'
-      );
-    }
-
-    // CCTV Uploads
-    match /cctvUploads/{uploadId} {
-      allow create: if isVerified() && (
-        getUserRole() == 'staff'
-      );
-
-      allow get: if isVerified() && (
-        getUserRole() == 'admin' ||
-        getUserRole() == 'staff' ||
-        (getUserRole() == 'client' && (
-          hasSchemeAccess(resource.data.schemeIds) ||
-          hasOldSchemeAccess(resource.data.scheme)
-        ))
-      );
-
-      allow list: if isVerified() && (
-        getUserRole() == 'admin' ||
-        getUserRole() == 'staff' ||
-        getUserRole() == 'client'
-      );
-
       allow update, delete: if isVerified() && (
         getUserRole() == 'staff' || getUserRole() == 'admin'
       );
@@ -355,11 +253,6 @@ service cloud.firestore {
       allow write: if isVerified() && (
         getUserRole() == 'staff' || getUserRole() == 'admin'
       );
-    }
-
-    // CCTV Uptime Cache (computed summaries, shared across users, 15-min TTL)
-    match /cctvUptimeCache/{docId} {
-      allow read, write: if isVerified();
     }
 
     // Collection count cache (computed dashboard totals, shared, 15-min TTL)

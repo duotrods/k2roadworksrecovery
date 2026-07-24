@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { FileText, Camera, Calendar, ShieldCheck, Car } from 'lucide-react';
+import { FileText, Camera, ShieldCheck, Car } from 'lucide-react';
 import StaffSidebarLayout from '../../components/layout/StaffSidebarLayout';
 import { getStaffBasePath } from '../../utils/constants';
 
@@ -17,14 +17,6 @@ const FormsSelectionPage = () => {
       color: 'from-teal-400 to-teal-500',
       bgColor: 'bg-teal-50',
       path: `${basePath}/forms/incident-report`
-    },
-    {
-      title: 'Daily Occurrence Sheet',
-      description: 'Log daily activities and routine observations',
-      icon: Calendar,
-      color: 'from-blue-400 to-blue-500',
-      bgColor: 'bg-blue-50',
-      path: `${basePath}/forms/daily-occurence`
     },
     {
       title: 'Camera Check Sheet',

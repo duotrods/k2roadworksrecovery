@@ -1,10 +1,8 @@
 import {
   FileText,
   AlertTriangle,
-  Calendar,
   Wrench,
   ShieldAlert,
-  CameraOff,
   Car,
   Hammer,
 } from "lucide-react";
@@ -27,7 +25,7 @@ const Card = ({ icon, hoverBorder, label, value, onClick }) => (
 const ReportStatsCards = ({ reportStats, onCardClick }) => (
   <>
     {/* Row 1: Report Type Counts */}
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+    <div className="grid grid-cols-2 gap-4 mb-4">
       <Card
         icon={<FileText className="w-3.5 h-3.5 text-brand-500" />}
         hoverBorder="hover:border-brand-500"
@@ -36,25 +34,11 @@ const ReportStatsCards = ({ reportStats, onCardClick }) => (
         onClick={() => onCardClick("all")}
       />
       <Card
-        icon={<Calendar className="w-3.5 h-3.5 text-blue-500" />}
-        hoverBorder="hover:border-blue-500"
-        label="Daily Logs"
-        value={reportStats.dailyOccurrence}
-        onClick={() => onCardClick("daily-occurrence")}
-      />
-      <Card
         icon={<AlertTriangle className="w-3.5 h-3.5 text-orange-500" />}
         hoverBorder="hover:border-orange-500"
         label="Incidents"
         value={reportStats.pureIncident}
         onClick={() => onCardClick("incident", "pure")}
-      />
-      <Card
-        icon={<CameraOff className="w-3.5 h-3.5 text-purple-500" />}
-        hoverBorder="hover:border-purple-500"
-        label="CCTV Faults"
-        value={reportStats.cctvFaults}
-        onClick={() => onCardClick("cctv-faults")}
       />
     </div>
 

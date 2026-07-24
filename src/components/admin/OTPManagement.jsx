@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
-import { otpService } from "../../services/otpService";
+import { inviteCodeService } from "../../services/inviteCodeService";
 import { useAuth } from "../../hooks/useAuth";
 import { SCHEMES } from "../../utils/schemes";
 import {
@@ -30,13 +30,11 @@ const OTPManagement = () => {
   });
 
   // Pagination state for client OTPs
-  const [clientLastDoc, setClientLastDoc] = useState(null);
   const [clientHasMore, setClientHasMore] = useState(true);
   const [clientTotalCount, setClientTotalCount] = useState(0);
   const [clientCurrentPage, setClientCurrentPage] = useState(1);
 
   // Pagination state for staff invite codes
-  const [staffLastDoc, setStaffLastDoc] = useState(null);
   const [staffHasMore, setStaffHasMore] = useState(true);
   const [staffTotalCount, setStaffTotalCount] = useState(0);
   const [staffCurrentPage, setStaffCurrentPage] = useState(1);
@@ -44,31 +42,18 @@ const OTPManagement = () => {
   const codesPerPage = 10;
 
   useEffect(() => {
-    loadClientCodes(true);
-    loadStaffCodes(true);
-    loadTotalCounts();
+    loadClientCodes(1);
+    loadStaffCodes(1);
   }, []);
 
-  const loadClientCodes = async (resetPage = false) => {
+  const loadClientCodes = async (page) => {
     setLoading(true);
     try {
-      // Use server-side pagination for client OTPs
-      const result = await otpService
-        .getAllOTPsPaginated(codesPerPage, resetPage ? null : clientLastDoc)
-        .catch((err) => {
-          console.error("Error loading client OTPs:", err);
-          return { otps: [], lastDoc: null, hasMore: false };
-        });
-
+      const result = await inviteCodeService.getClientCodesPaginated(page, codesPerPage);
       setClientOTPs(result.otps);
-      setClientLastDoc(result.lastDoc);
       setClientHasMore(result.hasMore);
-
-      if (resetPage) {
-        setClientCurrentPage(1);
-      }
-
-      console.log(`Loaded ${result.otps.length} client codes`);
+      setClientTotalCount(result.total);
+      setClientCurrentPage(page);
     } catch (error) {
       console.error("Failed to load client codes:", error);
       toast.error("Failed to load client codes");
@@ -77,30 +62,14 @@ const OTPManagement = () => {
     }
   };
 
-  const loadStaffCodes = async (resetPage = false) => {
+  const loadStaffCodes = async (page) => {
     setLoading(true);
     try {
-      // Use server-side pagination for staff invite codes
-      const result = await otpService
-        .getAllStaffInviteCodesPaginated(
-          codesPerPage,
-          resetPage ? null : staffLastDoc,
-        )
-        .catch((err) => {
-          console.error("Error loading staff invite codes:", err);
-          console.log("This is normal if no staff codes have been created yet");
-          return { codes: [], lastDoc: null, hasMore: false };
-        });
-
+      const result = await inviteCodeService.getStaffCodesPaginated(page, codesPerPage);
       setStaffInviteCodes(result.codes);
-      setStaffLastDoc(result.lastDoc);
       setStaffHasMore(result.hasMore);
-
-      if (resetPage) {
-        setStaffCurrentPage(1);
-      }
-
-      console.log(`Loaded ${result.codes.length} staff codes`);
+      setStaffTotalCount(result.total);
+      setStaffCurrentPage(page);
     } catch (error) {
       console.error("Failed to load staff codes:", error);
       toast.error("Failed to load staff codes");
@@ -109,21 +78,9 @@ const OTPManagement = () => {
     }
   };
 
-  const loadTotalCounts = async () => {
-    try {
-      // Use aggregation - only 2 reads regardless of how many codes exist
-      const counts = await otpService.getOTPCounts();
-      setClientTotalCount(counts.clientTotal);
-      setStaffTotalCount(counts.staffTotal);
-    } catch (error) {
-      console.warn("Could not load total counts:", error);
-    }
-  };
-
   const loadAllCodes = () => {
-    loadClientCodes(true);
-    loadStaffCodes(true);
-    loadTotalCounts();
+    loadClientCodes(1);
+    loadStaffCodes(1);
   };
 
   const handleCreateClientOTP = async (e) => {
@@ -136,7 +93,7 @@ const OTPManagement = () => {
 
     setLoading(true);
     try {
-      const otpCode = await otpService.createOTP(
+      const otpCode = await inviteCodeService.createClientCode(
         formData.schemeId.toUpperCase(),
         formData.schemeName,
         userProfile.uid,
@@ -164,7 +121,7 @@ const OTPManagement = () => {
 
     setLoading(true);
     try {
-      const inviteCode = await otpService.createStaffInviteCode(
+      const inviteCode = await inviteCodeService.createStaffInviteCode(
         userProfile.uid,
         userProfile.displayName,
         formData.expiresInDays,
@@ -258,34 +215,22 @@ const OTPManagement = () => {
   const clientTotalPages = Math.ceil(clientTotalCount / codesPerPage);
 
   const handleClientNextPage = () => {
-    if (clientHasMore) {
-      setClientCurrentPage((prev) => prev + 1);
-      loadClientCodes(false);
-    }
+    if (clientHasMore) loadClientCodes(clientCurrentPage + 1);
   };
 
   const handleClientPrevPage = () => {
-    if (clientCurrentPage > 1) {
-      setClientCurrentPage((prev) => prev - 1);
-      loadClientCodes(true);
-    }
+    if (clientCurrentPage > 1) loadClientCodes(clientCurrentPage - 1);
   };
 
   // Pagination handlers for staff codes
   const staffTotalPages = Math.ceil(staffTotalCount / codesPerPage);
 
   const handleStaffNextPage = () => {
-    if (staffHasMore) {
-      setStaffCurrentPage((prev) => prev + 1);
-      loadStaffCodes(false);
-    }
+    if (staffHasMore) loadStaffCodes(staffCurrentPage + 1);
   };
 
   const handleStaffPrevPage = () => {
-    if (staffCurrentPage > 1) {
-      setStaffCurrentPage((prev) => prev - 1);
-      loadStaffCodes(true);
-    }
+    if (staffCurrentPage > 1) loadStaffCodes(staffCurrentPage - 1);
   };
 
   return (
@@ -310,7 +255,7 @@ const OTPManagement = () => {
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
             Generate New Code
@@ -324,7 +269,7 @@ const OTPManagement = () => {
           onClick={() => setActiveTab("client")}
           className={`flex items-center gap-2 px-4 py-3 font-semibold border-b-2 transition-colors ${
             activeTab === "client"
-              ? "border-teal-500 text-teal-600"
+              ? "border-brand-500 text-brand-600"
               : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >
@@ -335,7 +280,7 @@ const OTPManagement = () => {
           onClick={() => setActiveTab("staff")}
           className={`flex items-center gap-2 px-4 py-3 font-semibold border-b-2 transition-colors ${
             activeTab === "staff"
-              ? "border-teal-500 text-teal-600"
+              ? "border-brand-500 text-brand-600"
               : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >
@@ -429,7 +374,7 @@ const OTPManagement = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <button
                           onClick={() => copyToClipboard(otp.otpCode)}
-                          className="flex items-center gap-1 text-sm text-teal-600 hover:text-teal-700"
+                          className="flex items-center gap-1 text-sm text-brand-600 hover:text-brand-700"
                         >
                           <Copy className="w-4 h-4" />
                           Copy
@@ -470,7 +415,7 @@ const OTPManagement = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <button
                             onClick={() => copyToClipboard(code.inviteCode)}
-                            className="flex items-center gap-1 text-sm text-teal-600 hover:text-teal-700"
+                            className="flex items-center gap-1 text-sm text-brand-600 hover:text-brand-700"
                           >
                             <Copy className="w-4 h-4" />
                             Copy
@@ -513,7 +458,7 @@ const OTPManagement = () => {
                 }
                 className="btn btn-sm btn-outline"
               >
-e                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -652,7 +597,7 @@ e                <ChevronRight className="w-4 h-4" />
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg"
+                  className="flex-1 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg"
                 >
                   {loading ? "Generating..." : "Generate Code"}
                 </button>

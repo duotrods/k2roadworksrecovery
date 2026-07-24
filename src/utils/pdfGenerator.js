@@ -81,7 +81,7 @@ const loadImageAsDataUrl = (url) => {
 /**
  * Generate PDF for any report type
  * @param {Object} report - The report data
- * @param {string} reportType - Type of report (incident, asset-damage, daily-occurrence, cctv-check)
+ * @param {string} reportType - Type of report (incident, asset-damage, cctv-check)
  * @param {string} filterSchemeId - Optional scheme ID to filter CCTV sections (for client view)
  */
 export const generateReportPDF = async (
@@ -188,7 +188,6 @@ export const generateReportPDF = async (
   const reportTitles = {
     incident: "K2 Vehicle Recovery Job Sheet",
     "asset-damage": "Asset Damage Report",
-    "daily-occurrence": "Daily Occurrence Report",
     "cctv-check": "CCTV Check Report",
     "cabin-safety": "Cabin Health & Safety Inspection Report",
     "vehicle-check": "Recovery Vehicle Daily Check Sheet",
@@ -307,51 +306,7 @@ export const generateReportPDF = async (
   // Type-specific fields with section headers
   yPosition += 5;
 
-  // Check if report has multiple occurrences (for daily-occurrence reports)
-  const hasOccurrences =
-    reportType === "daily-occurrence" &&
-    report.occurrences &&
-    Array.isArray(report.occurrences);
-
-  if (hasOccurrences) {
-    addSectionHeader(`DAILY OCCURRENCES (${report.occurrences.length})`);
-
-    report.occurrences.forEach((occurrence, index) => {
-      // Occurrence header
-      yPosition += 3;
-      doc.setFillColor(245, 245, 245);
-      doc.rect(margin, yPosition - 3, contentWidth, 10, "F");
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "bold");
-      doc.text(`Occurrence #${index + 1}`, margin + 3, yPosition + 3);
-      yPosition += 12;
-
-      // Occurrence details
-      if (occurrence.scheme) addField("Scheme", occurrence.scheme);
-      if (occurrence.date) addField("Date", formatDate(occurrence.date));
-      if (occurrence.time) addField("Time", formatTime(occurrence.time));
-      if (occurrence.location) addField("Location", occurrence.location);
-      if (occurrence.urn) addField("URN", occurrence.urn);
-      if (occurrence.recoveryRequired !== undefined) {
-        addField(
-          "Recovery Required",
-          occurrence.recoveryRequired ? "Yes" : "No",
-        );
-      }
-      if (occurrence.rcc) addField("RCC", occurrence.rcc);
-      if (occurrence.nameInitials)
-        addField("Name/Initials", occurrence.nameInitials);
-      if (occurrence.description)
-        addField("Description", occurrence.description);
-      if (occurrence.actionTaken)
-        addField("Action Taken", occurrence.actionTaken);
-
-      yPosition += 5;
-    });
-  } else {
-    addSectionHeader("REPORT DETAILS");
-  }
+  addSectionHeader("REPORT DETAILS");
 
   switch (reportType) {
     case "incident": {
@@ -511,28 +466,6 @@ export const generateReportPDF = async (
       if (report.estimatedCost)
         addField("Estimated Cost", `£${report.estimatedCost}`);
       if (report.repairStatus) addField("Repair Status", report.repairStatus);
-      break;
-
-    case "daily-occurrence":
-      // Main occurrence details (skip title as it's already shown in occurrences)
-      if (report.category) addField("Category", report.category);
-
-      // Additional fields from the occurrence
-      if (report.urn) addField("URN", report.urn);
-      if (report.recoveryRequired !== undefined) {
-        addField("Recovery Required", report.recoveryRequired ? "Yes" : "No");
-      }
-      if (report.rcc) addField("RCC", report.rcc);
-      if (report.nameInitials) addField("Name/Initials", report.nameInitials);
-
-      // Description and Action Taken
-      if (report.description) addField("Description", report.description);
-      if (report.actionTaken) addField("Action Taken", report.actionTaken);
-
-      // Weather and Traffic
-      if (report.weatherConditions)
-        addField("Weather Conditions", report.weatherConditions);
-      if (report.trafficFlow) addField("Traffic Flow", report.trafficFlow);
       break;
 
     case "cctv-check":

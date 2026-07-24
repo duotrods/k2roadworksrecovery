@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Link } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { Eye, EyeOff } from "lucide-react";
 import { authService } from "../../services/authService";
+import { userService } from "../../services/userService";
 import { firestoreService } from "../../services/firestoreService";
 import { getAuthErrorMessage } from "../../utils/errorHandling";
 import { DASHBOARD_ROUTES } from "../../utils/constants";
@@ -69,8 +70,9 @@ const SignInForm = () => {
       const user = await authService.signInWithEmail(email, password);
       localStorage.removeItem("signin_attempts");
       localStorage.removeItem("signin_locked_until");
-      const profile = await firestoreService.getUserDocument(user.uid);
-      // Fire-and-forget — don't block navigation for logging
+      const profile = await userService.getUserDocument(user.uid);
+      // Fire-and-forget — don't block navigation for logging (still
+      // Firestore-based; harmless no-op until login_logs is ported)
       firestoreService.logUserLogin(user.uid, profile?.displayName, user.email, profile?.role).catch(console.error);
       toast.success("Welcome back!");
       const dashboardRoute = DASHBOARD_ROUTES[profile?.role] || "/dashboard";

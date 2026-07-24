@@ -52,8 +52,6 @@ const COLLECTIONS_TO_DELETE = [
   "assetDamageReports",
   "auditLogs",
   "cctvCheckForms",
-  "cctvUploads",
-  "dailyOccurrenceReports",
   "incidentReports",
   "clientOTPs",
 ];
@@ -62,14 +60,12 @@ const COLLECTIONS_TO_DELETE = [
 const COUNTER_DOCS_TO_DELETE = [
   "incidentReports",
   "assetDamage",
-  "dailyOccurrence",
   "cctvCheck",
 ];
 
 // Storage folders to delete
 const STORAGE_FOLDERS_TO_DELETE = [
   "asset-damage/",
-  "cctv-uploads/",
   "incident-reports/",
 ];
 

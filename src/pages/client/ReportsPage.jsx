@@ -124,9 +124,7 @@ const ReportsPage = () => {
     incident: 0,
     pureIncident: 0,
     assetDamage: 0,
-    dailyOccurrence: 0,
     cctvCheck: 0,
-    cctvFaults: 0,
     freeRecovery: 0,
     driveOff: 0,
     incursions: 0,
@@ -396,24 +394,6 @@ const ReportsPage = () => {
     }
     if (subFilter) return false; // hide non-incident rows when a sub-filter is active
 
-    // For daily occurrence reports, check if any occurrence matches the client's scheme
-    if (report.reportType === "daily-occurrence" && report.occurrences) {
-      let activeSchemeName =
-        userProfile?.activeSchemeName || userProfile?.schemeName;
-      if (!userProfile?.activeSchemeName && userProfile?.activeSchemeId) {
-        const activeSchemeObj = SCHEMES.find(
-          (s) => s.id === userProfile.activeSchemeId,
-        );
-        if (activeSchemeObj) activeSchemeName = activeSchemeObj.fullName;
-      }
-      const hasMatchingOccurrence = report.occurrences.some(
-        (occurrence) =>
-          occurrence.scheme === activeSchemeName ||
-          occurrence.scheme === "All Schemes",
-      );
-      return matchesSearch && matchesType && hasMatchingOccurrence;
-    }
-
     return matchesSearch && matchesType;
   });
 
@@ -431,10 +411,7 @@ const ReportsPage = () => {
       return reportTypeCounts.pureIncident;
     if (filterType === "incident") return reportTypeCounts.incident;
     if (filterType === "asset-damage") return reportTypeCounts.assetDamage;
-    if (filterType === "daily-occurrence")
-      return reportTypeCounts.dailyOccurrence;
     if (filterType === "cctv-check") return reportTypeCounts.cctvCheck;
-    if (filterType === "cctv-faults") return reportTypeCounts.cctvFaults;
     return reportTypeCounts.total;
   };
   const activeCount = getActiveCount();
@@ -501,9 +478,7 @@ const ReportsPage = () => {
     const reportTypeRoutes = {
       incident: `${basePath}/reports/incident/${report.id}`,
       "asset-damage": `${basePath}/reports/asset-damage/${report.id}`,
-      "daily-occurrence": `${basePath}/reports/daily-occurrence/${report.id}`,
       "cctv-check": `${basePath}/reports/cctv-check/${report.id}`,
-      "cctv-faults": `${basePath}/reports/cctv-faults/${report.id}`,
     };
 
     const route = reportTypeRoutes[report.reportType];
@@ -531,9 +506,7 @@ const ReportsPage = () => {
     total: reportTypeCounts.total,
     incident: reportTypeCounts.incident,
     pureIncident: reportTypeCounts.pureIncident,
-    dailyOccurrence: reportTypeCounts.dailyOccurrence,
     cctvCheck: reportTypeCounts.cctvCheck,
-    cctvFaults: reportTypeCounts.cctvFaults,
     freeRecovery:
       (reportTypeCounts.freeRecovery || 0) + (reportTypeCounts.driveOff || 0),
     incursions: reportTypeCounts.incursions,
@@ -722,9 +695,7 @@ const ReportsPage = () => {
               >
                 <option value="all">All Types</option>
                 <option value="incident">Incident Reports</option>
-                <option value="daily-occurrence">Daily Occurrence</option>
                 <option value="cctv-check">CCTV Checks</option>
-                <option value="cctv-faults">CCTV Faults</option>
               </select>
             </div>
           </div>

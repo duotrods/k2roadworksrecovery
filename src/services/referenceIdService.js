@@ -5,25 +5,44 @@ import {
   runTransaction
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { supabase } from '../config/supabase';
 import {
   getReferenceConfig,
   getCounterName,
   formatReferenceId,
 } from '../utils/referenceFormat';
 
+// Types already ported to Supabase — routed through the generate_reference_id
+// RPC (atomic `SELECT ... FOR UPDATE` on the Postgres counters table) instead
+// of the Firestore transaction below. Other types stay on Firestore until
+// their own migration pass.
+const SUPABASE_TYPES = new Set(['incident']);
+
 /**
  * Service for generating unique reference IDs with prefixes
  * Format: PREFIX + number (e.g., IN01, IN02, AD01, etc.)
- * Demo accounts use separate counters with -DEMO suffix (e.g., IN01-DEMO, DO01-DEMO)
+ * Demo accounts use separate counters with -DEMO suffix (e.g., IN01-DEMO, AD01-DEMO)
  */
 class ReferenceIdService {
   /**
    * Generate next reference ID for a given type
-   * @param {string} type - The form type (incident, assetDamage, dailyOccurrence, cctvCheck, cctvFaults)
+   * @param {string} type - The form type (incident, assetDamage, cctvCheck)
    * @param {boolean} isDemo - Whether this is a demo account submission
    * @returns {Promise<string>} The generated reference ID
    */
   async generateReferenceId(type, isDemo = false) {
+    if (SUPABASE_TYPES.has(type)) {
+      const { data, error } = await supabase.rpc('generate_reference_id', {
+        p_type: type,
+        p_is_demo: isDemo,
+      });
+      if (error) {
+        console.error('Failed to generate reference ID:', error);
+        throw error;
+      }
+      return data;
+    }
+
     const config = this.getTypeConfig(type);
     const counterName = getCounterName(config, { isDemo });
 

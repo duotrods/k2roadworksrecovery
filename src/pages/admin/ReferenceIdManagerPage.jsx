@@ -7,8 +7,6 @@ import { Hash, RotateCcw, Pencil, CheckCircle2, AlertTriangle } from "lucide-rea
 import { toast } from "react-hot-toast";
 
 const FORM_TYPES = [
-  { type: "cctvFaults",      label: "CCTV Faults",         prefix: "CF" },
-  { type: "dailyOccurrence", label: "Daily Occurrence",     prefix: "DO" },
   { type: "cctvCheck",       label: "CCTV Check",           prefix: "CC" },
   { type: "incident",        label: "Incident Report",      prefix: "IN" },
   { type: "assetDamage",     label: "Asset Damage",         prefix: "AD" },

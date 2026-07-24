@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../hooks/useAuth";
 import { useLiveIncidents } from "../../hooks/useLiveIncidents";
-import { useLiveCCTVFaults } from "../../hooks/useCCTVFaults";
 import { clientDataService } from "../../services/clientDataService";
 import {
   BarChart,
@@ -22,12 +21,10 @@ import {
   Download,
   Radio,
   Eye,
-  CameraOff,
   Wrench,
   ShieldAlert,
   TriangleAlert,
   Clock,
-  TrendingUp,
 } from "lucide-react";
 import { SCHEMES } from "../../utils/schemes";
 import DrillDownSidebar from "./DrillDownSidebar";
@@ -193,13 +190,6 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
     enabled: !!schemeId && !!startDate && !!endDate,
   });
 
-  // Cached query for uptime
-  const { data: uptimeData, isLoading: uptimeLoading } = useQuery({
-    queryKey: ["cctvUptime", schemeId],
-    queryFn: () => clientDataService.getCCTVUptimeData(schemeId, 30),
-    enabled: !!schemeId,
-  });
-
   // Cached query for time series
   const { data: timeSeriesData = [], isLoading: timeSeriesLoading } = useQuery({
     queryKey: ["timeSeriesData", schemeId, startDate, endDate],
@@ -216,11 +206,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
   const { liveIncidents, loading: liveIncidentsLoading } =
     useLiveIncidents(schemeId);
 
-  // Real-time subscription for CCTV fault reports
-  const { faults: liveCCTVFaults, loading: cctvFaultsLoading } =
-    useLiveCCTVFaults(schemeId);
-
-  const loading = statsLoading || uptimeLoading || timeSeriesLoading;
+  const loading = statsLoading || timeSeriesLoading;
 
   // Reopen sidebar and restore scroll when coming back from a report view
   useEffect(() => {
@@ -453,7 +439,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
         barWidth > 0
       ) {
         // Draw bar - use regular rect if height is too small for rounded corners
-        pdf.setFillColor(23, 175, 147); // Teal color
+        pdf.setFillColor(23, 175, 147); // brand color
         if (barHeight >= 4) {
           pdf.roundedRect(barX, barY, barWidth, barHeight, 2, 2, "F");
         } else {
@@ -501,7 +487,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
 
       // Add header to the PDF
       const headerHeight = 25;
-      pdf.setFillColor(23, 175, 147); // Teal color
+      pdf.setFillColor(23, 175, 147); // brand color
       pdf.rect(0, 0, pdfWidth, headerHeight, "F");
 
       // Header text - left side
@@ -628,7 +614,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
           <button
             onClick={handleExportPDF}
             disabled={isExporting || loading}
-            className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-teal-600 hover:shadow-md transition-all disabled:bg-gray-300 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 bg-brand-500 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-brand-600 hover:shadow-md transition-all disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             <Download className="w-5 h-5" />
             <span className="font-medium">Export Charts</span>
@@ -639,7 +625,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
               onClick={() => setShowDatePicker(!showDatePicker)}
               className="flex items-center gap-3 bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
             >
-              <Calendar className="w-5 h-5 text-teal-600" />
+              <Calendar className="w-5 h-5 text-brand-600" />
               <div className="flex items-center gap-2 text-sm">
                 <span className="font-medium text-gray-700">
                   {dateRange[0].startDate.toLocaleDateString("en-GB")}
@@ -695,11 +681,11 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
       </div>
 
       {/* Metric Cards Row 2 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
         <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
           <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
-            <div className="p-3 rounded-lg bg-teal-50">
-              <Clock className="w-8 h-8 text-teal-500" />
+            <div className="p-3 rounded-lg bg-brand-50">
+              <Clock className="w-8 h-8 text-brand-500" />
             </div>
             <h6 className="font-semibold text-gray-500 mb-1">Avg Time to Site</h6>
           </div>
@@ -721,42 +707,16 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
           </span>
           <p className="text-sm text-gray-500 mt-2">Average time from unit on site to incident cleared.</p>
         </div>
-
-        <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-          <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
-            <div className={`p-3 rounded-lg ${!uptimeLoading && parseFloat(uptimeData?.totals?.avgUptimePct) < 80 ? "bg-red-50" : !uptimeLoading && parseFloat(uptimeData?.totals?.avgUptimePct) < 90 ? "bg-amber-50" : "bg-green-50"}`}>
-              <TrendingUp className={`w-8 h-8 ${!uptimeLoading && parseFloat(uptimeData?.totals?.avgUptimePct) < 80 ? "text-red-500" : !uptimeLoading && parseFloat(uptimeData?.totals?.avgUptimePct) < 90 ? "text-amber-500" : "text-green-500"}`} />
-            </div>
-            <h6 className="font-semibold text-gray-500 mb-1">Avg Camera Uptime</h6>
-          </div>
-          <span className="text-2xl font-bold text-gray-800 pl-2">
-            {uptimeLoading ? "..." : `${uptimeData?.totals?.avgUptimePct ?? "100.0"}%`}
-          </span>
-          <p className="text-sm text-gray-500 mt-2">Average camera uptime across the scheme (last 30 days).</p>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-          <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
-            <div className="p-3 rounded-lg bg-red-50">
-              <CameraOff className="w-8 h-8 text-red-500" />
-            </div>
-            <h6 className="font-semibold text-gray-500 mb-1">Avg Camera Downtime</h6>
-          </div>
-          <span className="text-2xl font-bold text-gray-800 pl-2">
-            {uptimeLoading ? "..." : `${(100 - parseFloat(uptimeData?.totals?.avgUptimePct ?? 100)).toFixed(1)}%`}
-          </span>
-          <p className="text-sm text-gray-500 mt-2">Average camera downtime across the scheme (last 30 days).</p>
-        </div>
       </div>
 
       {loading ? (
         <div className="flex justify-center items-center h-96">
-          <span className="loading loading-spinner loading-lg text-teal-500"></span>
+          <span className="loading loading-spinner loading-lg text-brand-500"></span>
         </div>
       ) : (
         <div ref={dashboardRef}>
           {/* Live Incidents Link Card */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+          <div className="grid grid-cols-1 gap-6 mb-10">
             <div
               onClick={() => navigate(`${basePath}/live-incidents`)}
               className=" bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-shadow"
@@ -776,33 +736,6 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
                 ) : (
                   <span className="bg-red-500 text-white px-4 py-2 rounded-full text-lg font-bold">
                     {liveIncidents.length} Active
-                  </span>
-                )}
-                <Eye className="w-6 h-6 text-red-500" />
-              </div>
-            </div>
-
-            <div
-              onClick={() => navigate(`${basePath}/cctv-faults`)}
-              className=" bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-shadow"
-            >
-              <div className=" px-6 py-4 flex items-center gap-3">
-                <div className="w-10 h-10rounded-full flex items-center justify-center">
-                  <CameraOff className="w-6 h-6 text-red-500" />
-                </div>
-                <div className="flex-1">
-                  <span className="font-semibold text-xl">
-                    Live Camera Fault
-                  </span>
-                  <p className=" text-sm">
-                    View and monitor live camera fault for your scheme
-                  </p>
-                </div>
-                {cctvFaultsLoading ? (
-                  <span className="loading loading-spinner loading-sm text-white"></span>
-                ) : (
-                  <span className="bg-red-500 text-white px-4 py-2 rounded-full text-lg font-bold">
-                    {liveCCTVFaults.length} Fault
                   </span>
                 )}
                 <Eye className="w-6 h-6 text-red-500" />

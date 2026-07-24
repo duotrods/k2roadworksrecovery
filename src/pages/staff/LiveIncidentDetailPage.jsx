@@ -20,8 +20,7 @@ const LiveIncidentDetailPage = () => {
   const loadReport = async () => {
     try {
       setLoading(true);
-      const reports = await staffService.getIncidentReports(null);
-      const foundReport = reports.find(r => r.id === id);
+      const foundReport = await staffService.getIncidentReportById(id);
 
       if (foundReport) {
         setReport(foundReport);

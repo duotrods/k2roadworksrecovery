@@ -2,20 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { ArrowLeft, Upload, X, ChevronRight } from "lucide-react";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { useAuth } from "../../hooks/useAuth";
 import { getStaffBasePath } from "../../utils/constants";
 import { staffService } from "../../services/staffService";
 import { sendIncidentAlertNotification } from "../../services/emailService";
-
-const r2Client = new S3Client({
-  region: "auto",
-  endpoint: import.meta.env.VITE_R2_ENDPOINT,
-  credentials: {
-    accessKeyId: import.meta.env.VITE_R2_ACCESS_KEY_ID,
-    secretAccessKey: import.meta.env.VITE_R2_SECRET_ACCESS_KEY,
-  },
-});
+import { supabase } from "../../config/supabase";
 import StaffSidebarLayout from "../../components/layout/StaffSidebarLayout";
 import StepIndicator from "../../components/staff/incident/StepIndicator";
 import SignaturePad from "../../components/staff/incident/SignaturePad";
@@ -113,8 +104,7 @@ const IncidentReportFormPage = () => {
   const loadFormData = async () => {
     try {
       setLoading(true);
-      const reports = await staffService.getIncidentReports(null);
-      const report = reports.find((r) => r.id === editId);
+      const report = await staffService.getIncidentReportById(editId);
 
       if (report) {
         setExistingReferenceId(report.referenceId || null);
@@ -266,38 +256,67 @@ const IncidentReportFormPage = () => {
     }));
   };
 
+  // Converts a Blob/File to a base64 string (no "data:...;base64," prefix)
+  // for posting as JSON to the /api/upload proxy.
+  const blobToBase64 = (blob) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+
+  // Posts a file to the server-side R2 upload proxy (api/upload.js), which
+  // holds the R2 credentials — the browser never sees them. Requires an
+  // active Supabase session; throws if the upload is rejected.
+  const uploadToR2 = async (blob, fileName, contentType) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const dataBase64 = await blobToBase64(blob);
+
+    const response = await fetch("/api/upload", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session?.access_token}`,
+      },
+      body: JSON.stringify({
+        fileName,
+        contentType,
+        dataBase64,
+        folder: "incident-reports",
+      }),
+    });
+
+    if (!response.ok) {
+      const { error } = await response.json().catch(() => ({}));
+      throw new Error(error || "Upload failed");
+    }
+
+    return response.json();
+  };
+
   const uploadFiles = async () => {
     if (files.length === 0) return [];
 
     setUploadingFiles(true);
-    const uploadPromises = files.map(async (file) => {
-      const compressedFile = await compressImage(file);
-      const key = `incident-reports/${userProfile.uid}/${Date.now()}_${file.name}`;
-      const arrayBuffer = await compressedFile.arrayBuffer();
+    try {
+      const uploadPromises = files.map(async (file) => {
+        const compressedFile = await compressImage(file);
+        const { fileUrl, downloadUrl, fileSize, fileType } = await uploadToR2(
+          compressedFile,
+          file.name,
+          file.type,
+        );
 
-      await r2Client.send(
-        new PutObjectCommand({
-          Bucket: import.meta.env.VITE_R2_BUCKET,
-          Key: key,
-          Body: new Uint8Array(arrayBuffer),
-          ContentType: file.type,
-        }),
-      );
+        return { fileName: file.name, fileUrl, downloadUrl, fileSize, fileType };
+      });
 
-      const downloadUrl = `${import.meta.env.VITE_R2_PUBLIC_URL}/${key}`;
-
-      return {
-        fileName: file.name,
-        fileUrl: key,
-        downloadUrl,
-        fileSize: compressedFile.size,
-        fileType: file.type,
-      };
-    });
-
-    const uploadedFiles = await Promise.all(uploadPromises);
-    setUploadingFiles(false);
-    return uploadedFiles;
+      return await Promise.all(uploadPromises);
+    } finally {
+      setUploadingFiles(false);
+    }
   };
 
   // Uploads a freshly-drawn signature to R2 and returns its URL. If nothing
@@ -309,19 +328,8 @@ const IncidentReportFormPage = () => {
     const blob = await pad.toBlob();
     if (!blob) return formData.signatureUrl || "";
 
-    const key = `incident-reports/${userProfile.uid}/${Date.now()}_signature.png`;
-    const arrayBuffer = await blob.arrayBuffer();
-
-    await r2Client.send(
-      new PutObjectCommand({
-        Bucket: import.meta.env.VITE_R2_BUCKET,
-        Key: key,
-        Body: new Uint8Array(arrayBuffer),
-        ContentType: "image/png",
-      }),
-    );
-
-    return `${import.meta.env.VITE_R2_PUBLIC_URL}/${key}`;
+    const { downloadUrl } = await uploadToR2(blob, "signature.png", "image/png");
+    return downloadUrl;
   };
 
   // Persists whatever is in formData/files right now against the existing

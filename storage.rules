@@ -20,10 +20,7 @@ service firebase.storage {
       return isVerified() && getUserRole() == 'admin';
     }
 
-    // CCTV uploads: only staff can upload (to their own folder); staff, admin, and client can read
-    match /cctv-uploads/{userId}/{fileName} {
-      allow read: if isVerified() && getUserRole() in ['staff', 'admin', 'client'];
-      allow write: if isStaff() && request.auth.uid == userId;
-    }
+    // No paths are in active use — real file uploads go to Cloudflare R2,
+    // not Firebase Storage. Default deny (no match blocks) is intentional.
   }
 }

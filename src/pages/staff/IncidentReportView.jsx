@@ -28,9 +28,7 @@ const IncidentReportView = () => {
   const loadReport = async () => {
     try {
       setLoading(true);
-      // Pass null to get all reports, not just current user's
-      const reports = await staffService.getIncidentReports(null);
-      const foundReport = reports.find((r) => r.id === id);
+      const foundReport = await staffService.getIncidentReportById(id);
 
       if (foundReport) {
         setReport(foundReport);
@@ -85,7 +83,7 @@ const IncidentReportView = () => {
 
   const formatDateTime = (timestamp) => {
     if (!timestamp) return "";
-    const date = timestamp.toDate();
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return date.toLocaleString("en-GB", {
       day: "2-digit",
       month: "long",

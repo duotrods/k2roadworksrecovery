@@ -52,7 +52,7 @@ const NoticeBoard = ({ isOpen, onClose }) => {
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden">
         {/* Header */}
-        <div className="bg-linear-to-r from-teal-500 to-teal-600 p-6 text-white relative">
+        <div className="bg-linear-to-r from-brand-500 to-brand-600 p-6 text-white relative">
           <button
             onClick={onClose}
             className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-full transition-colors"
@@ -66,7 +66,7 @@ const NoticeBoard = ({ isOpen, onClose }) => {
             </div>
             <div>
               <h2 className="text-2xl font-bold">Important Notice!</h2>
-              <p className="text-teal-100">Here are some updates while you were away!</p>
+              <p className="text-brand-100">Here are some updates while you were away!</p>
             </div>
           </div>
         </div>
@@ -75,7 +75,7 @@ const NoticeBoard = ({ isOpen, onClose }) => {
         <div className="p-6">
           {loading ? (
             <div className="flex justify-center py-8">
-              <span className="loading loading-spinner loading-lg text-teal-500"></span>
+              <span className="loading loading-spinner loading-lg text-brand-500"></span>
             </div>
           ) : activities.length === 0 ? (
             <div className="text-center py-8">
@@ -94,7 +94,7 @@ const NoticeBoard = ({ isOpen, onClose }) => {
                         : "bg-gray-50 hover:bg-gray-100"
                     }`}
                   >
-                    <div className={`w-2 h-2 rounded-full mt-2 ${isNote ? "bg-red-500" : "bg-teal-500"}`} />
+                    <div className={`w-2 h-2 rounded-full mt-2 ${isNote ? "bg-red-500" : "bg-brand-500"}`} />
                     <div className="flex-1">
                       {isNote && (
                         <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-0.5">
@@ -118,7 +118,7 @@ const NoticeBoard = ({ isOpen, onClose }) => {
           <div className="mt-6 pt-4 border-t flex justify-end">
             <button
               onClick={onClose}
-              className="px-8 py-3 bg-teal-500 text-white rounded-lg hover:bg-teal-600 font-semibold transition-colors"
+              className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-600 font-semibold transition-colors"
             >
               Continue
             </button>

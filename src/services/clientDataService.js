@@ -16,9 +16,10 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
+import { supabase } from "../config/supabase";
 import { AppError } from "../utils/errorHandling";
-import { CAMERA_OPTIONS_BY_SCHEME } from "../utils/schemes";
 import { isVideoFile } from "../utils/fileType";
+import { fromIncidentRow } from "../utils/incidentRowMapper";
 
 class ClientDataService {
   // Real-time listener for live incidents (uses onSnapshot - only charges when data changes)
@@ -236,265 +237,16 @@ class ClientDataService {
     }
   }
 
-  // ─── CCTV Faults (client-facing) ───────────────────────────────────────────
-
-  // Real-time listener for LIVE CCTV fault reports (onSnapshot - only charges when data changes)
-  subscribeCCTVFaults(schemeId, callback, onError) {
-    const faultsRef = collection(db, "cctvFaultsReports");
-
-    const q = query(
-      faultsRef,
-      where("schemeIds", "array-contains", schemeId),
-      where("status", "==", "live"),
-      orderBy("createdAt", "desc"),
-      limit(20),
-    );
-
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        const faults = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        callback(faults);
-      },
-      (error) => {
-        if (
-          error.code === "failed-precondition" ||
-          error.message?.includes("index")
-        ) {
-          console.warn("Index not available for CCTV faults, using fallback");
-          const simpleQuery = query(
-            faultsRef,
-            where("schemeIds", "array-contains", schemeId),
-            limit(50),
-          );
-          return onSnapshot(
-            simpleQuery,
-            (snapshot) => {
-              const faults = snapshot.docs
-                .map((doc) => ({ id: doc.id, ...doc.data() }))
-                .filter((doc) => doc.status === "live")
-                .sort(
-                  (a, b) =>
-                    (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0),
-                )
-                .slice(0, 20);
-              callback(faults);
-            },
-            onError,
-          );
-        }
-        if (onError) onError(error);
-      },
-    );
-  }
-
-  // Acknowledge a CCTV fault from the client side (checkbox + optional note)
-  async acknowledgeCCTVFault(
-    faultId,
-    clientNote = "",
-    authorRole = "cctvfaultoperator",
-    authorName = "",
-  ) {
-    try {
-      const { doc, updateDoc, serverTimestamp, arrayUnion } =
-        await import("firebase/firestore");
-      const faultRef = doc(db, "cctvFaultsReports", faultId);
-      const updateData = {
-        clientAcknowledged: true,
-        clientNote,
-        acknowledgedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-      if (clientNote.trim()) {
-        updateData.clientNotes = arrayUnion({
-          text: clientNote.trim(),
-          addedAt: new Date().toISOString(),
-          authorRole,
-          authorName,
-        });
-      }
-      await updateDoc(faultRef, updateData);
-    } catch (error) {
-      console.error("Failed to acknowledge CCTV fault:", error);
-      throw error;
-    }
-  }
-
-  // Add a stacked note to an already-acknowledged CCTV fault
-  async addClientNote(
-    faultId,
-    noteText,
-    authorRole = "cctvfaultoperator",
-    authorName = "",
-  ) {
-    try {
-      const { doc, updateDoc, serverTimestamp, arrayUnion } =
-        await import("firebase/firestore");
-      const faultRef = doc(db, "cctvFaultsReports", faultId);
-      await updateDoc(faultRef, {
-        clientNotes: arrayUnion({
-          text: noteText.trim(),
-          addedAt: new Date().toISOString(),
-          authorRole,
-          authorName,
-        }),
-        updatedAt: serverTimestamp(),
-      });
-    } catch (error) {
-      console.error("Failed to add client note:", error);
-      throw error;
-    }
-  }
-
-  async updateCCTVFaultNotes(faultId, updatedNotes) {
-    try {
-      const { doc, updateDoc, serverTimestamp } =
-        await import("firebase/firestore");
-      const faultRef = doc(db, "cctvFaultsReports", faultId);
-      await updateDoc(faultRef, {
-        clientNotes: updatedNotes,
-        updatedAt: serverTimestamp(),
-      });
-    } catch (error) {
-      console.error("Failed to update notes:", error);
-      throw error;
-    }
-  }
-
-  // Paginated query for COMPLETED CCTV fault reports (history column)
-  async getCCTVFaultsPaginated(schemeId, pageSize = 10, lastDoc = null) {
-    try {
-      const faultsRef = collection(db, "cctvFaultsReports");
-      const schemeFilter = schemeId
-        ? [where("schemeIds", "array-contains", schemeId)]
-        : [];
-
-      let q;
-      if (lastDoc) {
-        q = query(
-          faultsRef,
-          ...schemeFilter,
-          where("status", "==", "completed"),
-          orderBy("createdAt", "desc"),
-          startAfter(lastDoc),
-          limit(pageSize),
-        );
-      } else {
-        q = query(
-          faultsRef,
-          ...schemeFilter,
-          where("status", "==", "completed"),
-          orderBy("createdAt", "desc"),
-          limit(pageSize),
-        );
-      }
-
-      const snapshot = await getDocs(q);
-      const faults = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      return {
-        faults,
-        lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
-        hasMore: snapshot.docs.length === pageSize,
-      };
-    } catch (error) {
-      if (
-        error.code === "failed-precondition" ||
-        error.message?.includes("index")
-      ) {
-        console.warn(
-          "Index not available for CCTV faults paginated, using fallback",
-        );
-        const fallbackFilters = schemeId
-          ? [where("schemeIds", "array-contains", schemeId)]
-          : [];
-        const simpleQuery = query(
-          collection(db, "cctvFaultsReports"),
-          ...fallbackFilters,
-          limit(200),
-        );
-        const snapshot = await getDocs(simpleQuery);
-        const allFaults = snapshot.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .filter((doc) => doc.status === "completed")
-          .sort(
-            (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0),
-          );
-
-        const startIndex = lastDoc
-          ? allFaults.findIndex((d) => d.id === lastDoc.id) + 1
-          : 0;
-        const faults = allFaults.slice(startIndex, startIndex + pageSize);
-
-        return {
-          faults,
-          lastDoc:
-            faults.length > 0 ? { id: faults[faults.length - 1].id } : null,
-          hasMore: startIndex + pageSize < allFaults.length,
-        };
-      }
-      throw error;
-    }
-  }
-
-  // Get total count of COMPLETED CCTV fault reports for a scheme (1 aggregate read)
-  async getCCTVFaultsCount(schemeId) {
-    try {
-      const schemeFilter = schemeId
-        ? [where("schemeIds", "array-contains", schemeId)]
-        : [];
-      const q = query(
-        collection(db, "cctvFaultsReports"),
-        ...schemeFilter,
-        where("status", "==", "completed"),
-      );
-      const snapshot = await getCountFromServer(q);
-      return snapshot.data().count;
-    } catch (error) {
-      console.warn("Could not get CCTV faults count:", error);
-      return 0;
-    }
-  }
-
-  // Get a single CCTV fault by ID (1 read)
-  async getCCTVFaultById(faultId) {
-    try {
-      const { doc, getDoc } = await import("firebase/firestore");
-      const docRef = doc(db, "cctvFaultsReports", faultId);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        return { id: docSnap.id, ...docSnap.data() };
-      }
-      return null;
-    } catch (error) {
-      console.error("Error fetching CCTV fault by ID:", error);
-      throw error;
-    }
-  }
-
-  // ─── End CCTV Faults ────────────────────────────────────────────────────────
-
   // Get a single incident by ID (1 read instead of loading all reports!)
   async getIncidentById(incidentId) {
     try {
-      const { doc, getDoc } = await import("firebase/firestore");
-      const docRef = doc(db, "incidentReports", incidentId);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        return {
-          id: docSnap.id,
-          ...docSnap.data(),
-        };
-      }
-      return null;
+      const { data, error } = await supabase
+        .from("incident_reports")
+        .select("*")
+        .eq("id", incidentId)
+        .maybeSingle();
+      if (error) throw error;
+      return fromIncidentRow(data);
     } catch (error) {
       console.error("Error fetching incident by ID:", error);
       throw new AppError(
@@ -683,60 +435,6 @@ class ClientDataService {
       console.error("Error fetching CCTV checks:", error);
       throw new AppError(
         "Failed to fetch CCTV checks",
-        "client-data/fetch-error",
-        error,
-      );
-    }
-  }
-
-  // Get daily occurrence logs for a specific scheme
-  async getSchemeDailyLogs(schemeId, limitCount = 100) {
-    try {
-      const logsRef = collection(db, "dailyOccurrenceReports");
-
-      try {
-        const q = query(
-          logsRef,
-          where("schemeIds", "array-contains", schemeId),
-          orderBy("createdAt", "desc"),
-          limit(limitCount),
-        );
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-      } catch (indexError) {
-        // Check if it's an index error or permissions error
-        if (
-          indexError.code === "failed-precondition" ||
-          indexError.message?.includes("index")
-        ) {
-          console.warn(
-            "Index not available for dailyOccurrenceReports, trying simplified query",
-          );
-          const simpleQuery = query(
-            logsRef,
-            where("schemeIds", "array-contains", schemeId),
-            limit(limitCount),
-          );
-          const snapshot = await getDocs(simpleQuery);
-          const docs = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
-          return docs.sort((a, b) => {
-            const timeA = a.createdAt?.seconds || 0;
-            const timeB = b.createdAt?.seconds || 0;
-            return timeB - timeA;
-          });
-        }
-        throw indexError;
-      }
-    } catch (error) {
-      console.error("Error fetching daily logs:", error);
-      throw new AppError(
-        "Failed to fetch daily logs",
         "client-data/fetch-error",
         error,
       );
@@ -1367,11 +1065,6 @@ class ClientDataService {
         },
       );
 
-      const dailyLogs = await this.getSchemeDailyLogs(schemeId).catch((err) => {
-        console.error("Failed to fetch daily logs:", err);
-        return [];
-      });
-
       const cctvChecks = await this.getSchemeCCTVChecks(schemeId).catch(
         (err) => {
           console.error("Failed to fetch CCTV checks:", err);
@@ -1391,12 +1084,6 @@ class ClientDataService {
           ...report,
           reportType: "asset-damage",
           type: report.damageType,
-          timestamp: report.createdAt,
-        })),
-        ...dailyLogs.map((report) => ({
-          ...report,
-          reportType: "daily-occurrence",
-          title: report.title || "Daily Log",
           timestamp: report.createdAt,
         })),
         ...cctvChecks.map((report) => ({
@@ -1431,7 +1118,7 @@ class ClientDataService {
       const perTypeLimit = pageSize;
 
       // Fetch with cursors
-      const [incidents, assetDamage, dailyLogs, cctvChecks, cctvFaults] =
+      const [incidents, assetDamage, cctvChecks] =
         await Promise.all([
           this.fetchPaginatedCollection(
             "incidentReports",
@@ -1450,26 +1137,10 @@ class ClientDataService {
             dateRange,
           ),
           this.fetchPaginatedCollection(
-            "dailyOccurrenceReports",
-            schemeId,
-            perTypeLimit,
-            cursors.dailyLogs,
-            null,
-            dateRange,
-          ),
-          this.fetchPaginatedCollection(
             "cctvCheckForms",
             schemeId,
             perTypeLimit,
             cursors.cctvChecks,
-            null,
-            dateRange,
-          ),
-          this.fetchPaginatedCollection(
-            "cctvFaultsReports",
-            schemeId,
-            perTypeLimit,
-            cursors.cctvFaults,
             null,
             dateRange,
           ),
@@ -1491,25 +1162,11 @@ class ClientDataService {
           type: report.damageType,
           timestamp: report.createdAt,
         })),
-        ...dailyLogs.docs.map((report) => ({
-          ...report,
-          reportType: "daily-occurrence",
-          _source: "dailyLogs",
-          title: report.title || "Daily Log",
-          timestamp: report.createdAt,
-        })),
         ...cctvChecks.docs.map((report) => ({
           ...report,
           reportType: "cctv-check",
           _source: "cctvChecks",
           title: "CCTV Check",
-          timestamp: report.createdAt,
-        })),
-        ...cctvFaults.docs.map((report) => ({
-          ...report,
-          reportType: "cctv-faults",
-          _source: "cctvFaults",
-          title: "CCTV Fault",
           timestamp: report.createdAt,
         })),
       ];
@@ -1543,9 +1200,7 @@ class ClientDataService {
         hasMore:
           incidents.hasMore ||
           assetDamage.hasMore ||
-          dailyLogs.hasMore ||
-          cctvChecks.hasMore ||
-          cctvFaults.hasMore,
+          cctvChecks.hasMore,
       };
     } catch (error) {
       console.error("Error in getAllReportsPaginated:", error);
@@ -1654,23 +1309,13 @@ class ClientDataService {
   // Get total count of all reports for a scheme (for pagination display)
   async getAllReportsCount(schemeId) {
     try {
-      const [
-        incidentCount,
-        assetCount,
-        dailyCount,
-        cctvCount,
-        cctvFaultsCount,
-      ] = await Promise.all([
+      const [incidentCount, assetCount, cctvCount] = await Promise.all([
         this.getCollectionCount("incidentReports", schemeId),
         this.getCollectionCount("assetDamageReports", schemeId),
-        this.getCollectionCount("dailyOccurrenceReports", schemeId),
         this.getCollectionCount("cctvCheckForms", schemeId),
-        this.getCollectionCount("cctvFaultsReports", schemeId),
       ]);
 
-      return (
-        incidentCount + assetCount + dailyCount + cctvCount + cctvFaultsCount
-      );
+      return incidentCount + assetCount + cctvCount;
     } catch (error) {
       console.warn("Could not get total reports count:", error);
       return 0;
@@ -1765,8 +1410,6 @@ class ClientDataService {
     const collectionMap = {
       incident: "incidentReports",
       "asset-damage": "assetDamageReports",
-      "daily-occurrence": "dailyOccurrenceReports",
-      "cctv-faults": "cctvFaultsReports",
     };
     const collectionName = collectionMap[reportType];
     if (!collectionName) return { reports: [], lastDoc: null, hasMore: false };
@@ -1795,19 +1438,7 @@ class ClientDataService {
             type: report.damageType,
             timestamp: report.createdAt,
           };
-        if (reportType === "cctv-faults")
-          return {
-            ...report,
-            reportType: "cctv-faults",
-            title: "CCTV Fault",
-            timestamp: report.createdAt,
-          };
-        return {
-          ...report,
-          reportType: "daily-occurrence",
-          title: report.title || "Daily Log",
-          timestamp: report.createdAt,
-        };
+        return { ...report, reportType, timestamp: report.createdAt };
       });
       return { reports, lastDoc: result.lastDoc, hasMore: result.hasMore };
     } catch (error) {
@@ -1822,9 +1453,7 @@ class ClientDataService {
       const [
         incidentCount,
         assetCount,
-        dailyCount,
         cctvCount,
-        cctvFaultsCount,
         freeRecoveryCount,
         driveOffCount,
         incursionsCount,
@@ -1834,9 +1463,7 @@ class ClientDataService {
       ] = await Promise.all([
         this.getCollectionCount("incidentReports", schemeId, dateRange),
         this.getCollectionCount("assetDamageReports", schemeId, dateRange),
-        this.getCollectionCount("dailyOccurrenceReports", schemeId, dateRange),
         this.getCollectionCount("cctvCheckForms", schemeId, dateRange),
-        this.getCollectionCount("cctvFaultsReports", schemeId, dateRange),
         this.getCollectionCountWithFilter(
           "incidentReports",
           schemeId,
@@ -1873,16 +1500,13 @@ class ClientDataService {
         incident: incidentCount, // raw total — used by filter dropdown
         pureIncident: pureIncidentCount, // exact pure count — used by Incidents card
         assetDamage: assetCount,
-        dailyOccurrence: dailyCount,
         cctvCheck: cctvCount,
-        cctvFaults: cctvFaultsCount,
         freeRecovery: freeRecoveryCount,
         driveOff: driveOffCount,
         incursions: incursionsCount,
         vehiclesDispatched: vehiclesDispatchedCount,
         incidentAssetDamage: incidentAssetDamageCount,
-        total:
-          incidentCount + assetCount + dailyCount + cctvCount + cctvFaultsCount,
+        total: incidentCount + assetCount + cctvCount,
       };
     } catch (error) {
       console.warn("Could not get reports count by type:", error);
@@ -1890,9 +1514,7 @@ class ClientDataService {
         incident: 0,
         pureIncident: 0,
         assetDamage: 0,
-        dailyOccurrence: 0,
         cctvCheck: 0,
-        cctvFaults: 0,
         freeRecovery: 0,
         driveOff: 0,
         incursions: 0,
@@ -2125,22 +1747,14 @@ class ClientDataService {
         type: "asset-damage",
         typeField: "damageType",
       },
-      {
-        name: "dailyOccurrenceReports",
-        type: "daily-occurrence",
-        typeField: null,
-      },
       { name: "cctvCheckForms", type: "cctv-check", typeField: null },
-      { name: "cctvFaultsReports", type: "cctv-faults", typeField: null },
     ];
 
-    // Scope to the active filter type — avoids querying all 5 collections when unnecessary
+    // Scope to the active filter type — avoids querying all collections when unnecessary
     const typeToCollection = {
       incident: "incidentReports",
       "asset-damage": "assetDamageReports",
-      "daily-occurrence": "dailyOccurrenceReports",
       "cctv-check": "cctvCheckForms",
-      "cctv-faults": "cctvFaultsReports",
     };
     const COLLECTIONS = filterType && typeToCollection[filterType]
       ? ALL_COLLECTIONS.filter((c) => c.name === typeToCollection[filterType])
@@ -2233,129 +1847,6 @@ class ClientDataService {
     return results.slice(0, 10);
   }
 
-  async getCCTVUptimeData(schemeId, dateRange = 30, force = false) {
-    const CACHE_TTL_MS = 15 * 60 * 1000;
-    const cacheRef = doc(db, "cctvUptimeCache", `${schemeId}_${dateRange}d`);
-
-    if (!force) {
-      try {
-        const cacheSnap = await getDoc(cacheRef);
-        if (cacheSnap.exists()) {
-          const cached = cacheSnap.data();
-          if (Date.now() - cached.cachedAt.toMillis() < CACHE_TTL_MS) {
-            return { cameras: cached.cameras, totals: cached.totals };
-          }
-        }
-      } catch {
-        // Cache read failed — fall through to full query
-      }
-    }
-
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - dateRange);
-    const cutoffTs = Timestamp.fromDate(cutoff);
-
-    const q = query(
-      collection(db, "cctvFaultsReports"),
-      where("schemeIds", "array-contains", schemeId),
-      where("createdAt", ">=", cutoffTs),
-      orderBy("createdAt", "desc"),
-      limit(500),
-    );
-
-    const snap = await getDocs(q).catch(async () => {
-      const q2 = query(
-        collection(db, "cctvFaultsReports"),
-        where("createdAt", ">=", cutoffTs),
-        orderBy("createdAt", "desc"),
-        limit(500),
-      );
-      const s = await getDocs(q2);
-      return {
-        docs: s.docs.filter((d) => {
-          const data = d.data();
-          return (
-            (Array.isArray(data.schemeIds) && data.schemeIds.includes(schemeId)) ||
-            data.schemeId === schemeId
-          );
-        }),
-      };
-    });
-
-    const periodMs = dateRange * 24 * 60 * 60 * 1000;
-    const now = Date.now();
-
-    const cameraMap = {};
-    const cameraList = CAMERA_OPTIONS_BY_SCHEME[schemeId] ?? [];
-    for (const cam of cameraList) {
-      cameraMap[cam] = { outages: 0, totalDownMs: 0, liveFault: false };
-    }
-
-    for (const d of snap.docs) {
-      const data = d.data();
-      const cam = data.camera || "Unknown";
-      if (!cameraMap[cam]) {
-        if (cameraList.length > 0) continue;
-        cameraMap[cam] = { outages: 0, totalDownMs: 0, liveFault: false };
-      }
-
-      if (data.status === "live") {
-        cameraMap[cam].liveFault = true;
-        const downMs = now - (data.createdAt?.toMillis?.() || now);
-        cameraMap[cam].totalDownMs += downMs;
-        cameraMap[cam].outages += 1;
-      } else if (data.status === "completed" && data.completedAt && data.createdAt) {
-        const downMs = data.completedAt.toMillis() - data.createdAt.toMillis();
-        if (downMs > 0) {
-          cameraMap[cam].totalDownMs += downMs;
-          cameraMap[cam].outages += 1;
-        }
-      }
-    }
-
-    const cameras = Object.entries(cameraMap).map(([name, stats]) => {
-      const downMins = Math.round(stats.totalDownMs / 60000);
-      const uptimePct = Math.max(
-        0,
-        Math.min(100, ((periodMs - stats.totalDownMs) / periodMs) * 100),
-      ).toFixed(1);
-      const mttr =
-        stats.outages > 0
-          ? Math.round(stats.totalDownMs / stats.outages / 60000)
-          : null;
-      return {
-        name,
-        uptimePct: parseFloat(uptimePct),
-        downMins,
-        outages: stats.outages,
-        mttrMins: mttr,
-        liveFault: stats.liveFault,
-      };
-    });
-
-    cameras.sort((a, b) => a.uptimePct - b.uptimePct);
-
-    const withMttr = cameras.filter((c) => c.mttrMins !== null);
-    const totals = {
-      avgUptimePct:
-        cameras.length
-          ? (cameras.reduce((s, c) => s + c.uptimePct, 0) / cameras.length).toFixed(1)
-          : "100.0",
-      totalDownMins: cameras.reduce((s, c) => s + c.downMins, 0),
-      totalOutages: cameras.reduce((s, c) => s + c.outages, 0),
-      avgMttrMins:
-        withMttr.length
-          ? Math.round(withMttr.reduce((s, c) => s + c.mttrMins, 0) / withMttr.length)
-          : null,
-      liveFaults: cameras.filter((c) => c.liveFault).length,
-    };
-
-    // Write result to shared Firestore cache (fire-and-forget, non-blocking)
-    setDoc(cacheRef, { cameras, totals, cachedAt: serverTimestamp(), schemeId, dateRange }).catch(() => {});
-
-    return { cameras, totals };
-  }
-
   async searchReportsPaginated(schemeId, searchTerm, pageSize = 10, lastDocs = {}, filterType = null) {
     const raw = searchTerm.trim();
     if (!raw) return { results: [], lastDocs: {}, hasMore: false };
@@ -2369,17 +1860,13 @@ class ClientDataService {
     const ALL_COLLECTIONS = [
       { name: "incidentReports",        key: "incident",        type: "incident",         typeField: "incidentType" },
       { name: "assetDamageReports",     key: "assetDamage",     type: "asset-damage",     typeField: "damageType"   },
-      { name: "dailyOccurrenceReports", key: "dailyOccurrence", type: "daily-occurrence", typeField: null           },
       { name: "cctvCheckForms",         key: "cctvCheck",       type: "cctv-check",       typeField: null           },
-      { name: "cctvFaultsReports",      key: "cctvFaults",      type: "cctv-faults",      typeField: null           },
     ];
 
     const typeToCollection = {
       incident: "incidentReports",
       "asset-damage": "assetDamageReports",
-      "daily-occurrence": "dailyOccurrenceReports",
       "cctv-check": "cctvCheckForms",
-      "cctv-faults": "cctvFaultsReports",
     };
     const COLLECTIONS = filterType && typeToCollection[filterType]
       ? ALL_COLLECTIONS.filter((c) => c.name === typeToCollection[filterType])

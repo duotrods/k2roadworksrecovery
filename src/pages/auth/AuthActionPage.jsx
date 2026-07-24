@@ -1,92 +1,42 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { applyActionCode, verifyPasswordResetCode, confirmPasswordReset } from 'firebase/auth';
-import { auth } from '../../config/firebase';
-import { CheckCircle, XCircle, Loader2, Mail, KeyRound } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../../config/supabase';
+import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import headerLogo from '../../assets/headerlogo.svg';
 
+// Landing page for Supabase's password-recovery email link. Unlike
+// Firebase's oobCode flow (verify code -> then reset), Supabase establishes
+// an authenticated "recovery" session automatically once the browser lands
+// back here (fires a PASSWORD_RECOVERY auth event) — the new password is set
+// directly via supabase.auth.updateUser(), no separate code-verification step.
 const AuthActionPage = () => {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [status, setStatus] = useState('loading'); // loading, success, error
+  const [status, setStatus] = useState('loading'); // loading, resetPassword, success, error
   const [message, setMessage] = useState('');
-  const [mode, setMode] = useState('');
-
-  // For password reset
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [email, setEmail] = useState('');
   const [isResetting, setIsResetting] = useState(false);
 
   useEffect(() => {
-    const handleAction = async () => {
-      const actionMode = searchParams.get('mode');
-      const oobCode = searchParams.get('oobCode');
-
-      setMode(actionMode);
-
-      if (!oobCode) {
-        setStatus('error');
-        setMessage('Invalid or missing action code.');
-        return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setStatus('resetPassword');
       }
+    });
 
-      try {
-        switch (actionMode) {
-          case 'verifyEmail':
-            await applyActionCode(auth, oobCode);
-            // If the user is already signed in, force-refresh their token so
-            // Firestore rules see email_verified: true without needing to sign out.
-            if (auth.currentUser) {
-              await auth.currentUser.reload();
-              await auth.currentUser.getIdToken(true);
-            }
-            setStatus('success');
-            setMessage('Your email has been verified successfully!');
-            break;
-
-          case 'resetPassword':
-            // Verify the code and get the email
-            const userEmail = await verifyPasswordResetCode(auth, oobCode);
-            setEmail(userEmail);
-            setStatus('resetPassword');
-            break;
-
-          case 'recoverEmail':
-            await applyActionCode(auth, oobCode);
-            setStatus('success');
-            setMessage('Your email has been recovered successfully!');
-            break;
-
-          default:
-            setStatus('error');
-            setMessage('Unknown action type.');
-        }
-      } catch (error) {
-        console.error('Auth action error:', error);
-        setStatus('error');
-
-        switch (error.code) {
-          case 'auth/expired-action-code':
-            setMessage('This link has expired. Please request a new one.');
-            break;
-          case 'auth/invalid-action-code':
-            setMessage('This link is invalid or has already been used.');
-            break;
-          case 'auth/user-disabled':
-            setMessage('This account has been disabled.');
-            break;
-          case 'auth/user-not-found':
-            setMessage('No account found with this email.');
-            break;
-          default:
-            setMessage('An error occurred. Please try again.');
-        }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setStatus((current) => {
+        if (current !== 'loading') return current;
+        if (session) return 'resetPassword';
+        return 'error';
+      });
+      if (!session) {
+        setMessage('This link is invalid or has expired. Please request a new one.');
       }
-    };
+    });
 
-    handleAction();
-  }, [searchParams]);
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handlePasswordReset = async (e) => {
     e.preventDefault();
@@ -102,10 +52,10 @@ const AuthActionPage = () => {
     }
 
     setIsResetting(true);
-    const oobCode = searchParams.get('oobCode');
 
     try {
-      await confirmPasswordReset(auth, oobCode, newPassword);
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
       setStatus('success');
       setMessage('Your password has been reset successfully!');
     } catch (error) {
@@ -114,30 +64,6 @@ const AuthActionPage = () => {
       setMessage('Failed to reset password. The link may have expired.');
     } finally {
       setIsResetting(false);
-    }
-  };
-
-  const getTitle = () => {
-    switch (mode) {
-      case 'verifyEmail':
-        return 'Email Verification';
-      case 'resetPassword':
-        return 'Reset Password';
-      case 'recoverEmail':
-        return 'Email Recovery';
-      default:
-        return 'Account Action';
-    }
-  };
-
-  const getIcon = () => {
-    switch (mode) {
-      case 'verifyEmail':
-        return <Mail className="w-8 h-8" />;
-      case 'resetPassword':
-        return <KeyRound className="w-8 h-8" />;
-      default:
-        return <Mail className="w-8 h-8" />;
     }
   };
 
@@ -151,14 +77,8 @@ const AuthActionPage = () => {
 
         {/* Card */}
         <div className="bg-white rounded-xl shadow-lg p-8">
-          {/* Title */}
-          {/* <div className="flex items-center justify-center gap-3 mb-6">
-            <div className="p-3 bg-teal-100 rounded-full text-teal-600">
-              {getIcon()}
-            </div>
-          </div> */}  
           <h3 className="text-2xl font-bold text-gray-800 text-center mb-6">
-            {getTitle()}
+            Reset Password
           </h3>
 
           {/* Loading State */}
@@ -205,7 +125,7 @@ const AuthActionPage = () => {
           {status === 'resetPassword' && (
             <form onSubmit={handlePasswordReset} className="space-y-4">
               <p className="text-gray-600 text-center mb-4">
-                Enter a new password for <strong>{email}</strong>
+                Enter a new password below.
               </p>
 
               {message && (

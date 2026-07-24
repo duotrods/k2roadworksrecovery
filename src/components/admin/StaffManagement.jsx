@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
-import { firestoreService } from "../../services/firestoreService";
+import { userAdminService } from "../../services/userAdminService";
 import { useAuth } from "../../hooks/useAuth";
 import { Users, RefreshCw, User, Archive, ArchiveRestore, Mail, Shield, ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -9,49 +9,28 @@ const StaffManagement = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState("all"); // all, active, archived
-  const [lastDoc, setLastDoc] = useState(null);
   const [hasMore, setHasMore] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const usersPerPage = 10;
 
   useEffect(() => {
-    loadUsers(true);
-    loadTotalCount();
+    loadUsers(1);
   }, []);
 
-  const loadUsers = async (resetPage = false) => {
+  const loadUsers = async (page) => {
     setLoading(true);
     try {
-      // Use server-side pagination - only fetch 10 staff users
-      const result = await firestoreService.getAllUsersPaginated(
-        usersPerPage,
-        resetPage ? null : lastDoc,
-        'staff' // Filter for staff role only
-      );
-
+      const result = await userAdminService.getUsersByRolePaginated('staff', page, usersPerPage);
       setUsers(result.users);
-      setLastDoc(result.lastDoc);
       setHasMore(result.hasMore);
-
-      if (resetPage) {
-        setCurrentPage(1);
-      }
+      setTotalCount(result.total);
+      setCurrentPage(page);
     } catch (error) {
       console.error('Failed to load users:', error);
       toast.error("Failed to load staff users");
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Load total count of staff users using aggregation - 1 read
-  const loadTotalCount = async () => {
-    try {
-      const counts = await firestoreService.getUsersCountByRole();
-      setTotalCount(counts.staff);
-    } catch (error) {
-      console.warn('Could not load total count:', error);
     }
   };
 
@@ -62,9 +41,9 @@ const StaffManagement = () => {
 
     setLoading(true);
     try {
-      await firestoreService.archiveUser(user.uid, userProfile.uid);
+      await userAdminService.archiveUser(user.uid, userProfile.uid);
       toast.success(`User ${user.displayName} archived successfully`);
-      loadUsers();
+      loadUsers(currentPage);
     } catch (error) {
       console.error('Failed to archive user:', error);
       toast.error(error.message || "Failed to archive user");
@@ -80,9 +59,9 @@ const StaffManagement = () => {
 
     setLoading(true);
     try {
-      await firestoreService.unarchiveUser(user.uid, userProfile.uid);
+      await userAdminService.unarchiveUser(user.uid, userProfile.uid);
       toast.success(`User ${user.displayName} unarchived successfully`);
-      loadUsers();
+      loadUsers(currentPage);
     } catch (error) {
       console.error('Failed to unarchive user:', error);
       toast.error(error.message || "Failed to unarchive user");
@@ -108,17 +87,11 @@ const StaffManagement = () => {
   const totalPages = Math.ceil(totalCount / usersPerPage);
 
   const handleNextPage = () => {
-    if (hasMore) {
-      setCurrentPage(prev => prev + 1);
-      loadUsers(false);
-    }
+    if (hasMore) loadUsers(currentPage + 1);
   };
 
   const handlePrevPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(prev => prev - 1);
-      loadUsers(true); // Reset to refetch from start
-    }
+    if (currentPage > 1) loadUsers(currentPage - 1);
   };
 
   return (
@@ -133,7 +106,7 @@ const StaffManagement = () => {
           </p>
         </div>
         <button
-          onClick={loadUsers}
+          onClick={() => loadUsers(currentPage)}
           disabled={loading}
           className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
         >
@@ -167,7 +140,7 @@ const StaffManagement = () => {
               onClick={() => setFilterStatus("all")}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 filterStatus === "all"
-                  ? "bg-teal-500 text-white"
+                  ? "bg-brand-500 text-white"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
@@ -250,8 +223,8 @@ const StaffManagement = () => {
                   <tr key={user.uid} className={`hover:bg-gray-50 ${user.isArchived ? 'bg-gray-50' : ''}`}>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center">
-                          <User className="w-5 h-5 text-teal-600" />
+                        <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center">
+                          <User className="w-5 h-5 text-brand-600" />
                         </div>
                         <div>
                           <p className="font-medium text-gray-800">
@@ -259,7 +232,7 @@ const StaffManagement = () => {
                           </p>
                           {user.isArchived && (
                             <p className="text-xs text-gray-500">
-                              Archived {user.archivedAt ? new Date(user.archivedAt.seconds * 1000).toLocaleDateString() : ''}
+                              Archived {user.archivedAt ? new Date(user.archivedAt.seconds ? user.archivedAt.seconds * 1000 : user.archivedAt).toLocaleDateString() : ''}
                             </p>
                           )}
                         </div>

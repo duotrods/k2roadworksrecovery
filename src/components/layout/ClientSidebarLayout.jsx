@@ -115,11 +115,11 @@ const ClientSidebarLayout = ({ children, basePath: basePathProp }) => {
 
         {/* Scheme Info */}
         {!collapsed && (
-          <div className="px-6 py-4 bg-teal-50 border-b">
+          <div className="px-6 py-4 bg-brand-50 border-b">
             <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">
               {userProfile?.schemeIds?.length > 1 ? "Active Scheme" : "Your Scheme"}
             </p>
-            <p className="text-lg font-bold text-teal-700">
+            <p className="text-lg font-bold text-brand-700">
               {userProfile?.schemeNames?.[userProfile?.activeSchemeId] ||
                userProfile?.activeSchemeName ||
                userProfile?.schemeName ||
@@ -140,7 +140,7 @@ const ClientSidebarLayout = ({ children, basePath: basePathProp }) => {
               title={collapsed ? item.name : undefined}
               className={`flex items-center gap-3 px-3 py-3 rounded-lg transition-colors ${
                 isActive(item.path, item.exact)
-                  ? "bg-teal-500 text-white"
+                  ? "bg-brand-500 text-white"
                   : "text-gray-700 hover:bg-gray-100"
               } ${collapsed ? 'justify-center' : ''}`}
             >
@@ -194,7 +194,7 @@ const ClientSidebarLayout = ({ children, basePath: basePathProp }) => {
         <div className="border-t px-2 py-4">
           {!collapsed && (
             <div className="flex items-center gap-3 px-2 py-3 mb-2">
-              <div className="w-10 h-10 bg-teal-500 rounded-full flex items-center justify-center text-white font-semibold shrink-0">
+              <div className="w-10 h-10 bg-brand-500 rounded-full flex items-center justify-center text-white font-semibold shrink-0">
                 {userProfile?.displayName?.charAt(0) || "C"}
               </div>
               <div className="min-w-0">
@@ -209,7 +209,7 @@ const ClientSidebarLayout = ({ children, basePath: basePathProp }) => {
           )}
           {collapsed && (
             <div className="flex justify-center mb-2 py-1">
-              <div className="w-10 h-10 bg-teal-500 rounded-full flex items-center justify-center text-white font-semibold shrink-0">
+              <div className="w-10 h-10 bg-brand-500 rounded-full flex items-center justify-center text-white font-semibold shrink-0">
                 {userProfile?.displayName?.charAt(0) || "C"}
               </div>
             </div>

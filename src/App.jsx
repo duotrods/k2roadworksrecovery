@@ -35,15 +35,10 @@
   const CCTVCheckFormPage = lazy(() => import("./pages/staff/CCTVCheckFormPage"));
   const IncidentReportFormPage = lazy(() => import("./pages/staff/IncidentReportFormPage"));
   const StaffReportsListPage = lazy(() => import("./pages/staff/StaffReportsListPage"));
-  const DailyOccurrenceFormPage = lazy(() => import("./pages/staff/DailyOccurrenceFormPage"));
-  const CCTVFaultsFormPage = lazy(() => import("./pages/staff/CCTVFaultsFormPage"));
-  const CCTVFaultsLivePage = lazy(() => import("./pages/staff/CCTVFaultsLivePage"));
   const CabinSafetyCheckFormPage = lazy(() => import("./pages/staff/CabinSafetyCheckFormPage"));
   const VehicleDailyCheckFormPage = lazy(() => import("./pages/staff/VehicleDailyCheckFormPage"));
   const IncidentReportView = lazy(() => import("./pages/staff/IncidentReportView"));
   const CCTVCheckView = lazy(() => import("./pages/staff/CCTVCheckView"));
-  const DailyOccurrenceView = lazy(() => import("./pages/staff/DailyOccurrenceView"));
-  const CCTVFaultsView = lazy(() => import("./pages/staff/CCTVFaultsView"));
   const CabinSafetyCheckView = lazy(() => import("./pages/staff/CabinSafetyCheckView"));
   const VehicleDailyCheckView = lazy(() => import("./pages/staff/VehicleDailyCheckView"));
   const OTPManagementPage = lazy(() => import("./pages/admin/OTPManagementPage"));
@@ -59,7 +54,6 @@
   const ClientChartsPage = lazy(() => import("./pages/admin/ClientChartsPage"));
   const IncidentReportDetailPage = lazy(() => import("./pages/admin/IncidentReportDetailPage"));
   const CCTVCheckDetailPage = lazy(() => import("./pages/admin/CCTVCheckDetailPage"));
-  const DailyLogsDetailPage = lazy(() => import("./pages/admin/DailyLogsDetailPage"));
   const CabinSafetyCheckDetailPage = lazy(() => import("./pages/admin/CabinSafetyCheckDetailPage"));
   const VehicleDailyCheckDetailPage = lazy(() => import("./pages/admin/VehicleDailyCheckDetailPage"));
 
@@ -73,13 +67,8 @@
   const ReportsPage = lazy(() => import("./pages/client/ReportsPage"));
   const CCTVRecordingsPage = lazy(() => import("./pages/client/CCTVRecordingsPage"));
   const ClientIncidentReportView = lazy(() => import("./pages/client/IncidentReportView"));
-  const ClientDailyOccurrenceView = lazy(() => import("./pages/client/DailyOccurrenceView"));
   const ClientCCTVCheckView = lazy(() => import("./pages/client/CCTVCheckView"));
   const ClientLiveIncidentsPage = lazy(() => import("./pages/client/LiveIncidentsPage"));
-  const ClientLiveCameraFaultsPage = lazy(() => import("./components/dashboard/CCTVFaultOperatorDashboard"));
-  const ClientCCTVFaultView = lazy(() => import("./pages/client/CCTVFaultView"));
-  const ClientCCTVFaultsPage = lazy(() => import("./pages/client/CCTVFaultsPage"));
-  const CCTVUptimePage = lazy(() => import("./pages/client/CCTVUptimePage"));
   const DocumentsPage = lazy(() => import("./pages/client/DocumentsPage"));
   const StaffDocumentsPage = lazy(() => import("./pages/staff/StaffDocumentsPage"));
   const HelpPage = lazy(() => import("./pages/HelpPage"));
@@ -112,7 +101,7 @@
                 <Route path="/signin" element={<SignInPage />} />
                 <Route path="/signup" element={<SignUpPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                <Route path="/__/auth/action" element={<AuthActionPage />} />
+                <Route path="/auth/reset-password" element={<AuthActionPage />} />
 
                 {/* Protected dashboard routes */}
                 <Route
@@ -262,15 +251,6 @@
                 />
 
                 <Route
-                  path="/dashboard/admin/staff-reports/daily/:id"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
-                      <DailyLogsDetailPage />
-                    </ProtectedRoute>
-                  }
-                />
-
-                <Route
                   path="/dashboard/admin/staff-reports/cabin-safety/:id"
                   element={
                     <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
@@ -343,33 +323,6 @@
                   }
                 />
 
-                <Route
-                  path="/dashboard/staff/forms/daily-occurence"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
-                      <DailyOccurrenceFormPage />
-                    </ProtectedRoute>
-                  }
-                />
-
-                <Route
-                  path="/dashboard/staff/forms/cctv-faults"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
-                      <CCTVFaultsFormPage />
-                    </ProtectedRoute>
-                  }
-                />
-
-                <Route
-                  path="/dashboard/staff/cctv-faults"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
-                      <CCTVFaultsLivePage />
-                    </ProtectedRoute>
-                  }
-                />
-
                 {/* Staff Reports and Uploads Routes */}
                 <Route
                   path="/dashboard/staff/reports"
@@ -403,24 +356,6 @@
                   element={
                     <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
                       <CCTVCheckView />
-                    </ProtectedRoute>
-                  }
-                />
-
-                <Route
-                  path="/dashboard/staff/reports/daily-logs/:id"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
-                      <DailyOccurrenceView />
-                    </ProtectedRoute>
-                  }
-                />
-
-                <Route
-                  path="/dashboard/staff/reports/cctv-faults/:id"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
-                      <CCTVFaultsView />
                     </ProtectedRoute>
                   }
                 />
@@ -483,33 +418,6 @@
                 />
 
                 <Route
-                  path="/dashboard/client/live-camera-faults"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT]}>
-                      <ClientLiveCameraFaultsPage />
-                    </ProtectedRoute>
-                  }
-                />
-
-                <Route
-                  path="/dashboard/client/cctv-faults"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT]}>
-                      <ClientCCTVFaultsPage />
-                    </ProtectedRoute>
-                  }
-                />
-
-                <Route
-                  path="/dashboard/client/cctv-fault/:id"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT]}>
-                      <ClientCCTVFaultView />
-                    </ProtectedRoute>
-                  }
-                />
-
-                <Route
                   path="/dashboard/client/incident/:id"
                   element={
                     <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT]}>
@@ -547,14 +455,6 @@
                   }
                 />
                 <Route
-                  path="/dashboard/client/reports/daily-occurrence/:id"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT]}>
-                      <ClientDailyOccurrenceView />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
                   path="/dashboard/client/reports/cctv-check/:id"
                   element={
                     <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT]}>
@@ -563,29 +463,10 @@
                   }
                 />
                 <Route
-                  path="/dashboard/client/reports/cctv-faults/:id"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT]}>
-                      <ClientCCTVFaultView />
-                    </ProtectedRoute>
-                  }
-                />
-
-                <Route
                   path="/dashboard/client/cctv-recordings"
                   element={
                     <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT]}>
                       <CCTVRecordingsPage />
-                    </ProtectedRoute>
-                  }
-                />
-
-                {/* Client routes */}
-                <Route
-                  path="/dashboard/client/cctv-uptime"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.CLIENT]}>
-                      <CCTVUptimePage />
                     </ProtectedRoute>
                   }
                 />

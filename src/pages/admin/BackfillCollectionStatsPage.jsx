@@ -8,8 +8,6 @@ const COUNTERS = [
   { collection: "incidentReports", nondemo: true },
   { collection: "cctvCheckForms", nondemo: true },
   { collection: "assetDamageReports", nondemo: true },
-  { collection: "cctvFaultsReports", nondemo: true },
-  { collection: "dailyOccurrenceReports", nondemo: false },
 ];
 
 const BackfillCollectionStatsPage = () => {

@@ -43,7 +43,7 @@ const ClientChartsPage = () => {
   const [reports, setReports] = useState([]);
   const [schemes, setSchemes] = useState([]);
   const [isExporting, setIsExporting] = useState(false);
-  const [formCounts, setFormCounts] = useState({ cctvCheckTotal: 0, incidentReportTotal: 0, assetDamageTotal: 0, dailyLogsTotal: 0 });
+  const [formCounts, setFormCounts] = useState({ cctvCheckTotal: 0, incidentReportTotal: 0, assetDamageTotal: 0 });
   const datePickerRef = useRef(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -500,11 +500,10 @@ const ClientChartsPage = () => {
 
   // Statistics - use aggregation counts for cards (consistent with other pages)
   const stats = {
-    total: formCounts.cctvCheckTotal + formCounts.incidentReportTotal + formCounts.assetDamageTotal + formCounts.dailyLogsTotal,
+    total: formCounts.cctvCheckTotal + formCounts.incidentReportTotal + formCounts.assetDamageTotal,
     cctvCheck: formCounts.cctvCheckTotal,
     incident: formCounts.incidentReportTotal,
     assetDamage: formCounts.assetDamageTotal,
-    dailyLogs: formCounts.dailyLogsTotal,
   };
 
   // Extract chart data
@@ -602,7 +601,7 @@ const ClientChartsPage = () => {
         ) : (
           <>
             {/* Statistics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
               <div className="bg-white rounded-xl shadow-md p-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -635,18 +634,6 @@ const ClientChartsPage = () => {
                   </div>
                   <div className="bg-orange-100 p-3 rounded-lg">
                     <Calendar className="w-6 h-6 text-orange-600" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-500 text-sm">Daily Logs</p>
-                    <p className="text-3xl font-bold text-green-600 mt-1">{stats.dailyLogs}</p>
-                  </div>
-                  <div className="bg-green-100 p-3 rounded-lg">
-                    <Calendar className="w-6 h-6 text-green-600" />
                   </div>
                 </div>
               </div>

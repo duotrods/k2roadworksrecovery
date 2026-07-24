@@ -4,7 +4,6 @@ import { useAuth } from "../../hooks/useAuth";
 import { staffService } from "../../services/staffService";
 import {
   FileText,
-  Calendar,
   Eye,
   Edit,
   Download,
@@ -325,12 +324,8 @@ const StaffReportsListPage = () => {
         return <AlertTriangle className="w-5 h-5 text-amber-500" />;
       case "CCTV Check Sheet":
         return <Eye className="w-5 h-5 text-green-500" />;
-      case "Daily Occurrence":
-        return <Calendar className="w-5 h-5 text-blue-500" />;
       case "Asset Damage":
         return <FileText className="w-5 h-5 text-red-500" />;
-      case "CCTV Faults":
-        return <Eye className="w-5 h-5 text-pink-500" />;
       case "Cabin H&S Check":
         return <ShieldCheck className="w-5 h-5 text-green-500" />;
       case "Vehicle Daily Check":
@@ -344,9 +339,7 @@ const StaffReportsListPage = () => {
     const badges = {
       "Incident Report": "badge-warning",
       "Asset Damage": "badge-error",
-      "Daily Occurrence": "badge-info",
       "CCTV Check Sheet": "badge-success",
-      "CCTV Faults": "badge-secondary",
       "Cabin H&S Check": "badge-success",
       "Vehicle Daily Check": "badge-warning",
     };
@@ -355,15 +348,6 @@ const StaffReportsListPage = () => {
 
   // Get scheme(s) from form - handles different form structures
   const getFormScheme = (form) => {
-    // For Daily Occurrence - has occurrences array with scheme in each
-    if (form.type === "Daily Occurrence" && form.occurrences) {
-      const schemes = [
-        ...new Set(form.occurrences.map((o) => o.scheme).filter(Boolean)),
-      ];
-      if (schemes.length === 0) return "N/A";
-      if (schemes.length === 1) return schemes[0];
-      return schemes.join(", ");
-    }
     // For CCTV Check Sheet - covers all schemes
     if (form.type === "CCTV Check Sheet") {
       return "All Schemes";
@@ -374,13 +358,6 @@ const StaffReportsListPage = () => {
 
   // Get the appropriate date from form
   const getFormDate = (form) => {
-    // For Daily Occurrence (array-based) - use createdAt
-    if (form.type === "Daily Occurrence") {
-      if (form.createdAt) {
-        return formatDate(form.createdAt);
-      }
-      return "N/A";
-    }
     // For other forms - use form.date if available, otherwise createdAt
     if (form.date) {
       return form.date;
@@ -397,19 +374,6 @@ const StaffReportsListPage = () => {
     // For Incident Reports (Job Sheets) - use time of arrival
     if (form.type === "Incident Report" && form.timeOfArrival) {
       return form.timeOfArrival;
-    }
-    // For Daily Occurrence (array-based) - use createdAt time
-    if (form.type === "Daily Occurrence") {
-      if (form.createdAt) {
-        const date = form.createdAt.toDate
-          ? form.createdAt.toDate()
-          : new Date(form.createdAt);
-        return date.toLocaleTimeString("en-GB", {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-      }
-      return "N/A";
     }
     // For other forms - use form.time if available, otherwise createdAt time
     if (form.time) {
@@ -435,8 +399,6 @@ const StaffReportsListPage = () => {
     const formTypeMap = {
       "CCTV Check Sheet": "cctv-check",
       "Incident Report": "incident",
-      "Daily Occurrence": "daily-occurrence",
-      "CCTV Faults": "cctv-faults",
       "Cabin H&S Check": "cabin-safety",
       "Vehicle Daily Check": "vehicle-check",
     };
@@ -484,10 +446,6 @@ const StaffReportsListPage = () => {
       navigate(`${basePath}/reports/cctv-check/${form.id}`);
     } else if (form.type === "Incident Report") {
       navigate(`${basePath}/reports/incident/${form.id}`);
-    } else if (form.type === "Daily Occurrence") {
-      navigate(`${basePath}/reports/daily-logs/${form.id}`);
-    } else if (form.type === "CCTV Faults") {
-      navigate(`${basePath}/reports/cctv-faults/${form.id}`);
     } else if (form.type === "Cabin H&S Check") {
       navigate(`${basePath}/reports/cabin-safety-check/${form.id}`);
     } else if (form.type === "Vehicle Daily Check") {
@@ -511,10 +469,6 @@ const StaffReportsListPage = () => {
       navigate(`${basePath}/forms/cctv-check?edit=${form.id}`);
     } else if (form.type === "Incident Report") {
       navigate(`${basePath}/forms/incident-report?edit=${form.id}`);
-    } else if (form.type === "Daily Occurrence") {
-      navigate(`${basePath}/forms/daily-occurence?edit=${form.id}`);
-    } else if (form.type === "CCTV Faults") {
-      navigate(`${basePath}/forms/cctv-faults?edit=${form.id}`);
     } else if (form.type === "Cabin H&S Check") {
       navigate(`${basePath}/forms/cabin-safety-check?edit=${form.id}`);
     } else if (form.type === "Vehicle Daily Check") {
@@ -529,10 +483,6 @@ const StaffReportsListPage = () => {
         reportType = "cctv-check";
       } else if (form.type === "Incident Report") {
         reportType = "incident";
-      } else if (form.type === "Daily Occurrence") {
-        reportType = "daily-occurrence";
-      } else if (form.type === "CCTV Faults") {
-        reportType = "cctv-faults";
       } else if (form.type === "Cabin H&S Check") {
         reportType = "cabin-safety";
       } else if (form.type === "Vehicle Daily Check") {
@@ -605,9 +555,7 @@ const StaffReportsListPage = () => {
                   >
                     <option value="all">All Types</option>
                     <option value="incident">Job Sheets</option>
-                    <option value="daily-occurrence">Daily Occurrence</option>
                     <option value="cctv-check">CCTV Checks</option>
-                    <option value="cctv-faults">CCTV Faults</option>
                     <option value="cabin-safety">Cabin H&S Checks</option>
                     <option value="vehicle-check">Vehicle Daily Checks</option>
                   </select>
@@ -695,24 +643,14 @@ const StaffReportsListPage = () => {
                           </td>
                           <td>
                             <div className="flex items-center justify-center gap-2 font-semibold">
-                              {(form.type === "Incident Report" ||
-                                form.type === "CCTV Faults") &&
+                              {form.type === "Incident Report" &&
                                 form.status === "live" && (
                                   <div className="badge badge-error badge-soft">
                                     <Radio className="w-4 h-4 text-red-500" />
                                     Live
                                   </div>
                                 )}
-                              {form.type === "CCTV Faults" &&
-                                form.clientAcknowledged &&
-                                form.status !== "completed" && (
-                                  <div className="badge badge-info badge-soft">
-                                    <Eye className="w-4 h-4 text-blue-500" />
-                                    Client Seen
-                                  </div>
-                                )}
-                              {(form.type === "Incident Report" ||
-                                form.type === "CCTV Faults") &&
+                              {form.type === "Incident Report" &&
                                 form.status === "completed" && (
                                   <div className="badge badge-success badge-soft">
                                     <CheckCircle className="w-4 h-4 text-green-400" />
@@ -723,8 +661,7 @@ const StaffReportsListPage = () => {
                           </td>
                           <td>
                             <div className="flex items-center justify-center gap-2">
-                              {(form.type === "Incident Report" ||
-                                form.type === "CCTV Faults") &&
+                              {form.type === "Incident Report" &&
                               form.status === "live" ? (
                                 <button
                                   onClick={() => handleEditForm(form)}

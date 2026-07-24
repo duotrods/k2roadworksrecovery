@@ -6,7 +6,6 @@ import { SCHEMES, DEMO_SCHEME_ID } from "../../utils/schemes";
 import {
   FileText,
   Camera,
-  Calendar,
   AlertTriangle,
   Eye,
   Download,
@@ -62,7 +61,7 @@ const StaffReportsPage = () => {
   const [hasMore, setHasMore] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [typeCount, setTypeCount] = useState(0);
-  const [formCounts, setFormCounts] = useState({ cctvCheckTotal: 0, incidentReportTotal: 0, assetDamageTotal: 0, dailyLogsTotal: 0, cabinSafetyTotal: 0, vehicleCheckTotal: 0 });
+  const [formCounts, setFormCounts] = useState({ cctvCheckTotal: 0, incidentReportTotal: 0, assetDamageTotal: 0, cabinSafetyTotal: 0, vehicleCheckTotal: 0 });
   const [vehicleCheckDefects, setVehicleCheckDefects] = useState([]);
   const reportsPerPage = 10;
 
@@ -71,7 +70,6 @@ const StaffReportsPage = () => {
     'CCTV Check':      'cctv-check',
     'Incident Report': 'incident',
     'Asset Damage':    'asset-damage',
-    'Daily Logs':      'daily-occurrence',
     'Cabin H&S Check': 'cabin-safety',
     'Vehicle Daily Check': 'vehicle-check',
   };
@@ -124,9 +122,7 @@ const StaffReportsPage = () => {
   const typeToCollectionKey = {
     'Incident Report': ['incident'],
     'Asset Damage':    ['assetDamage'],
-    'Daily Logs':      ['dailyOccurrence'],
     'CCTV Check':      ['cctv'],
-    'CCTV Faults':     ['cctvFaults'],
     'Cabin H&S Check': ['cabinSafety'],
     'Vehicle Daily Check': ['vehicleCheck'],
   };
@@ -135,9 +131,7 @@ const StaffReportsPage = () => {
     const typeMap = {
       'Incident Report':  { type: 'Incident Report', icon: FileText,      color: 'bg-teal-100 text-teal-600'    },
       'Asset Damage':     { type: 'Asset Damage',    icon: AlertTriangle, color: 'bg-orange-100 text-orange-600' },
-      'Daily Occurrence': { type: 'Daily Logs',      icon: Calendar,      color: 'bg-blue-100 text-blue-600'    },
       'CCTV Check Sheet': { type: 'CCTV Check',      icon: Camera,        color: 'bg-purple-100 text-purple-600' },
-      'CCTV Faults':      { type: 'CCTV Faults',     icon: FileText,      color: 'bg-pink-100 text-pink-600'    },
       'Cabin H&S Check':  { type: 'Cabin H&S Check', icon: ShieldCheck,   color: 'bg-green-100 text-green-600'  },
       'Vehicle Daily Check': { type: 'Vehicle Daily Check', icon: Car,    color: 'bg-amber-100 text-amber-600'  },
     };
@@ -276,14 +270,6 @@ const StaffReportsPage = () => {
           type = "Asset Damage";
           icon = AlertTriangle;
           color = "bg-orange-100 text-orange-600";
-        } else if (f.type === 'Daily Occurrence') {
-          type = "Daily Logs";
-          icon = Calendar;
-          color = "bg-blue-100 text-blue-600";
-        } else if (f.type === 'CCTV Faults') {
-          type = "CCTV Faults";
-          icon = Eye;
-          color = "bg-pink-100 text-pink-600";
         } else if (f.type === 'Cabin H&S Check') {
           type = "Cabin H&S Check";
           icon = ShieldCheck;
@@ -402,8 +388,6 @@ const StaffReportsPage = () => {
       navigate(`/dashboard/admin/staff-reports/incident/${report.id}`);
     } else if (report.type === "Asset Damage") {
       navigate(`/dashboard/admin/staff-reports/asset/${report.id}`);
-    } else if (report.type === "Daily Logs") {
-      navigate(`/dashboard/admin/staff-reports/daily/${report.id}`);
     } else if (report.type === "Cabin H&S Check") {
       navigate(`/dashboard/admin/staff-reports/cabin-safety/${report.id}`);
     } else if (report.type === "Vehicle Daily Check") {
@@ -418,7 +402,6 @@ const StaffReportsPage = () => {
         "CCTV Check": "cctv-check",
         "Incident Report": "incident",
         "Asset Damage": "asset-damage",
-        "Daily Logs": "daily-occurrence",
         "Cabin H&S Check": "cabin-safety",
         "Vehicle Daily Check": "vehicle-check",
       };
@@ -481,8 +464,6 @@ const StaffReportsPage = () => {
         return <AlertTriangle className="w-5 h-5 text-orange-500" />;
       case "CCTV Check":
         return <Eye className="w-5 h-5 text-green-500" />;
-      case "Daily Logs":
-        return <Calendar className="w-5 h-5 text-blue-500" />;
       case "Asset Damage":
         return <FileText className="w-5 h-5 text-red-500" />;
       case "Cabin H&S Check":
@@ -498,7 +479,6 @@ const StaffReportsPage = () => {
     const badges = {
       "Incident Report": "badge-warning",
       "Asset Damage": "badge-error",
-      "Daily Logs": "badge-info",
       "CCTV Check": "badge-success",
       "Cabin H&S Check": "badge-success",
       "Vehicle Daily Check": "badge-warning",
@@ -508,13 +488,6 @@ const StaffReportsPage = () => {
 
   // Get scheme(s) from form - handles different form structures
   const getFormScheme = (report) => {
-    // For Daily Logs - has occurrences array with scheme in each
-    if (report.type === "Daily Logs" && report.occurrences) {
-      const schemes = [...new Set(report.occurrences.map((o) => o.scheme).filter(Boolean))];
-      if (schemes.length === 0) return "N/A";
-      if (schemes.length === 1) return schemes[0];
-      return schemes.join(", ");
-    }
     // For CCTV Check - covers all schemes
     if (report.type === "CCTV Check") {
       return "All Schemes";
@@ -525,13 +498,6 @@ const StaffReportsPage = () => {
 
   // Get the appropriate date from form
   const getFormDate = (report) => {
-    // For Daily Logs (array-based) - use createdAt
-    if (report.type === "Daily Logs") {
-      if (report.createdAt) {
-        return formatDate(report.createdAt);
-      }
-      return "N/A";
-    }
     // For other forms - use form.date if available, otherwise createdAt
     if (report.date) {
       return report.date;
@@ -548,14 +514,6 @@ const StaffReportsPage = () => {
     // For Incident Reports - always use timeSpotted
     if (report.type === "Incident Report" && report.timeSpotted) {
       return report.timeSpotted;
-    }
-    // For Daily Logs (array-based) - use createdAt time
-    if (report.type === "Daily Logs") {
-      if (report.createdAt) {
-        const date = report.createdAt.toDate ? report.createdAt.toDate() : new Date(report.createdAt);
-        return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-      }
-      return "N/A";
     }
     // For other forms - use form.time if available, otherwise createdAt time
     if (report.time) {
@@ -585,7 +543,6 @@ const StaffReportsPage = () => {
         "CCTV Check": "cctvCheckForms",
         "Incident Report": "incidentReports",
         "Asset Damage": "assetDamageReports",
-        "Daily Logs": "dailyOccurrenceReports",
         "Cabin H&S Check": "cabinHealthSafetyChecks",
         "Vehicle Daily Check": "vehicleDailyChecks",
       };
@@ -613,7 +570,6 @@ const StaffReportsPage = () => {
     cctvCheck: formCounts.cctvCheckTotal,
     incident: formCounts.incidentReportTotal,
     assetDamage: formCounts.assetDamageTotal,
-    dailyLogs: formCounts.dailyLogsTotal,
     cabinSafety: formCounts.cabinSafetyTotal,
     vehicleCheck: formCounts.vehicleCheckTotal,
   };
@@ -628,7 +584,7 @@ const StaffReportsPage = () => {
         </div>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
           <div className="bg-white rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -673,18 +629,6 @@ const StaffReportsPage = () => {
               </div>
               <div className="bg-orange-100 p-3 rounded-lg">
                 <AlertTriangle className="w-6 h-6 text-orange-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 text-sm">Daily Logs</p>
-                <p className="text-3xl font-bold text-blue-600 mt-1">{stats.dailyLogs}</p>
-              </div>
-              <div className="bg-blue-100 p-3 rounded-lg">
-                <Calendar className="w-6 h-6 text-blue-600" />
               </div>
             </div>
           </div>
@@ -779,7 +723,6 @@ const StaffReportsPage = () => {
               <option value="CCTV Check">CCTV Check</option>
               <option value="Incident Report">Incident Report</option>
               <option value="Asset Damage">Asset Damage</option>
-              <option value="Daily Logs">Daily Logs</option>
               <option value="Cabin H&S Check">Cabin H&S Check</option>
               <option value="Vehicle Daily Check">Vehicle Daily Check</option>
             </select>

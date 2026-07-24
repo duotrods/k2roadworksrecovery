@@ -121,62 +121,6 @@
       ]
     },
     {
-      "collectionGroup": "dailyOccurrenceReports",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "schemeId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "dailyOccurrenceReports",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "schemeIds",
-          "arrayConfig": "CONTAINS"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "cctvUploads",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "scheme",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "uploadedAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "cctvUploads",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "schemeIds",
-          "arrayConfig": "CONTAINS"
-        },
-        {
-          "fieldPath": "uploadedAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "incidentReports",
       "queryScope": "COLLECTION",
       "fields": [
@@ -187,52 +131,6 @@
         {
           "fieldPath": "createdAt",
           "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "cctvFaultsReports",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "schemeIds",
-          "arrayConfig": "CONTAINS"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "cctvFaultsReports",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "cctvFaultsReports",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "schemeIds",
-          "arrayConfig": "CONTAINS"
-        },
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
         }
       ]
     },
@@ -359,20 +257,6 @@
       ]
     },
     {
-      "collectionGroup": "dailyOccurrenceReports",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "schemeIds",
-          "arrayConfig": "CONTAINS"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "cctvCheckForms",
       "queryScope": "COLLECTION",
       "fields": [
@@ -387,20 +271,6 @@
       ]
     },
     {
-      "collectionGroup": "cctvFaultsReports",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "schemeIds",
-          "arrayConfig": "CONTAINS"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "incidentReports",
       "queryScope": "COLLECTION",
       "fields": [
@@ -418,18 +288,36 @@
       "collectionGroup": "incidentReports",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "schemeIds", "arrayConfig": "CONTAINS" },
-        { "fieldPath": "isPureIncident", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "schemeIds",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "isPureIncident",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "incidentReports",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "schemeIds", "arrayConfig": "CONTAINS" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "schemeIds",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     }
   ],
