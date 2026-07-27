@@ -443,22 +443,6 @@ class StaffService {
     }
   }
 
-  async getCabinHealthSafetyChecks(userId = null, limitCount = null) {
-    try {
-      let q = supabase.from("cabin_health_safety_checks").select("*");
-      if (userId) q = q.eq("submitted_by_user_id", userId);
-      q = q.order("created_at", { ascending: false });
-      if (limitCount) q = q.limit(limitCount);
-
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data || []).map(fromCabinSafetyRow);
-    } catch (error) {
-      console.error("Failed to get cabin health & safety checks:", error);
-      return [];
-    }
-  }
-
   async getCabinHealthSafetyCheckById(formId) {
     try {
       const { data, error } = await supabase
@@ -617,6 +601,20 @@ class StaffService {
       return (data || []).map(fromVehicleCheckRow);
     } catch (error) {
       console.error("Failed to get vehicle daily checks:", error);
+      return [];
+    }
+  }
+
+  // Server-side aggregation for the defect-frequency chart on
+  // StaffReportsPage — replaces fetching every row of vehicle_daily_checks
+  // to count client-side (see get_vehicle_check_defect_counts RPC).
+  async getVehicleCheckDefectCounts() {
+    try {
+      const { data, error } = await supabase.rpc("get_vehicle_check_defect_counts");
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error("Failed to get vehicle check defect counts:", error);
       return [];
     }
   }

@@ -27,7 +27,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { countDefectsByItem } from "../../utils/vehicleCheckStats";
+import { defectCountsFromAggregates } from "../../utils/vehicleCheckStats";
 
 // Module-level variable — survives component unmount/remount, no serialization needed
 let _staffReportsRestore = null;
@@ -102,10 +102,11 @@ const StaffReportsPage = () => {
 
   useEffect(() => {
     // Independent of the paginated `reports` list (which only ever holds one
-    // page of 10) — the chart needs every vehicle check, not just the
-    // current page, so it doesn't shrink/flicker as the admin paginates.
-    staffService.getVehicleDailyChecks(null).then((allChecks) => {
-      setVehicleCheckDefects(countDefectsByItem(allChecks));
+    // page of 10) — the chart needs defect counts across every vehicle check,
+    // not just the current page. Aggregated server-side (RPC) instead of
+    // fetching every row, so this stays cheap as the table grows.
+    staffService.getVehicleCheckDefectCounts().then((rows) => {
+      setVehicleCheckDefects(defectCountsFromAggregates(rows));
     });
   }, []);
 

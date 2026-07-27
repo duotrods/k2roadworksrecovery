@@ -47,3 +47,23 @@ export function countDefectsByItem(reports) {
     count: counts[item],
   }));
 }
+
+/**
+ * Same shape as countDefectsByItem, but built from pre-aggregated
+ * {item, defect_count} rows (get_vehicle_check_defect_counts RPC) instead of
+ * raw report rows. Items with no defects aren't returned by the RPC, so they
+ * default to 0 here.
+ */
+export function defectCountsFromAggregates(rows) {
+  const counts = Object.fromEntries(VEHICLE_CHECK_ITEMS.map(({ item }) => [item, 0]));
+
+  for (const row of rows || []) {
+    if (row && row.item in counts) counts[row.item] = Number(row.defect_count) || 0;
+  }
+
+  return VEHICLE_CHECK_ITEMS.map(({ item, label }) => ({
+    item,
+    label,
+    count: counts[item],
+  }));
+}
