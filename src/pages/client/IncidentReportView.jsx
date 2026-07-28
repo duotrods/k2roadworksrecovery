@@ -25,15 +25,111 @@ const IncidentReportView = () => {
     setLoadedImages((prev) => ({ ...prev, [index]: true }));
   };
 
-  // Load all images at once
-  const handleLoadAllImages = () => {
-    if (report?.files) {
-      const allLoaded = {};
-      report.files.forEach((_, index) => {
-        allLoaded[index] = true;
-      });
-      setLoadedImages(allLoaded);
-    }
+  // Renders one Attachments section (e.g. "Arrival Images"). Takes
+  // {file, index} pairs so lazy-load state (loadedImages) stays keyed by
+  // each file's original position in report.files even though a section
+  // only shows a filtered subset.
+  const renderAttachmentSection = (title, entries) => {
+    if (entries.length === 0) return null;
+
+    return (
+      <div key={title}>
+        <div className="flex items-center justify-between mb-4 border-b pb-2">
+          <h4 className="text-lg font-semibold text-gray-800">
+            {title} ({entries.length})
+          </h4>
+          {entries.some(({ index }) => !loadedImages[index]) && (
+            <button
+              onClick={() => {
+                const updates = {};
+                entries.forEach(({ index }) => {
+                  updates[index] = true;
+                });
+                setLoadedImages((prev) => ({ ...prev, ...updates }));
+              }}
+              className="text-sm text-teal-600 hover:text-teal-700 font-medium"
+            >
+              Load All
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {entries.map(({ file, index }) => (
+            <div key={index} className="relative">
+              {loadedImages[index] ? (
+                isVideoFile(file) ? (
+                  <div className="relative">
+                    <video
+                      src={file.downloadUrl}
+                      controls
+                      className="w-full h-48 object-cover rounded-lg bg-black"
+                    />
+                    <a
+                      href={file.downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute bottom-2 right-2 p-2 bg-white/80 rounded-lg hover:bg-white transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Download className="w-4 h-4 text-gray-700" />
+                    </a>
+                  </div>
+                ) : (
+                  <>
+                    <img
+                      src={file.downloadUrl}
+                      alt={file.fileName}
+                      className="w-full h-48 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => setViewingFile({ url: file.downloadUrl, isVideo: false })}
+                    />
+                    <a
+                      href={file.downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute bottom-2 right-2 p-2 bg-white/80 rounded-lg hover:bg-white transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Download className="w-4 h-4 text-gray-700" />
+                    </a>
+                  </>
+                )
+              ) : (
+                <button
+                  onClick={() => handleLoadImage(index)}
+                  className="w-full h-48 bg-gray-100 rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-gray-200 transition-colors border-2 border-dashed border-gray-300"
+                >
+                  {isVideoFile(file) ? (
+                    <Video className="w-8 h-8 text-gray-400" />
+                  ) : (
+                    <Image className="w-8 h-8 text-gray-400" />
+                  )}
+                  <span className="text-sm text-gray-500">
+                    Click to load {isVideoFile(file) ? "video" : "image"}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {file.fileName}
+                  </span>
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Splits report.files into "Arrival Images" (Step 2), "Unloaded Images"
+  // (Step 3), and a fallback for older reports uploaded before attachments
+  // were tagged by stage.
+  const renderAttachments = () => {
+    const withIndex = (report?.files || []).map((file, index) => ({ file, index }));
+    return (
+      <div className="space-y-6">
+        {renderAttachmentSection("Arrival Images", withIndex.filter(({ file }) => file.stage === "arrival"))}
+        {renderAttachmentSection("Unloaded Images", withIndex.filter(({ file }) => file.stage === "dropoff"))}
+        {renderAttachmentSection("Other Attachments", withIndex.filter(({ file }) => !file.stage))}
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -229,84 +325,7 @@ const IncidentReportView = () => {
               </div>
 
               {/* Attachments for Live Incident - Lazy loaded to save bandwidth */}
-              {report.files && report.files.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-4 border-b pb-2">
-                    <h4 className="text-lg font-semibold text-gray-800">
-                      Attachments ({report.files.length})
-                    </h4>
-                    {Object.keys(loadedImages).length < report.files.length && (
-                      <button
-                        onClick={handleLoadAllImages}
-                        className="text-sm text-teal-600 hover:text-teal-700 font-medium"
-                      >
-                        Load All
-                      </button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {report.files.map((file, index) => (
-                      <div key={index} className="relative">
-                        {loadedImages[index] ? (
-                          isVideoFile(file) ? (
-                            <div className="relative">
-                              <video
-                                src={file.downloadUrl}
-                                controls
-                                className="w-full h-48 object-cover rounded-lg bg-black"
-                              />
-                              <a
-                                href={file.downloadUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="absolute bottom-2 right-2 p-2 bg-white/80 rounded-lg hover:bg-white transition-colors"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Download className="w-4 h-4 text-gray-700" />
-                              </a>
-                            </div>
-                          ) : (
-                            <>
-                              <img
-                                src={file.downloadUrl}
-                                alt={file.fileName}
-                                className="w-full h-48 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={() => setViewingFile({ url: file.downloadUrl, isVideo: false })}
-                              />
-                              <a
-                                href={file.downloadUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="absolute bottom-2 right-2 p-2 bg-white/80 rounded-lg hover:bg-white transition-colors"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Download className="w-4 h-4 text-gray-700" />
-                              </a>
-                            </>
-                          )
-                        ) : (
-                          <button
-                            onClick={() => handleLoadImage(index)}
-                            className="w-full h-48 bg-gray-100 rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-gray-200 transition-colors border-2 border-dashed border-gray-300"
-                          >
-                            {isVideoFile(file) ? (
-                              <Video className="w-8 h-8 text-gray-400" />
-                            ) : (
-                              <Image className="w-8 h-8 text-gray-400" />
-                            )}
-                            <span className="text-sm text-gray-500">
-                              Click to load {isVideoFile(file) ? "video" : "image"}
-                            </span>
-                            <span className="text-xs text-gray-400">
-                              {file.fileName}
-                            </span>
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {report.files && report.files.length > 0 && renderAttachments()}
 
               {/* Live Status Indicator */}
               <div className="bg-yellow-50 rounded-lg p-6">
@@ -744,84 +763,7 @@ const IncidentReportView = () => {
               </div>
 
               {/* Files - Lazy loaded to save bandwidth */}
-              {report.files && report.files.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-4 border-b pb-2">
-                    <h4 className="text-lg font-semibold text-gray-800">
-                      Attachments ({report.files.length})
-                    </h4>
-                    {Object.keys(loadedImages).length < report.files.length && (
-                      <button
-                        onClick={handleLoadAllImages}
-                        className="text-sm text-teal-600 hover:text-teal-700 font-medium"
-                      >
-                        Load All
-                      </button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {report.files.map((file, index) => (
-                      <div key={index} className="relative">
-                        {loadedImages[index] ? (
-                          isVideoFile(file) ? (
-                            <div className="relative">
-                              <video
-                                src={file.downloadUrl}
-                                controls
-                                className="w-full h-48 object-cover rounded-lg bg-black"
-                              />
-                              <a
-                                href={file.downloadUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="absolute bottom-2 right-2 p-2 bg-white/80 rounded-lg hover:bg-white transition-colors"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Download className="w-4 h-4 text-gray-700" />
-                              </a>
-                            </div>
-                          ) : (
-                            <>
-                              <img
-                                src={file.downloadUrl}
-                                alt={file.fileName}
-                                className="w-full h-48 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={() => setViewingFile({ url: file.downloadUrl, isVideo: false })}
-                              />
-                              <a
-                                href={file.downloadUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="absolute bottom-2 right-2 p-2 bg-white/80 rounded-lg hover:bg-white transition-colors"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Download className="w-4 h-4 text-gray-700" />
-                              </a>
-                            </>
-                          )
-                        ) : (
-                          <button
-                            onClick={() => handleLoadImage(index)}
-                            className="w-full h-48 bg-gray-100 rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-gray-200 transition-colors border-2 border-dashed border-gray-300"
-                          >
-                            {isVideoFile(file) ? (
-                              <Video className="w-8 h-8 text-gray-400" />
-                            ) : (
-                              <Image className="w-8 h-8 text-gray-400" />
-                            )}
-                            <span className="text-sm text-gray-500">
-                              Click to load {isVideoFile(file) ? "video" : "image"}
-                            </span>
-                            <span className="text-xs text-gray-400">
-                              {file.fileName}
-                            </span>
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {report.files && report.files.length > 0 && renderAttachments()}
 
               {/* Metadata */}
               <div className="border-t pt-4">

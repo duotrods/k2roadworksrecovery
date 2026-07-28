@@ -37,8 +37,6 @@ const NewStaffDashboard = () => {
     }
   };
 
-  // TODO: HGV/Light/Heavy Recovery counts aren't wired up to real data yet —
-  // placeholder zeros until we have a stat source for these categories.
   const statCards = [
     {
       title: "Total Incident",
@@ -49,28 +47,28 @@ const NewStaffDashboard = () => {
     },
     {
       title: "IPV Recovery",
-      count: 0,
+      count: stats?.ipvRecoveryTotal || 0,
       subtitle: "Total Submissions",
       icon: Truck,
       color: "from-blue-500 to-blue-600",
     },
     {
-      title: "Police Recovery",  
-      count: 0,
+      title: "Police Recovery",
+      count: stats?.policeRecoveryTotal || 0,
       subtitle: "Total Submissions",
       icon: Truck,
       color: "from-blue-500 to-blue-600",
     },
     {
       title: "Light Recovery",
-      count: 0,
+      count: stats?.lightRecoveryTotal || 0,
       subtitle: "Total Submissions",
       icon: Car,
       color: "from-teal-500 to-teal-600",
     },
     {
       title: "Heavy Recovery",
-      count: 0,
+      count: stats?.heavyRecoveryTotal || 0,
       subtitle: "Total Submissions",
       icon: Truck,
       color: "from-pink-500 to-pink-600",

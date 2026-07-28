@@ -187,37 +187,36 @@ class ClientDataService {
 
       // Calculate statistics
       const stats = {
-        totalIncidents: incidents.filter(
-          (i) => i.incidentType !== "Free Recovery" && i.incursion !== "YES",
-        ).length,
-        incidentsByType: this.groupByField(incidents, "incidentType"),
-        incidentsByLane: this.groupByFieldArray(incidents, "affectedLanes"), // Array field
-        vehiclesDispatched: this.calculateVehiclesDispatched(incidents),
-        spottedBy: this.groupByField(incidents, "reportedBy"), // Changed from spottedBy to reportedBy
-        faultTypes: this.groupByField(incidents, "fault"), // Changed from faultType to fault
-        vehicleTypes: this.groupVehicleTypes(incidents), // Extract from vehicles array
-        vehicleTypesDispatched: this.groupVehiclesDispatched(incidents), // From recoveryRequested object
-        trafficConditions: this.groupByField(incidents, "trafficConditions"),
-        trackOfIncident: this.groupByField(incidents, "track"),
-        emergencyServices: this.groupByFieldArray(
-          incidents,
-          "emergencyServices",
-        ), // Array field
+        totalIncidents: incidents.filter((i) => {
+          const c = this.incidentClassification(i);
+          return c !== "Free Recovery" && c !== "Drive Off" && c !== "Incursion";
+        }).length,
+        incidentsByType: this.groupByField(incidents, "actualFault", "faultReported"),
+        vehiclesDispatched: incidents.filter((i) => i.vehicleAllocated).length,
+        spottedBy: this.groupByField(incidents, "jobSource"),
+        faultTypes: this.groupByField(incidents, "faultReported"),
+        vehicleTypes: this.groupByField(incidents, "vehicleType"),
+        vehicleTypesDispatched: this.groupByField(incidents, "vehicleAllocated"),
+        emergencyServices: this.groupByBooleanFlags(incidents, {
+          driverOnScene: "Driver on scene",
+          policeOnScene: "Police on scene",
+          nhOnScene: "NH on scene",
+          ripvOnScene: "RIPV on scene",
+        }),
         timeToRecover: this.groupByCalculatedTime(
           incidents,
           "timeOnsiteToCleared",
         ), // Time from on site to cleared (pre-calculated)
         timeToSite: this.groupByCalculatedTime(incidents, "timeSpottedToOn"), // Time from spotted to on site (pre-calculated)
-        incursions: incidents.filter((i) => i.incursion === "YES").length, // Check for 'YES' string
+        incursions: incidents.filter(
+          (i) => this.incidentClassification(i) === "Incursion",
+        ).length,
         assetDamage: incidents.filter(
-          (i) =>
-            i.propertyDamage === true ||
-            i.propertyDamage === "yes" ||
-            i.propertyDamage === "Yes",
+          (i) => this.incidentClassification(i) === "Asset Damage",
         ).length,
         recentIncidents: incidents.slice(0, 10).map((incident) => ({
-          type: incident.incidentType || "Unknown",
-          location: incident.markerPost || incident.section || "Unknown",
+          type: this.incidentClassification(incident) || "Unknown",
+          location: incident.markerPost || "Unknown",
           time: incident.createdAt,
           status: incident.status || "Resolved",
         })),
@@ -232,6 +231,14 @@ class ClientDataService {
         error,
       );
     }
+  }
+
+  // The confirmed/final classification for an incident — actualFault is set
+  // once the job's inspected, faultReported is the initial call-time guess.
+  // Used wherever we need one authoritative category (totals, Incursions,
+  // Asset Damage), as opposed to charting the two separately.
+  incidentClassification(incident) {
+    return incident.actualFault || incident.faultReported || "";
   }
 
   // Helper function to calculate time difference between two time fields and group by ranges
@@ -352,9 +359,6 @@ class ClientDataService {
     const toSite = incidents.map((i) => parse(i.timeSpottedToOn)).filter((v) => v !== null);
     const toRecover = incidents.map((i) => parse(i.timeOnsiteToCleared)).filter((v) => v !== null);
 
-    console.log("avgTimeToSite raw values:", toSite);
-    console.log("avgTimeToRecover raw values:", toRecover);
-
     return { avgTimeToSite: avg(toSite), avgTimeToRecover: avg(toRecover) };
   }
 
@@ -404,82 +408,30 @@ class ClientDataService {
     return ranges;
   }
 
-  // Helper function to group data by field
-  groupByField(data, field) {
+  // Helper function to group data by field. fallbackField lets a chart read
+  // a secondary field when the primary one is blank (e.g. actualFault isn't
+  // filled in until the job's inspected, so faultReported covers the gap).
+  groupByField(data, field, fallbackField = null) {
     const grouped = {};
     data.forEach((item) => {
-      const value = item[field] || "Unknown";
+      const value = item[field] || (fallbackField && item[fallbackField]) || "Unknown";
       grouped[value] = (grouped[value] || 0) + 1;
     });
     return grouped;
   }
 
-  // Helper function to group data by array field (like affectedLanes, emergencyServices)
-  groupByFieldArray(data, field) {
+  // Helper to count how many incidents have each of a set of boolean flags
+  // set true (e.g. driverOnScene/policeOnScene/nhOnScene/ripvOnScene) —
+  // replaces the old Firestore-era emergencyServices array field, which
+  // doesn't exist on the current form.
+  groupByBooleanFlags(data, flagLabels) {
     const grouped = {};
     data.forEach((item) => {
-      const values = item[field];
-      if (Array.isArray(values) && values.length > 0) {
-        values.forEach((value) => {
-          grouped[value] = (grouped[value] || 0) + 1;
-        });
-      }
+      Object.entries(flagLabels).forEach(([field, label]) => {
+        if (item[field]) grouped[label] = (grouped[label] || 0) + 1;
+      });
     });
     return grouped;
-  }
-
-  // Helper to extract vehicle types from vehicles array
-  groupVehicleTypes(data) {
-    const grouped = {};
-    data.forEach((item) => {
-      const vehicles = item.vehicles;
-      if (Array.isArray(vehicles) && vehicles.length > 0) {
-        vehicles.forEach((vehicle) => {
-          if (vehicle.type) {
-            grouped[vehicle.type] = (grouped[vehicle.type] || 0) + 1;
-          }
-        });
-      }
-    });
-    return grouped;
-  }
-
-  // Helper to group vehicles dispatched from recoveryRequested object
-  groupVehiclesDispatched(data) {
-    const totals = {
-      Light: 0,
-      Heavy: 0,
-      IPV: 0,
-      HETOS: 0,
-    };
-
-    data.forEach((item) => {
-      const recovery = item.recoveryRequested;
-      if (recovery && typeof recovery === "object") {
-        totals.Light += recovery.light || 0;
-        totals.Heavy += recovery.heavy || 0;
-        totals.IPV += recovery.ipv || 0;
-        totals.HETOS += recovery.hetos || 0;
-      }
-    });
-
-    return totals;
-  }
-
-  // Calculate total vehicles dispatched
-  calculateVehiclesDispatched(data) {
-    let total = 0;
-    data.forEach((item) => {
-      const recovery = item.recoveryRequested;
-      if (recovery && typeof recovery === "object") {
-        total +=
-          (recovery.light || 0) +
-          (recovery.heavy || 0) +
-          (recovery.ipv || 0) +
-          (recovery.hetos || 0);
-      }
-    });
-    return total;
   }
 
   // Get time-series data for charts
@@ -557,40 +509,36 @@ class ClientDataService {
 
       // Calculate statistics (same as getSchemeStats)
       const stats = {
-        totalIncidents: incidents.filter(
-          (i) =>
-            i.incidentType !== "Free Recovery" &&
-            i.incidentType !== "Drive Off" &&
-            i.incursion !== "YES",
-        ).length,
-        incidentsByType: this.groupByField(incidents, "incidentType"),
-        incidentsByLane: this.groupByFieldArray(incidents, "affectedLanes"),
-        vehiclesDispatched: this.calculateVehiclesDispatched(incidents),
-        spottedBy: this.groupByField(incidents, "reportedBy"),
-        faultTypes: this.groupByField(incidents, "fault"),
-        vehicleTypes: this.groupVehicleTypes(incidents),
-        vehicleTypesDispatched: this.groupVehiclesDispatched(incidents),
-        trafficConditions: this.groupByField(incidents, "trafficConditions"),
-        trackOfIncident: this.groupByField(incidents, "track"),
-        emergencyServices: this.groupByFieldArray(
-          incidents,
-          "emergencyServices",
-        ),
+        totalIncidents: incidents.filter((i) => {
+          const c = this.incidentClassification(i);
+          return c !== "Free Recovery" && c !== "Drive Off" && c !== "Incursion";
+        }).length,
+        incidentsByType: this.groupByField(incidents, "actualFault", "faultReported"),
+        vehiclesDispatched: incidents.filter((i) => i.vehicleAllocated).length,
+        spottedBy: this.groupByField(incidents, "jobSource"),
+        faultTypes: this.groupByField(incidents, "faultReported"),
+        vehicleTypes: this.groupByField(incidents, "vehicleType"),
+        vehicleTypesDispatched: this.groupByField(incidents, "vehicleAllocated"),
+        emergencyServices: this.groupByBooleanFlags(incidents, {
+          driverOnScene: "Driver on scene",
+          policeOnScene: "Police on scene",
+          nhOnScene: "NH on scene",
+          ripvOnScene: "RIPV on scene",
+        }),
         timeToRecover: this.groupByCalculatedTime(
           incidents,
           "timeOnsiteToCleared",
         ),
         timeToSite: this.groupByCalculatedTime(incidents, "timeSpottedToOn"),
-        incursions: incidents.filter((i) => i.incursion === "YES").length,
+        incursions: incidents.filter(
+          (i) => this.incidentClassification(i) === "Incursion",
+        ).length,
         assetDamage: incidents.filter(
-          (i) =>
-            i.propertyDamage === true ||
-            i.propertyDamage === "yes" ||
-            i.propertyDamage === "Yes",
+          (i) => this.incidentClassification(i) === "Asset Damage",
         ).length,
         recentIncidents: incidents.slice(0, 10).map((incident) => ({
-          type: incident.incidentType || "Unknown",
-          location: incident.markerPost || incident.section || "Unknown",
+          type: this.incidentClassification(incident) || "Unknown",
+          location: incident.markerPost || "Unknown",
           time: incident.createdAt,
           status: incident.status || "Resolved",
         })),
@@ -673,7 +621,7 @@ class ClientDataService {
         ...incidents.map((report) => ({
           ...report,
           reportType: "incident",
-          type: report.incidentType,
+          type: this.incidentClassification(report) || "Unknown",
           timestamp: report.createdAt,
         })),
       ];
@@ -708,7 +656,7 @@ class ClientDataService {
       const reports = incidents.docs.map((report) => ({
         ...report,
         reportType: "incident",
-        type: report.incidentType,
+        type: this.incidentClassification(report) || "Unknown",
         timestamp: report.createdAt,
       }));
 
@@ -808,7 +756,7 @@ class ClientDataService {
       const reports = result.docs.map(({ _cursor, ...report }) => ({
         ...report,
         reportType: "incident",
-        type: report.incidentType,
+        type: this.incidentClassification(report) || "Unknown",
         timestamp: report.createdAt,
       }));
       return { reports, lastDoc: result.lastDoc, hasMore: result.hasMore };
@@ -1051,7 +999,7 @@ class ClientDataService {
         results.push({
           ...report,
           reportType: "incident",
-          type: report.incidentType,
+          type: this.incidentClassification(report) || "Unknown",
           timestamp: report.createdAt,
         });
       }
@@ -1105,7 +1053,7 @@ class ClientDataService {
         allResults.push({
           ...report,
           reportType: "incident",
-          type: report.incidentType,
+          type: this.incidentClassification(report) || "Unknown",
           timestamp: report.createdAt,
         });
       }

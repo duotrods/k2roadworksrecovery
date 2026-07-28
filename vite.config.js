@@ -11,6 +11,16 @@ export default defineConfig({
   optimizeDeps: {
     entries: ['./index.html'],
   },
+  // `vercel dev` proxying the whole app (frontend + /api) breaks Vite's own
+  // module transform for index.html/HMR requests. So for local dev, Vite
+  // serves the frontend as normal and only /api/* is forwarded to a
+  // `vercel dev` process running separately just for the serverless
+  // functions (see README/dev instructions for the two-terminal setup).
+  server: {
+    proxy: {
+      '/api': 'http://localhost:3003',
+    },
+  },
   // Strip noisy console.log/info/debug from the *minified* (production) bundle
   // only. Dev keeps all logs (Vite doesn't minify in dev). console.warn/error
   // are intentionally kept.

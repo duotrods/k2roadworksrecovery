@@ -67,13 +67,10 @@ const ChartCard = memo(
   ),
 );
 
-const fmtDowntime = (mins) => {
-  if (!mins) return "0m";
-  if (mins < 60) return `${mins}m`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
-};
+// The confirmed/final fault classification for an incident — actualFault is
+// set once the job's inspected, faultReported is the initial call-time
+// guess. Mirrors clientDataService.incidentClassification.
+const incidentClassification = (i) => i.actualFault || i.faultReported || "";
 
 const transformDataForChart = (dataObj, filterUnknown = true) => {
   if (!dataObj) return [];
@@ -245,11 +242,8 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
     incidentTypeData,
     vehiclesDispatchedData,
     spottedByData,
-    laneAffectedData,
     timeToRecoverData,
-    trafficConditionsData,
     timeToSiteData,
-    trackData,
     emergencyServicesData,
     vehicleTypeData,
     incursionsData,
@@ -261,11 +255,8 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
         stats?.vehicleTypesDispatched,
       ),
       spottedByData: transformDataForChart(stats?.spottedBy),
-      laneAffectedData: transformDataForChart(stats?.incidentsByLane),
       timeToRecoverData: transformDataForChart(stats?.timeToRecover, false),
-      trafficConditionsData: transformDataForChart(stats?.trafficConditions),
       timeToSiteData: transformDataForChart(stats?.timeToSite, false),
-      trackData: transformDataForChart(stats?.trackOfIncident),
       emergencyServicesData: transformDataForChart(stats?.emergencyServices),
       vehicleTypeData: transformDataForChart(stats?.vehicleTypes),
       incursionsData: [{ name: "Incursions", Number: stats?.incursions || 0 }],
@@ -277,30 +268,27 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
     (chartType, label) => {
       if (!label || !incidents.length) return;
       let filtered = [];
+      const onSceneFieldByLabel = {
+        "Driver on scene": "driverOnScene",
+        "Police on scene": "policeOnScene",
+        "NH on scene": "nhOnScene",
+        "RIPV on scene": "ripvOnScene",
+      };
+
       if (chartType === "incidentType")
-        filtered = incidents.filter((i) => i.incidentType === label);
-      else if (chartType === "fault")
-        filtered = incidents.filter((i) => i.fault === label);
-      else if (chartType === "reportedBy")
-        filtered = incidents.filter((i) => i.reportedBy === label);
-      else if (chartType === "affectedLanes")
-        filtered = incidents.filter((i) => i.affectedLanes?.includes(label));
-      else if (chartType === "trafficConditions")
-        filtered = incidents.filter((i) => i.trafficConditions === label);
-      else if (chartType === "track")
-        filtered = incidents.filter((i) => i.track === label);
-      else if (chartType === "emergencyServices")
-        filtered = incidents.filter((i) =>
-          i.emergencyServices?.includes(label),
-        );
-      else if (chartType === "vehicleTypes")
-        filtered = incidents.filter((i) =>
-          i.vehicles?.some((v) => v.type === label),
-        );
-      else if (chartType === "vehicleTypesDispatched") {
-        const key = label.toLowerCase();
-        filtered = incidents.filter((i) => i.recoveryRequested?.[key] > 0);
-      } else if (chartType === "timeToRecover") {
+        filtered = incidents.filter((i) => incidentClassification(i) === label);
+      else if (chartType === "faultReported")
+        filtered = incidents.filter((i) => i.faultReported === label);
+      else if (chartType === "jobSource")
+        filtered = incidents.filter((i) => i.jobSource === label);
+      else if (chartType === "emergencyServices") {
+        const field = onSceneFieldByLabel[label];
+        filtered = field ? incidents.filter((i) => i[field]) : [];
+      } else if (chartType === "vehicleTypes")
+        filtered = incidents.filter((i) => i.vehicleType === label);
+      else if (chartType === "vehicleTypesDispatched")
+        filtered = incidents.filter((i) => i.vehicleAllocated === label);
+      else if (chartType === "timeToRecover") {
         filtered = incidents.filter((i) => {
           const m = parseInt(i.timeOnsiteToCleared?.match(/(\d+)/)?.[1]);
           if (isNaN(m)) return false;
@@ -323,7 +311,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
           return false;
         });
       } else if (chartType === "incursions")
-        filtered = incidents.filter((i) => i.incursion === "YES");
+        filtered = incidents.filter((i) => incidentClassification(i) === "Incursion");
       if (filtered.length) openDrillDown({ title: label, incidents: filtered });
     },
     [incidents, openDrillDown],
@@ -338,27 +326,20 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
       color: "text-orange-500",
       bgColor: "bg-orange-50",
       filter: () =>
-        incidents.filter(
-          (i) =>
-            i.incidentType !== "Free Recovery" &&
-            i.incidentType !== "Drive Off" &&
-            i.incursion !== "YES",
-        ),
+        incidents.filter((i) => {
+          const c = incidentClassification(i);
+          return c !== "Free Recovery" && c !== "Drive Off" && c !== "Incursion";
+        }),
     },
     {
       title: "Asset Damage",
       value: loading ? "..." : (stats?.assetDamage || 0).toString(),
-      text: "Total number of incidents with reported asset or property damage.",
+      text: "Total number of incidents classified as Asset Damage.",
       icon: TriangleAlert,
       color: "text-yellow-500",
       bgColor: "bg-yellow-50",
       filter: () =>
-        incidents.filter(
-          (i) =>
-            i.propertyDamage === true ||
-            i.propertyDamage === "yes" ||
-            i.propertyDamage === "Yes",
-        ),
+        incidents.filter((i) => incidentClassification(i) === "Asset Damage"),
     },
     {
       title: "Free Recovery",
@@ -373,28 +354,20 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
       color: "text-green-500",
       bgColor: "bg-green-50",
       filter: () =>
-        incidents.filter(
-          (i) =>
-            i.incidentType === "Free Recovery" ||
-            i.incidentType === "Drive Off",
-        ),
+        incidents.filter((i) => {
+          const c = incidentClassification(i);
+          return c === "Free Recovery" || c === "Drive Off";
+        }),
     },
     {
       title: "Incursions",
-      value: loading
-        ? "..."
-        : (
-            (stats?.incursions || 0) +
-            (stats?.incidentsByType?.["Incursion"] || 0)
-          ).toString(),
+      value: loading ? "..." : (stats?.incursions || 0).toString(),
       text: "Total number of incursions recorded within the scheme.",
       icon: ShieldAlert,
       color: "text-red-500",
       bgColor: "bg-red-50",
       filter: () =>
-        incidents.filter(
-          (i) => i.incursion === "YES" || i.incidentType === "Incursion",
-        ),
+        incidents.filter((i) => incidentClassification(i) === "Incursion"),
     },
   ];
 
@@ -545,14 +518,11 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
       const charts = [
         { data: timeToSiteData, title: "Time to Site (mins)" },
         { data: timeToRecoverData, title: "Time to Recover (mins)" },
-        { data: faultData, title: "Fault" },
+        { data: faultData, title: "Fault Reported" },
         { data: incidentTypeData, title: "Incident Type" },
-        { data: vehiclesDispatchedData, title: "Vehicles Dispatched" },
-        { data: spottedByData, title: "Spotted By" },
-        { data: laneAffectedData, title: "Lane Affected" },
-        { data: trafficConditionsData, title: "Traffic Conditions" },
+        { data: vehiclesDispatchedData, title: "Vehicle Allocated" },
+        { data: spottedByData, title: "Source of Call" },
         { data: emergencyServicesData, title: "Emergency Services Attended" },
-        { data: trackData, title: "Track of Incident" },
         { data: vehicleTypeData, title: "Vehicle Type" },
         { data: incursionsData, title: "Incursions" },
       ];
@@ -780,12 +750,13 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
               </BarChart>
             </ChartCard>
 
-            <ChartCard title="Fault">
+            <ChartCard title="Fault Reported">
               <BarChart
                 data={faultData}
                 margin={{ top: 0, right: 0, left: -20, bottom: 10 }}
                 onClick={(d) =>
-                  d?.activeLabel && handleBarClick("fault", d.activeLabel)
+                  d?.activeLabel &&
+                  handleBarClick("faultReported", d.activeLabel)
                 }
                 style={{ cursor: "pointer" }}
               >
@@ -826,7 +797,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
               </BarChart>
             </ChartCard>
 
-            <ChartCard title="Vehicles Dispatched">
+            <ChartCard title="Vehicle Allocated">
               <BarChart
                 data={vehiclesDispatchedData}
                 onClick={(d) =>
@@ -844,47 +815,11 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
               </BarChart>
             </ChartCard>
 
-            <ChartCard title="Spotted By">
+            <ChartCard title="Source of Call">
               <BarChart
                 data={spottedByData}
                 onClick={(d) =>
-                  d?.activeLabel && handleBarClick("reportedBy", d.activeLabel)
-                }
-                style={{ cursor: "pointer" }}
-              >
-                <CartesianGrid {...commonChartProps.cartesianGrid} />
-                <XAxis dataKey="name" {...commonChartProps.xAxis} />
-                <YAxis {...commonChartProps.yAxis} />
-                <Tooltip {...commonChartProps.tooltip} />
-                <Legend {...commonChartProps.legend} />
-                <Bar dataKey="Number" {...commonChartProps.bar} />
-              </BarChart>
-            </ChartCard>
-
-            <ChartCard title="Lane Affected">
-              <BarChart
-                data={laneAffectedData}
-                onClick={(d) =>
-                  d?.activeLabel &&
-                  handleBarClick("affectedLanes", d.activeLabel)
-                }
-                style={{ cursor: "pointer" }}
-              >
-                <CartesianGrid {...commonChartProps.cartesianGrid} />
-                <XAxis dataKey="name" {...commonChartProps.xAxis} />
-                <YAxis {...commonChartProps.yAxis} />
-                <Tooltip {...commonChartProps.tooltip} />
-                <Legend {...commonChartProps.legend} />
-                <Bar dataKey="Number" {...commonChartProps.bar} />
-              </BarChart>
-            </ChartCard>
-
-            <ChartCard title="Traffic Conditions">
-              <BarChart
-                data={trafficConditionsData}
-                onClick={(d) =>
-                  d?.activeLabel &&
-                  handleBarClick("trafficConditions", d.activeLabel)
+                  d?.activeLabel && handleBarClick("jobSource", d.activeLabel)
                 }
                 style={{ cursor: "pointer" }}
               >
@@ -903,23 +838,6 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
                 onClick={(d) =>
                   d?.activeLabel &&
                   handleBarClick("emergencyServices", d.activeLabel)
-                }
-                style={{ cursor: "pointer" }}
-              >
-                <CartesianGrid {...commonChartProps.cartesianGrid} />
-                <XAxis dataKey="name" {...commonChartProps.xAxis} />
-                <YAxis {...commonChartProps.yAxis} />
-                <Tooltip {...commonChartProps.tooltip} />
-                <Legend {...commonChartProps.legend} />
-                <Bar dataKey="Number" {...commonChartProps.bar} />
-              </BarChart>
-            </ChartCard>
-
-            <ChartCard title="Track of Incident">
-              <BarChart
-                data={trackData}
-                onClick={(d) =>
-                  d?.activeLabel && handleBarClick("track", d.activeLabel)
                 }
                 style={{ cursor: "pointer" }}
               >

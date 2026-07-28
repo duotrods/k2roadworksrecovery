@@ -81,7 +81,11 @@ const IncidentReportFormPage = () => {
   const editId = searchParams.get("edit");
   const [loading, setLoading] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
-  const [files, setFiles] = useState([]);
+  // Step 2 (On Scene) and Step 3 (Drop-Off Sheet) each get their own staging
+  // array so "Arrival Images" and "Unloaded Images" never bleed into each
+  // other's upload box.
+  const [arrivalFiles, setArrivalFiles] = useState([]);
+  const [dropoffFiles, setDropoffFiles] = useState([]);
 
   // Step management: 1 = Start Job, 2 = On Scene, 3 = Drop-Off Sheet, 4 = Customer
   const [currentStep, setCurrentStep] = useState(1);
@@ -158,9 +162,9 @@ const IncidentReportFormPage = () => {
           Boolean(report.jobSource) && !SOURCE_OF_CALL_OPTIONS.includes(report.jobSource),
         );
 
-        // If editing a live job, resume where the operator left off (On Scene)
+        // If editing a live job, resume at whichever step was last saved
         if (report.status === "live") {
-          setCurrentStep(2);
+          setCurrentStep(report.currentStep || 2);
           setIsEditingLiveIncident(true);
         }
       } else {
@@ -205,9 +209,17 @@ const IncidentReportFormPage = () => {
     });
   };
 
-  const handleFileSelect = (e) => {
+  const filesForStage = (stage) =>
+    stage === "arrival" ? arrivalFiles : dropoffFiles;
+
+  const setFilesForStage = (stage, updater) => {
+    if (stage === "arrival") setArrivalFiles(updater);
+    else setDropoffFiles(updater);
+  };
+
+  const handleFileSelect = (e, stage) => {
     const selectedFiles = Array.from(e.target.files);
-    setFiles((prev) => [...prev, ...selectedFiles]);
+    setFilesForStage(stage, (prev) => [...prev, ...selectedFiles]);
   };
 
   const handleDragOver = (e) => {
@@ -225,7 +237,7 @@ const IncidentReportFormPage = () => {
     e.stopPropagation();
   };
 
-  const handleDrop = (e) => {
+  const handleDrop = (e, stage) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -241,11 +253,11 @@ const IncidentReportFormPage = () => {
       );
     }
 
-    setFiles((prev) => [...prev, ...validFiles]);
+    setFilesForStage(stage, (prev) => [...prev, ...validFiles]);
   };
 
-  const removeFile = (index) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
+  const removeFile = (stage, index) => {
+    setFilesForStage(stage, (prev) => prev.filter((_, i) => i !== index));
   };
 
   const removeExistingFile = (index) => {
@@ -255,26 +267,18 @@ const IncidentReportFormPage = () => {
     }));
   };
 
-  // Converts a Blob/File to a base64 string (no "data:...;base64," prefix)
-  // for posting as JSON to the /api/upload proxy.
-  const blobToBase64 = (blob) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result.split(",")[1]);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-
-  // Posts a file to the server-side R2 upload proxy (api/upload.js), which
-  // holds the R2 credentials — the browser never sees them. Requires an
-  // active Supabase session; throws if the upload is rejected.
+  // Asks the server-side R2 upload proxy (api/upload.js) for a short-lived
+  // presigned URL, then PUTs the file straight to R2 from the browser. The
+  // file bytes never pass through the Vercel function — only the small
+  // presign request/response does — which avoids Vercel's ~4.5MB serverless
+  // request-body limit that previously made large videos fail to upload.
+  // Requires an active Supabase session; throws if either step fails.
   const uploadToR2 = async (blob, fileName, contentType) => {
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    const dataBase64 = await blobToBase64(blob);
 
-    const response = await fetch("/api/upload", {
+    const presignResponse = await fetch("/api/upload", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -283,36 +287,66 @@ const IncidentReportFormPage = () => {
       body: JSON.stringify({
         fileName,
         contentType,
-        dataBase64,
         folder: "incident-reports",
       }),
     });
 
-    if (!response.ok) {
-      const { error } = await response.json().catch(() => ({}));
+    if (!presignResponse.ok) {
+      const { error } = await presignResponse.json().catch(() => ({}));
       throw new Error(error || "Upload failed");
     }
 
-    return response.json();
+    const { uploadUrl, fileUrl, downloadUrl, fileType } =
+      await presignResponse.json();
+
+    const putResponse = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      body: blob,
+    });
+
+    if (!putResponse.ok) {
+      throw new Error("Upload to storage failed");
+    }
+
+    return { fileUrl, downloadUrl, fileType };
   };
 
-  const uploadFiles = async () => {
-    if (files.length === 0) return [];
-
-    setUploadingFiles(true);
-    try {
-      const uploadPromises = files.map(async (file) => {
+  // Uploads every staged file for one step, tagging each result with the
+  // step it belongs to so "Arrival Images" (Step 2) and "Unloaded Images"
+  // (Step 3) stay separate once merged into formData.files.
+  const uploadStageFiles = async (stage, stageFiles) =>
+    Promise.all(
+      stageFiles.map(async (file) => {
         const compressedFile = await compressImage(file);
-        const { fileUrl, downloadUrl, fileSize, fileType } = await uploadToR2(
+        const { fileUrl, downloadUrl, fileType } = await uploadToR2(
           compressedFile,
           file.name,
           file.type,
         );
 
-        return { fileName: file.name, fileUrl, downloadUrl, fileSize, fileType };
-      });
+        return {
+          fileName: file.name,
+          fileUrl,
+          downloadUrl,
+          fileSize: compressedFile.size,
+          fileType,
+          stage,
+        };
+      }),
+    );
 
-      return await Promise.all(uploadPromises);
+  const uploadFiles = async () => {
+    if (arrivalFiles.length === 0 && dropoffFiles.length === 0) return [];
+
+    setUploadingFiles(true);
+    try {
+      const [arrivalResults, dropoffResults] = await Promise.all([
+        uploadStageFiles("arrival", arrivalFiles),
+        uploadStageFiles("dropoff", dropoffFiles),
+      ]);
+
+      return [...arrivalResults, ...dropoffResults];
     } finally {
       setUploadingFiles(false);
     }
@@ -336,12 +370,15 @@ const IncidentReportFormPage = () => {
   // steps 2 and 3 so progress survives a refresh mid-job. Status is only
   // forced to "live" for the live-job workflow — editing an already
   // "completed" report should not resurrect it.
-  const persistProgress = async () => {
+  // nextStep is the step the operator is resuming at next time they reopen
+  // this report (e.g. Step 2's "Next" passes 3), so current_step in the DB
+  // always reflects where they actually left off, not a hardcoded step.
+  const persistProgress = async (nextStep) => {
     const incidentId = editId || liveIncidentId;
     if (!incidentId) return;
 
     const uploadedFiles = await uploadFiles();
-    const updateData = { ...formData };
+    const updateData = { ...formData, currentStep: nextStep };
 
     if (uploadedFiles.length > 0) {
       updateData.files = [...(formData.files || []), ...uploadedFiles];
@@ -360,7 +397,8 @@ const IncidentReportFormPage = () => {
 
     if (uploadedFiles.length > 0) {
       setFormData((prev) => ({ ...prev, files: updateData.files }));
-      setFiles([]);
+      setArrivalFiles([]);
+      setDropoffFiles([]);
     }
   };
 
@@ -425,7 +463,7 @@ const IncidentReportFormPage = () => {
 
     setLoading(true);
     try {
-      await persistProgress();
+      await persistProgress(3);
       setCurrentStep(3);
     } catch (error) {
       console.error("Error saving On Scene details:", error);
@@ -441,7 +479,7 @@ const IncidentReportFormPage = () => {
 
     setLoading(true);
     try {
-      await persistProgress();
+      await persistProgress(4);
       setCurrentStep(4);
     } catch (error) {
       console.error("Error saving Drop-Off Sheet details:", error);
@@ -461,7 +499,7 @@ const IncidentReportFormPage = () => {
     try {
       const uploadedFiles = await uploadFiles();
       const signatureUrl = await uploadSignatureIfNeeded();
-      const updateData = { ...formData, signatureUrl };
+      const updateData = { ...formData, signatureUrl, currentStep };
 
       if (uploadedFiles.length > 0) {
         updateData.files = [...(formData.files || []), ...uploadedFiles];
@@ -571,7 +609,8 @@ const IncidentReportFormPage = () => {
 
         // Reset form
         setFormData(emptyFormData(userProfile));
-        setFiles([]);
+        setArrivalFiles([]);
+        setDropoffFiles([]);
         setSourceOtherMode(false);
       }
     } catch (error) {
@@ -604,76 +643,86 @@ const IncidentReportFormPage = () => {
     </div>
   );
 
-  const renderFileUpload = (inputId, label = "Upload Files") => (
-    <div>
-      <label className="label">
-        <span className="label-text font-semibold">{label}</span>
-      </label>
-      <div
-        className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-brand-400 transition-colors"
-        onDragOver={handleDragOver}
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <input
-          type="file"
-          multiple
-          onChange={handleFileSelect}
-          className="hidden"
-          id={inputId}
-          accept="image/*,video/*,.pdf"
-        />
-        <label htmlFor={inputId} className="cursor-pointer">
-          <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-brand-600 font-semibold mb-1">Browse Files</p>
-          <p className="text-gray-500 text-sm">Drag and drop files here</p>
+  // stage is "arrival" (Step 2) or "dropoff" (Step 3) — each gets its own
+  // saved-files filter and its own new-files staging array so the two boxes
+  // never show each other's attachments.
+  const renderFileUpload = (inputId, label, stage) => {
+    const savedForStage = (formData.files || [])
+      .map((file, index) => ({ file, index }))
+      .filter(({ file }) => file.stage === stage);
+    const newForStage = filesForStage(stage);
+
+    return (
+      <div>
+        <label className="label">
+          <span className="label-text font-semibold">{label}</span>
         </label>
+        <div
+          className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-brand-400 transition-colors"
+          onDragOver={handleDragOver}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, stage)}
+        >
+          <input
+            type="file"
+            multiple
+            onChange={(e) => handleFileSelect(e, stage)}
+            className="hidden"
+            id={inputId}
+            accept="image/*,video/*,.pdf"
+          />
+          <label htmlFor={inputId} className="cursor-pointer">
+            <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-brand-600 font-semibold mb-1">Browse Files</p>
+            <p className="text-gray-500 text-sm">Drag and drop files here</p>
+          </label>
 
-        {formData.files?.length > 0 && (
-          <div className="mt-4 space-y-2">
-            <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Saved files</p>
-            {formData.files.map((file, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between bg-blue-50 p-2 rounded"
-              >
-                <span className="text-sm text-gray-700 truncate">{file.fileName}</span>
-                <button
-                  type="button"
-                  onClick={() => removeExistingFile(index)}
-                  className="text-red-500 hover:text-red-700 shrink-0 ml-2"
+          {savedForStage.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Saved files</p>
+              {savedForStage.map(({ file, index }) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between bg-blue-50 p-2 rounded"
                 >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+                  <span className="text-sm text-gray-700 truncate">{file.fileName}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeExistingFile(index)}
+                    className="text-red-500 hover:text-red-700 shrink-0 ml-2"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
 
-        {files.length > 0 && (
-          <div className="mt-4 space-y-2">
-            {formData.files?.length > 0 && <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">New files</p>}
-            {files.map((file, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between bg-gray-50 p-2 rounded"
-              >
-                <span className="text-sm text-gray-700">{file.name}</span>
-                <button
-                  type="button"
-                  onClick={() => removeFile(index)}
-                  className="text-red-500 hover:text-red-700"
+          {newForStage.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {savedForStage.length > 0 && <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">New files</p>}
+              {newForStage.map((file, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between bg-gray-50 p-2 rounded"
                 >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+                  <span className="text-sm text-gray-700">{file.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeFile(stage, index)}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Step 1 — Start Job
   const renderStep1 = () => (
@@ -1017,7 +1066,7 @@ const IncidentReportFormPage = () => {
               </div>
             </div>
 
-            {renderFileUpload("file-upload-step2", "Arrival Images/Videos")}
+            {renderFileUpload("file-upload-step2", "Arrival Images", "arrival")}
 
             {/* Time Cleared */}
             <div>
@@ -1356,7 +1405,7 @@ const IncidentReportFormPage = () => {
         </div>
       </div>
 
-      {renderFileUpload("file-upload-step3")}
+      {renderFileUpload("file-upload-step3", "Unloaded Images", "dropoff")}
 
       {/* Submit Buttons */}
       <div className="flex justify-between gap-4 mt-8 pt-6 border-t">

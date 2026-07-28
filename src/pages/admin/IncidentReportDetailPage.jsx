@@ -380,25 +380,31 @@ const IncidentReportDetailPage = () => {
           </div>
 
           {/* Files */}
-          {report.files && report.files.length > 0 && (
-            <div className="mb-8 pb-8 border-b">
-              <h4 className="text-lg font-bold text-gray-800 mb-4">Attached Files</h4>
-              <div className="space-y-2">
-                {report.files.map((file, index) => (
-                  <a
-                    key={index}
-                    href={file.downloadUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                  >
-                    <FileText className="w-5 h-5 text-teal-600" />
-                    <span className="text-sm font-medium text-gray-800">{file.fileName}</span>
-                  </a>
-                ))}
+          {[
+            { title: "Arrival Images", files: (report.files || []).filter((f) => f.stage === "arrival") },
+            { title: "Unloaded Images", files: (report.files || []).filter((f) => f.stage === "dropoff") },
+            { title: "Other Attachments", files: (report.files || []).filter((f) => !f.stage) },
+          ]
+            .filter((section) => section.files.length > 0)
+            .map((section) => (
+              <div key={section.title} className="mb-8 pb-8 border-b">
+                <h4 className="text-lg font-bold text-gray-800 mb-4">{section.title}</h4>
+                <div className="space-y-2">
+                  {section.files.map((file, index) => (
+                    <a
+                      key={index}
+                      href={file.downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      <FileText className="w-5 h-5 text-teal-600" />
+                      <span className="text-sm font-medium text-gray-800">{file.fileName}</span>
+                    </a>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            ))}
 
           {/* Submission Information */}
           <div className="bg-gray-50 rounded-lg p-6">

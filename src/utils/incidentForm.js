@@ -95,7 +95,8 @@ export const VEHICLE_ALLOCATED_OPTIONS = [
   "Light Recovery",
   "Heavy Recovery",
   "IPV",
-  "Motorbike", 
+  "Police",
+  "Motorbike",
 ];
 
 export const VEHICLE_TRANSMISSION_OPTIONS = [

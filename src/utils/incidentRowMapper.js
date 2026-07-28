@@ -16,7 +16,7 @@ export const fromIncidentRow = (row) => {
     storage_email, property_removed, vehicle_outcome, service_acceptance,
     name, satisfaction_confirmed, signature_url, time_spotted_to_on,
     time_onsite_to_cleared, scheme_id, scheme_ids, reference_id,
-    submitted_by_user_id, submitted_by_name, status, is_pure_incident,
+    submitted_by_user_id, submitted_by_name, status, current_step, is_pure_incident,
     has_video, files, created_at, updated_at, edit_history,
     last_edited_by_user_id, last_edited_by_name,
   } = row;
@@ -46,7 +46,8 @@ export const fromIncidentRow = (row) => {
     submittedBy: submitted_by_user_id || submitted_by_name
       ? { userId: submitted_by_user_id, name: submitted_by_name }
       : null,
-    status, isPureIncident: is_pure_incident, hasVideo: has_video, files,
+    status, currentStep: current_step,
+    isPureIncident: is_pure_incident, hasVideo: has_video, files,
     createdAt: created_at, updatedAt: updated_at,
     editHistory: edit_history || [],
     lastEditedBy: last_edited_by_user_id || last_edited_by_name
@@ -81,6 +82,7 @@ export const toIncidentRow = (formData) => {
     name: "name", satisfactionConfirmed: "satisfaction_confirmed",
     signatureUrl: "signature_url", timeSpottedToOn: "time_spotted_to_on",
     timeOnsiteToCleared: "time_onsite_to_cleared", files: "files",
+    status: "status", currentStep: "current_step",
   };
 
   const row = {};

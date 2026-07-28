@@ -1,5 +1,5 @@
 import SignUpForm from '../../components/auth/SignUpForm';
-import heroImage from "../../assets/signbg.jpg";
+import heroImage from "../../assets/k2recovery.jpg";
 import logomarkdark from "../../assets/k2logo.svg";
 
 const SignUpPage = () => {

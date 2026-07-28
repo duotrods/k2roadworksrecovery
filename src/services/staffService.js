@@ -1036,7 +1036,7 @@ class StaffService {
   // Firestore path above: schemeScope (array-overlap on scheme_ids) when
   // given, otherwise excludeDemo (no cache needed — Supabase counts are
   // cheap, unlike Firestore's billed-per-read aggregation queries).
-  async getSupabaseCount(tableName, { schemeScope = null, excludeDemo = false } = {}) {
+  async getSupabaseCount(tableName, { schemeScope = null, excludeDemo = false, filter = null } = {}) {
     try {
       let q = supabase.from(tableName).select("*", { count: "exact", head: true });
       if (schemeScope && schemeScope.length > 0) {
@@ -1044,6 +1044,7 @@ class StaffService {
       } else if (excludeDemo) {
         q = q.neq("scheme_id", DEMO_SCHEME_ID);
       }
+      if (filter) q = filter(q);
       const { count, error } = await q;
       if (error) throw error;
       return count || 0;
@@ -1051,6 +1052,29 @@ class StaffService {
       console.warn(`Could not get Supabase count for ${tableName}:`, error);
       return 0;
     }
+  }
+
+  // Recovery-type breakdown for the staff dashboard cards, driven by the
+  // Incident Report's Step 1 "Vehicle Allocated" field. Police Recovery is
+  // the odd one out: it counts jobs where either Source of Call or Vehicle
+  // Allocated is "Police" (a job can be police-sourced but sent a different
+  // vehicle type, and should still show up here).
+  async getIncidentVehicleAllocatedCounts(schemeScope = null) {
+    const countFn = (filter) =>
+      this.getSupabaseCount("incident_reports", {
+        schemeScope,
+        excludeDemo: true,
+        filter,
+      });
+
+    const [ipv, lightRecovery, heavyRecovery, policeRecovery] = await Promise.all([
+      countFn((q) => q.eq("vehicle_allocated", "IPV")),
+      countFn((q) => q.eq("vehicle_allocated", "Light Recovery")),
+      countFn((q) => q.eq("vehicle_allocated", "Heavy Recovery")),
+      countFn((q) => q.or("job_source.eq.Police,vehicle_allocated.eq.Police")),
+    ]);
+
+    return { ipv, lightRecovery, heavyRecovery, policeRecovery };
   }
 
   /**
@@ -1083,16 +1107,21 @@ class StaffService {
     try {
       const countFn = (col) => this.countForScope(col, schemeScope);
 
-      const [incidentCount, cabinSafetyCount, vehicleCheckCount] =
+      const [incidentCount, cabinSafetyCount, vehicleCheckCount, vehicleAllocated] =
         await Promise.all([
           countFn("incidentReports"),
           countFn("cabinHealthSafetyChecks"),
           countFn("vehicleDailyChecks"),
+          this.getIncidentVehicleAllocatedCounts(schemeScope),
         ]);
       return {
         incidentReportTotal: incidentCount,
         cabinSafetyTotal: cabinSafetyCount,
         vehicleCheckTotal: vehicleCheckCount,
+        ipvRecoveryTotal: vehicleAllocated.ipv,
+        lightRecoveryTotal: vehicleAllocated.lightRecovery,
+        heavyRecoveryTotal: vehicleAllocated.heavyRecovery,
+        policeRecoveryTotal: vehicleAllocated.policeRecovery,
       };
     } catch (error) {
       console.warn("Could not get forms count by type:", error);
@@ -1100,6 +1129,10 @@ class StaffService {
         incidentReportTotal: 0,
         cabinSafetyTotal: 0,
         vehicleCheckTotal: 0,
+        ipvRecoveryTotal: 0,
+        lightRecoveryTotal: 0,
+        heavyRecoveryTotal: 0,
+        policeRecoveryTotal: 0,
       };
     }
   }
