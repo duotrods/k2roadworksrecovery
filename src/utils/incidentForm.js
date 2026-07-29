@@ -85,7 +85,6 @@ export const CHECK_ITEMS = [
 // Placeholder options for the Step 1 "Source of Call" drop-down. "Other"
 // reveals a free-text box in the form itself.
 export const SOURCE_OF_CALL_OPTIONS = [
-  "Police",
   "Highways England",
   "Customer",
   "Control Room",
@@ -95,7 +94,6 @@ export const VEHICLE_ALLOCATED_OPTIONS = [
   "Light Recovery",
   "Heavy Recovery",
   "IPV",
-  "Police",
   "Motorbike",
 ];
 

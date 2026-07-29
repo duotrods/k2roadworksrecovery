@@ -22,8 +22,8 @@ import {
   Radio,
   Eye,
   Wrench,
-  ShieldAlert,
-  TriangleAlert,
+  Truck,
+  Car,
   Clock,
 } from "lucide-react";
 import { SCHEMES } from "../../utils/schemes";
@@ -36,19 +36,19 @@ import { jsPDF } from "jspdf";
 import toast from "react-hot-toast";
 
 const commonChartProps = {
-  cartesianGrid: { strokeDasharray: "3 3", stroke: "#17af93" },
+  cartesianGrid: { strokeDasharray: "3 3", stroke: "#0865ad" },
   xAxis: { tick: { fontSize: 13 } },
   yAxis: { tick: { fontSize: 13 } },
   tooltip: {
     contentStyle: {
       backgroundColor: "#fff",
-      border: "1px solid #17af93",
+      border: "1px solid #0865ad",
       borderRadius: "8px",
     },
     labelStyle: { fontWeight: "bold" },
   },
   legend: { wrapperStyle: { paddingTop: "20px" } },
-  bar: { fill: "#17af93", radius: [8, 8, 0, 0] },
+  bar: { fill: "#0865ad", radius: [8, 8, 0, 0] },
 };
 
 const ChartCard = memo(
@@ -317,59 +317,65 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
     [incidents, openDrillDown],
   );
 
+  // Same 5 cards (title + underlying metric) as the staff dashboard's KPI
+  // row, scoped here to this client's own scheme and selected date range
+  // instead of a fixed week.
   const statsCards = [
     {
-      title: "Total Incidents",
-      value: loading ? "..." : (stats?.totalIncidents || 0).toString(),
-      text: "Total incidents excluding Free Recovery, Drive off and Incursions.",
+      title: "Total Vehicle Dispatched",
+      value: loading ? "..." : (stats?.vehiclesDispatched || 0).toString(),
       icon: AlertTriangle,
-      color: "text-orange-500",
-      bgColor: "bg-orange-50",
-      filter: () =>
-        incidents.filter((i) => {
-          const c = incidentClassification(i);
-          return c !== "Free Recovery" && c !== "Drive Off" && c !== "Incursion";
-        }),
+      filter: () => incidents.filter((i) => i.vehicleAllocated),
     },
     {
-      title: "Asset Damage",
-      value: loading ? "..." : (stats?.assetDamage || 0).toString(),
-      text: "Total number of incidents classified as Asset Damage.",
-      icon: TriangleAlert,
-      color: "text-yellow-500",
-      bgColor: "bg-yellow-50",
-      filter: () =>
-        incidents.filter((i) => incidentClassification(i) === "Asset Damage"),
+      title: "IPV Recovery",
+      value: loading
+        ? "..."
+        : (Number(stats?.vehicleTypesDispatched?.["IPV"]) || 0).toString(),
+      icon: Truck,
+      filter: () => incidents.filter((i) => i.vehicleAllocated === "IPV"),
     },
     {
-      title: "Free Recovery",
+      title: "Police On Scene",
+      value: loading
+        ? "..."
+        : (Number(stats?.emergencyServices?.["Police on scene"]) || 0).toString(),
+      icon: Truck,
+      filter: () => incidents.filter((i) => i.policeOnScene),
+    },
+    {
+      title: "Light Recovery",
       value: loading
         ? "..."
         : (
-            (Number(stats?.incidentsByType?.["Free Recovery"]) || 0) +
-            (Number(stats?.incidentsByType?.["Drive Off"]) || 0)
+            Number(stats?.vehicleTypesDispatched?.["Light Recovery"]) || 0
           ).toString(),
-      text: "Total number of free recovery incidents within the scheme.",
-      icon: Wrench,
-      color: "text-green-500",
-      bgColor: "bg-green-50",
+      icon: Car,
       filter: () =>
-        incidents.filter((i) => {
-          const c = incidentClassification(i);
-          return c === "Free Recovery" || c === "Drive Off";
-        }),
+        incidents.filter((i) => i.vehicleAllocated === "Light Recovery"),
     },
     {
-      title: "Incursions",
-      value: loading ? "..." : (stats?.incursions || 0).toString(),
-      text: "Total number of incursions recorded within the scheme.",
-      icon: ShieldAlert,
-      color: "text-red-500",
-      bgColor: "bg-red-50",
+      title: "Heavy Recovery",
+      value: loading
+        ? "..."
+        : (
+            Number(stats?.vehicleTypesDispatched?.["Heavy Recovery"]) || 0
+          ).toString(),
+      icon: Truck,
       filter: () =>
-        incidents.filter((i) => incidentClassification(i) === "Incursion"),
+        incidents.filter((i) => i.vehicleAllocated === "Heavy Recovery"),
     },
   ];
+
+  // Compact label for the selected date range, shown as the KPI card subtitle
+  // in place of a fixed period like the staff dashboard's "This week" — the
+  // client dashboard's counts are already scoped by this range.
+  const formatShortDate = (d) =>
+    d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const periodLabel = `${formatShortDate(dateRange[0].startDate)} – ${dateRange[0].endDate.toLocaleDateString(
+    "en-GB",
+    { day: "numeric", month: "short", year: "numeric" },
+  )}`;
 
   // Helper function to draw a bar chart in PDF
   const drawBarChart = (pdf, data, title, x, y, width, height) => {
@@ -625,57 +631,78 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
         {statsCards.map((stat, index) => (
           <div
             key={index}
-            className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer"
+            role="button"
+            tabIndex={0}
+            className="bg-white rounded-xl shadow-lg p-7 hover:shadow-xl transition-shadow cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500"
             onClick={() => {
               const filtered = stat.filter();
               if (filtered.length)
                 openDrillDown({ title: stat.title, incidents: filtered });
             }}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" && e.key !== " ") return;
+              e.preventDefault();
+              const filtered = stat.filter();
+              if (filtered.length)
+                openDrillDown({ title: stat.title, incidents: filtered });
+            }}
           >
-            <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
-              <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                <stat.icon className={`w-8 h-8 ${stat.color}`} />
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
+                <stat.icon className="w-5 h-5 text-white" />
               </div>
-              <h6 className="font-semibold text-gray-500 mb-1">{stat.title}</h6>
+              <h6 className="text-sm font-medium text-gray-600 leading-tight">
+                {stat.title}
+              </h6>
             </div>
-            <span className="text-2xl font-bold text-gray-800 pl-2">
-              {stat.value}
-            </span>
-            <p className="text-sm text-gray-500 mt-2">{stat.text}</p>
+            <div className="mt-2">
+              <span className="text-4xl font-bold text-gray-800">
+                {stat.value}
+              </span>
+              <p className="text-sm text-gray-400 mt-1">{periodLabel}</p>
+            </div>
           </div>
         ))}
       </div>
 
       {/* Metric Cards Row 2 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-        <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-          <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
-            <div className="p-3 rounded-lg bg-brand-50">
-              <Clock className="w-8 h-8 text-brand-500" />
+        <div className="bg-white rounded-xl shadow-lg p-7 hover:shadow-xl transition-shadow">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
+              <Clock className="w-5 h-5 text-white" />
             </div>
-            <h6 className="font-semibold text-gray-500 mb-1">Avg Time to Site</h6>
+            <h6 className="text-sm font-medium text-gray-600 leading-tight">
+              Avg Time to Site
+            </h6>
           </div>
-          <span className="text-2xl font-bold text-gray-800 pl-2">
-            {loading ? "..." : `${stats?.avgTimeToSite ?? 0} mins`}
-          </span>
-          <p className="text-sm text-gray-500 mt-2">Average response time from incident spotted to unit on site.</p>
+          <div className="mt-2">
+            <span className="text-4xl font-bold text-gray-800">
+              {loading ? "..." : `${stats?.avgTimeToSite ?? 0} mins`}
+            </span>
+            <p className="text-sm text-gray-400 mt-1">{periodLabel}</p>
+          </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-          <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
-            <div className="p-3 rounded-lg bg-blue-50">
-              <Wrench className="w-8 h-8 text-blue-500" />
+        <div className="bg-white rounded-xl shadow-lg p-7 hover:shadow-xl transition-shadow">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
+              <Wrench className="w-5 h-5 text-white" />
             </div>
-            <h6 className="font-semibold text-gray-500 mb-1">Avg Time to Recover</h6>
+            <h6 className="text-sm font-medium text-gray-600 leading-tight">
+              Avg Time to Recover
+            </h6>
           </div>
-          <span className="text-2xl font-bold text-gray-800 pl-2">
-            {loading ? "..." : `${stats?.avgTimeToRecover ?? 0} mins`}
-          </span>
-          <p className="text-sm text-gray-500 mt-2">Average time from unit on site to incident cleared.</p>
+          <div className="mt-2">
+            <span className="text-4xl font-bold text-gray-800">
+              {loading ? "..." : `${stats?.avgTimeToRecover ?? 0} mins`}
+            </span>
+            <p className="text-sm text-gray-400 mt-1">{periodLabel}</p>
+          </div>
         </div>
       </div>
 
@@ -868,7 +895,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
               </BarChart>
             </ChartCard>
 
-            <ChartCard title="Incursions">
+            {/* <ChartCard title="Incursions">
               <BarChart
                 data={incursionsData}
                 onClick={(d) =>
@@ -883,11 +910,11 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
                 <Legend {...commonChartProps.legend} />
                 <Bar dataKey="Number" {...commonChartProps.bar} />
               </BarChart>
-            </ChartCard>
+            </ChartCard> */}
           </div>
 
           {/* Full Width: Incidents Over Time */}
-          <div className="mb-8">
+          <div className="">
             <ChartCard title="Incidents Over Time" fullWidth height={350}>
               <BarChart
                 data={
@@ -896,19 +923,19 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
                     : [{ name: "No Data", Number: 0 }]
                 }
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#17af93" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#0865ad" />
                 <XAxis dataKey="name" tick={{ fontSize: 13 }} />
                 <YAxis tick={{ fontSize: 13 }} />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: "#fff",
-                    border: "1px solid #17af93",
+                    border: "1px solid #0865ad",
                     borderRadius: "8px",
                   }}
                   labelStyle={{ fontWeight: "bold" }}
                 />
                 <Legend wrapperStyle={{ paddingTop: "20px" }} />
-                <Bar dataKey="Number" fill="#17af93" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="Number" fill="#0865ad" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ChartCard>
           </div>

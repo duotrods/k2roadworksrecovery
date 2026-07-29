@@ -41,6 +41,38 @@ const seedChecks = () =>
     status: emptyStatus(),
   }));
 
+// The grid's day columns (DAY_LABELS) are Monday-first, so weekCommencing
+// must actually be a Monday for the future-day math below to line up —
+// default new sheets to the current week's Monday rather than "today".
+const getMostRecentMonday = (date = new Date()) => {
+  const d = new Date(date);
+  const day = d.getDay(); // 0=Sun, 1=Mon, ... 6=Sat
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const parseBritishDate = (str) => {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(str || "");
+  if (!match) return null;
+  const [, dd, mm, yyyy] = match;
+  const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+// Whether `day` (a DAYS_OF_WEEK key) falls after today, given the sheet's
+// week-commencing date — used to lock and auto-mark days that haven't
+// happened yet as N/A.
+const isFutureDay = (weekCommencing, day) => {
+  const monday = parseBritishDate(weekCommencing);
+  if (!monday) return false;
+  const dayDate = new Date(monday);
+  dayDate.setDate(dayDate.getDate() + DAYS_OF_WEEK.indexOf(day));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return dayDate > today;
+};
+
 const VehicleDailyCheckFormPage = () => {
   const navigate = useNavigate();
   const { userProfile, role } = useAuth();
@@ -58,7 +90,7 @@ const VehicleDailyCheckFormPage = () => {
   };
 
   const [formData, setFormData] = useState({
-    weekCommencing: formatDateToBritish(new Date()),
+    weekCommencing: formatDateToBritish(getMostRecentMonday()),
     driversName: userProfile?.displayName || "",
     vehicleTypeReg: "",
     mileage: "",
@@ -69,6 +101,27 @@ const VehicleDailyCheckFormPage = () => {
     supervisorSignature: "",
     date: formatDateToBritish(new Date()),
   });
+
+  // Today and past days default to OK to save time (most checks pass);
+  // future days are left blank since they haven't happened yet.
+  useEffect(() => {
+    setFormData((prev) => {
+      let changed = false;
+      const checks = prev.checks.map((row) => {
+        let rowChanged = false;
+        const status = { ...row.status };
+        DAYS_OF_WEEK.forEach((day) => {
+          if (!isFutureDay(prev.weekCommencing, day) && status[day] === "") {
+            status[day] = "ok";
+            rowChanged = true;
+          }
+        });
+        if (rowChanged) changed = true;
+        return rowChanged ? { ...row, status } : row;
+      });
+      return changed ? { ...prev, checks } : prev;
+    });
+  }, [formData.weekCommencing]);
 
   useEffect(() => {
     if (editId) {
@@ -165,7 +218,7 @@ const VehicleDailyCheckFormPage = () => {
         toast.success("Vehicle Daily Check submitted successfully!");
 
         setFormData({
-          weekCommencing: formatDateToBritish(new Date()),
+          weekCommencing: formatDateToBritish(getMostRecentMonday()),
           driversName: userProfile?.displayName || "",
           vehicleTypeReg: "",
           mileage: "",

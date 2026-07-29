@@ -71,3 +71,4 @@ migrate-roles-consolidation.js
 /graphify-out
 .vercel
 .env*
+.superpowers/

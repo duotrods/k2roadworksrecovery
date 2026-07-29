@@ -1054,27 +1054,41 @@ class StaffService {
     }
   }
 
+  // Start of the current week (Sunday 00:00, local time) — same Sunday-start
+  // convention as clientDataService.getWeekStart, but zeroed to midnight since
+  // this drives an exact date-range filter rather than chart bucketing.
+  getWeekStartISO() {
+    const d = new Date();
+    d.setDate(d.getDate() - d.getDay());
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString();
+  }
+
   // Recovery-type breakdown for the staff dashboard cards, driven by the
-  // Incident Report's Step 1 "Vehicle Allocated" field. Police Recovery is
-  // the odd one out: it counts jobs where either Source of Call or Vehicle
-  // Allocated is "Police" (a job can be police-sourced but sent a different
-  // vehicle type, and should still show up here).
+  // Incident Report's Step 1 "Vehicle Allocated" field, scoped to the
+  // current week so the cards read as "what's happened so far this week"
+  // rather than an ever-growing all-time total. Police On Scene is the odd
+  // one out: it counts jobs where the Step 2 "Police on scene" checkbox
+  // (police_on_scene) was ticked, regardless of vehicle allocated.
   async getIncidentVehicleAllocatedCounts(schemeScope = null) {
+    const weekStart = this.getWeekStartISO();
     const countFn = (filter) =>
       this.getSupabaseCount("incident_reports", {
         schemeScope,
         excludeDemo: true,
-        filter,
+        filter: (q) => filter(q.gte("created_at", weekStart)),
       });
 
-    const [ipv, lightRecovery, heavyRecovery, policeRecovery] = await Promise.all([
-      countFn((q) => q.eq("vehicle_allocated", "IPV")),
-      countFn((q) => q.eq("vehicle_allocated", "Light Recovery")),
-      countFn((q) => q.eq("vehicle_allocated", "Heavy Recovery")),
-      countFn((q) => q.or("job_source.eq.Police,vehicle_allocated.eq.Police")),
-    ]);
+    const [dispatchedThisWeek, ipv, lightRecovery, heavyRecovery, policeOnScene] =
+      await Promise.all([
+        countFn((q) => q),
+        countFn((q) => q.eq("vehicle_allocated", "IPV")),
+        countFn((q) => q.eq("vehicle_allocated", "Light Recovery")),
+        countFn((q) => q.eq("vehicle_allocated", "Heavy Recovery")),
+        countFn((q) => q.eq("police_on_scene", true)),
+      ]);
 
-    return { ipv, lightRecovery, heavyRecovery, policeRecovery };
+    return { dispatchedThisWeek, ipv, lightRecovery, heavyRecovery, policeOnScene };
   }
 
   /**
@@ -1118,10 +1132,11 @@ class StaffService {
         incidentReportTotal: incidentCount,
         cabinSafetyTotal: cabinSafetyCount,
         vehicleCheckTotal: vehicleCheckCount,
+        dispatchedThisWeekTotal: vehicleAllocated.dispatchedThisWeek,
         ipvRecoveryTotal: vehicleAllocated.ipv,
         lightRecoveryTotal: vehicleAllocated.lightRecovery,
         heavyRecoveryTotal: vehicleAllocated.heavyRecovery,
-        policeRecoveryTotal: vehicleAllocated.policeRecovery,
+        policeOnSceneTotal: vehicleAllocated.policeOnScene,
       };
     } catch (error) {
       console.warn("Could not get forms count by type:", error);
@@ -1129,10 +1144,11 @@ class StaffService {
         incidentReportTotal: 0,
         cabinSafetyTotal: 0,
         vehicleCheckTotal: 0,
+        dispatchedThisWeekTotal: 0,
         ipvRecoveryTotal: 0,
         lightRecoveryTotal: 0,
         heavyRecoveryTotal: 0,
-        policeRecoveryTotal: 0,
+        policeOnSceneTotal: 0,
       };
     }
   }

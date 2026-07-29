@@ -45,7 +45,9 @@ const seedChecklist = () =>
   CABIN_SAFETY_QUESTIONS.map(({ section, question }) => ({
     section,
     question,
-    answer: "",
+    // Defaults to "N/A" to save time — staff only need to flip the items
+    // that actually apply to "Yes"/"No" rather than fill in all 22.
+    answer: "N/A",
     comments: "",
     actionOwner: "",
     completed: "",
@@ -190,9 +192,9 @@ const CabinSafetyCheckFormPage = () => {
           onSubmit={handleSubmit}
           className="bg-white rounded-xl shadow-md p-8"
         >
-          <div className="flex justify-center items-center space-x-2 mb-8">
+          {/* <div className="flex justify-center items-center space-x-2 mb-8">
             <img src={chellanlogo} alt="MyApp Logo" className="h-25 w-auto" />
-          </div>
+          </div> */}
 
           {/* Header Fields */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -248,7 +250,9 @@ const CabinSafetyCheckFormPage = () => {
                 maxLength={100}
               />
             </div>
-            <div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+             <div>
               <label className="label">
                 <span className="label-text font-semibold mb-2">
                   Inspection Date (DD/MM/YYYY){" "}
@@ -290,6 +294,7 @@ const CabinSafetyCheckFormPage = () => {
               </select>
             </div>
           </div>
+          
 
           {/* Checklist sections */}
           {CABIN_SAFETY_SECTIONS.map((sectionName) => (

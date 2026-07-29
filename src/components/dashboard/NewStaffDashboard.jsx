@@ -37,43 +37,45 @@ const NewStaffDashboard = () => {
     }
   };
 
+  // All cards share one brand color now (icon + label carry the distinction) —
+  // color is kept free for status/alert states instead of decoration.
   const statCards = [
     {
-      title: "Total Incident",
-      count: stats?.incidentReportTotal || 0,
-      subtitle: "Total Submissions",
+      title: "Total Vehicle Dispatched",
+      count: stats?.dispatchedThisWeekTotal || 0,
       icon: AlertTriangle,
-      color: "from-amber-400 to-amber-500",
     },
     {
       title: "IPV Recovery",
       count: stats?.ipvRecoveryTotal || 0,
-      subtitle: "Total Submissions",
       icon: Truck,
-      color: "from-blue-500 to-blue-600",
-    },
-    {
-      title: "Police Recovery",
-      count: stats?.policeRecoveryTotal || 0,
-      subtitle: "Total Submissions",
-      icon: Truck,
-      color: "from-blue-500 to-blue-600",
     },
     {
       title: "Light Recovery",
       count: stats?.lightRecoveryTotal || 0,
-      subtitle: "Total Submissions",
       icon: Car,
-      color: "from-teal-500 to-teal-600",
     },
     {
       title: "Heavy Recovery",
       count: stats?.heavyRecoveryTotal || 0,
-      subtitle: "Total Submissions",
       icon: Truck,
-      color: "from-pink-500 to-pink-600",
+    },
+     {
+      title: "Police On Scene",
+      count: stats?.policeOnSceneTotal || 0,
+      icon: Truck,
     },
   ];
+
+  // Whole CTA cards are clickable (not just the button inside them); this
+  // keeps them keyboard-operable too.
+  const goTo = (path) => navigate(path);
+  const handleCardKeyDown = (e, path) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      goTo(path);
+    }
+  };
 
   const handleCloseNoticeBoard = () => {
     // Mark notice board as seen in this session
@@ -105,13 +107,11 @@ const NewStaffDashboard = () => {
               {statCards.map((card, index) => (
                 <div
                   key={index}
-                  className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow"
+                  className="bg-white rounded-xl shadow-md p-7 hover:shadow-lg transition-shadow"
                 >
-                  <div className="flex items-center gap-3 mb-4">
-                    <div
-                      className={`w-9 h-9 rounded-lg bg-linear-to-br ${card.color} flex items-center justify-center shrink-0`}
-                    >
-                      <card.icon className="w-4 h-4 text-white" />
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="w-10 h-10 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
+                      <card.icon className="w-5 h-5 text-white" />
                     </div>
                     <h5 className="text-sm font-medium text-gray-600 leading-tight">
                       {card.title}
@@ -119,24 +119,30 @@ const NewStaffDashboard = () => {
                   </div>
 
                   <div className="mt-2">
-                    <span className="text-3xl font-bold text-gray-800">
+                    <span className="text-4xl font-bold text-gray-800">
                       {card.count}
                     </span>
-                    <p className="text-sm text-gray-400 mt-1">{card.subtitle}</p>
+                    <p className="text-sm text-gray-400 mt-1">This week</p>
                   </div>
                 </div>
               ))}
             </div>
 
             {/* New Job Sheet CTA */}
-            <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => goTo(`${basePath}/forms/incident-report`)}
+              onKeyDown={(e) => handleCardKeyDown(e, `${basePath}/forms/incident-report`)}
+              className="bg-white rounded-xl shadow-md p-5 hover:shadow-lg transition-shadow cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
               <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
-                    <FilePlus className="w-6 h-6 text-white" />
+                  <div className="w-11 h-11 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
+                    <FilePlus className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-800">
+                    <h3 className="text-base font-semibold text-gray-800">
                       Create a new Job Sheet
                     </h3>
                     <p className="text-sm text-gray-500">
@@ -145,7 +151,10 @@ const NewStaffDashboard = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => navigate(`${basePath}/forms/incident-report`)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`${basePath}/forms/incident-report`);
+                  }}
                   className="px-6 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 transition-colors font-semibold flex items-center gap-2 shrink-0"
                 >
                   + New Job Sheet
@@ -155,14 +164,20 @@ const NewStaffDashboard = () => {
             </div>
 
             {/* New Cabin H&S Check CTA */}
-            <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow mt-6">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => goTo(`${basePath}/forms/cabin-safety-check`)}
+              onKeyDown={(e) => handleCardKeyDown(e, `${basePath}/forms/cabin-safety-check`)}
+              className="bg-white rounded-xl shadow-md p-5 hover:shadow-lg transition-shadow cursor-pointer mt-4 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
               <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-lg bg-green-500 flex items-center justify-center shrink-0">
-                    <ShieldCheck className="w-6 h-6 text-white" />
+                  <div className="w-11 h-11 rounded-lg bg-green-500 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-800">
+                    <h3 className="text-base font-semibold text-gray-800">
                       Create a new Cabin H&S Check
                     </h3>
                     <p className="text-sm text-gray-500">
@@ -171,7 +186,10 @@ const NewStaffDashboard = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => navigate(`${basePath}/forms/cabin-safety-check`)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`${basePath}/forms/cabin-safety-check`);
+                  }}
                   className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-semibold flex items-center gap-2 shrink-0"
                 >
                   + New Cabin H&S Check
@@ -181,14 +199,20 @@ const NewStaffDashboard = () => {
             </div>
 
             {/* New Vehicle Check CTA */}
-            <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow mt-6">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => goTo(`${basePath}/forms/vehicle-daily-check`)}
+              onKeyDown={(e) => handleCardKeyDown(e, `${basePath}/forms/vehicle-daily-check`)}
+              className="bg-white rounded-xl shadow-md p-5 hover:shadow-lg transition-shadow cursor-pointer mt-4 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
               <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-lg bg-amber-500 flex items-center justify-center shrink-0">
-                    <Car className="w-6 h-6 text-white" />
+                  <div className="w-11 h-11 rounded-lg bg-amber-500 flex items-center justify-center shrink-0">
+                    <Car className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-800">
+                    <h3 className="text-base font-semibold text-gray-800">
                       Create a new Vehicle Check
                     </h3>
                     <p className="text-sm text-gray-500">
@@ -197,7 +221,10 @@ const NewStaffDashboard = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => navigate(`${basePath}/forms/vehicle-daily-check`)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`${basePath}/forms/vehicle-daily-check`);
+                  }}
                   className="px-6 py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-semibold flex items-center gap-2 shrink-0"
                 >
                   + New Vehicle Check

@@ -102,7 +102,7 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
             </Link>
           ) : (
             <Link to={basePath} className="flex items-center justify-center">
-              <img src={k2icon} alt="L" className="h-8 w-8 object-contain" />
+              <img src={k2icon} alt="K@" className="h-8 w-8 object-contain" />
             </Link>
           )}
         </div>

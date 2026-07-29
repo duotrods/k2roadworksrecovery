@@ -32,10 +32,8 @@ const DrillDownSidebar = ({ drillDown, onClose, onNavigate }) => {
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between px-6 py-5 shrink-0"
-          style={{
-            background: "linear-gradient(135deg, #0f766e 0%, #17af93 100%)",
-          }}
+          className="flex items-cente bg-brand-500 justify-between px-6 py-5 shrink-0"
+         
         >
           <div className="flex items-center gap-3">
             <div
@@ -78,7 +76,7 @@ const DrillDownSidebar = ({ drillDown, onClose, onNavigate }) => {
           </span>
           <span
             className="text-xs font-medium px-2.5 py-1 rounded-full"
-            style={{ background: "#ecfdf5", color: "#065f46" }}
+            style={{ background: "#0865ad", color: "#ffffff" }}
           >
             Tap row to open
           </span>
@@ -95,7 +93,7 @@ const DrillDownSidebar = ({ drillDown, onClose, onNavigate }) => {
               {/* Index badge */}
               <div
                 className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold"
-                style={{ background: "#f0fdfa", color: "#0f766e" }}
+                style={{ background: "#0865ad", color: "#ffffff" }}
               >
                 {idx + 1}
               </div>
@@ -105,14 +103,14 @@ const DrillDownSidebar = ({ drillDown, onClose, onNavigate }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <span
                     className="font-mono text-xs font-bold px-2 py-0.5 rounded"
-                    style={{ background: "#ecfdf5", color: "#065f46" }}
+                    style={{ background: "#0865ad", color: "#ffffff" }}
                   >
                     {inc.referenceId || inc.id?.slice(0, 10)}
                   </span>
                   {inc.incidentType && (
                     <span
                       className="text-xs font-semibold px-2 py-0.5 rounded-full truncate max-w-[120px]"
-                      style={{ background: "#f0f9ff", color: "#0369a1" }}
+                      style={{ background: "#0865ad", color: "#ffffff" }}
                     >
                       {inc.incidentType}
                     </span>
@@ -183,7 +181,7 @@ const DrillDownSidebar = ({ drillDown, onClose, onNavigate }) => {
           background: transparent;
           transition: background 0.1s;
         }
-        .drilldown-row:hover { background: #f0fdfa; }
+        .drilldown-row:hover { background: #e6f0f7; }
         .drilldown-close-btn {
           background: rgba(255,255,255,0.15);
           transition: background 0.15s;

@@ -14,8 +14,8 @@ import {
   FolderOpen,
   Sparkles,
 } from "lucide-react";
-import headerLogo from "../../assets/headerlogo.svg";
-import logomark from "../../assets/Logomark.svg";
+import headerLogo from "../../assets/k2logo.svg";
+import logomark from "../../assets/k2iconlogo.svg";
 import SchemeSwitcher from "../client/SchemeSwitcher";
 import { isDemoUser } from "../../utils/schemes";
 import { DASHBOARD_ROUTES } from "../../utils/constants";
@@ -57,16 +57,16 @@ const ClientSidebarLayout = ({ children, basePath: basePathProp }) => {
       path: `${basePath}/reports`,
       icon: FileText,
     },
-    {
-      name: "CCTV Recordings",
-      path: `${basePath}/cctv-recordings`,
-      icon: Video,
-    },
-    {
-      name: "Documents",
-      path: `${basePath}/documents`,
-      icon: FolderOpen,
-    },
+    // {
+    //   name: "CCTV Recordings",
+    //   path: `${basePath}/cctv-recordings`,
+    //   icon: Video,
+    // },
+    // {
+    //   name: "Documents",
+    //   path: `${basePath}/documents`,
+    //   icon: FolderOpen,
+    // },
   ];
 
   return (
@@ -89,11 +89,11 @@ const ClientSidebarLayout = ({ children, basePath: basePathProp }) => {
         <div className="p-4 border-b flex items-center justify-center">
           {!collapsed ? (
             <Link to={basePath} className="flex items-center">
-              <img src={headerLogo} alt="Lens by Chellan" className="h-8" />
+              <img src={headerLogo} alt="K2 RECOVERY" className="h-14 mt-2" />
             </Link>
           ) : (
             <Link to={basePath} className="flex items-center justify-center">
-              <img src={logomark} alt="L" className="h-8 w-8 object-contain" />
+              <img src={logomark} alt="K2" className="h-8 w-8 object-contain" />
             </Link>
           )}
         </div>
@@ -143,7 +143,7 @@ const ClientSidebarLayout = ({ children, basePath: basePathProp }) => {
             </Link>
           ))}
 
-          {/* Coming soon items */}
+          {/* Coming soon items
           {[
             { name: "Lense Assist", icon: Sparkles },
           ].map((item) => (
@@ -162,7 +162,7 @@ const ClientSidebarLayout = ({ children, basePath: basePathProp }) => {
                 </>
               )}
             </div>
-          ))}
+          ))} */}
         </nav>
 
         {/* Scheme Switcher - only when expanded */}
