@@ -18,7 +18,7 @@ export default defineConfig({
   // functions (see README/dev instructions for the two-terminal setup).
   server: {
     proxy: {
-      '/api': 'http://localhost:3000', 'https://k2roadworksrecovery.vercel.app',
+      '/api': 'http://localhost:3000',
     },
   },
   // Strip noisy console.log/info/debug from the *minified* (production) bundle
