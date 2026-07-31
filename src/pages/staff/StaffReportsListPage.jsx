@@ -595,6 +595,12 @@ const StaffReportsListPage = () => {
                             <div>
                               {form.referenceId || form.id.slice(0, 12)}
                             </div>
+                            {form.type === "Vehicle Daily Check" &&
+                              form.day && (
+                                <div className="text-xs font-sans font-normal text-gray-500 mt-1 capitalize">
+                                  {form.day}
+                                </div>
+                              )}
                           </td>
                           <td className="text-sm">
                             <div>

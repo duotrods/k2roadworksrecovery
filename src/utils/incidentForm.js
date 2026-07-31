@@ -106,16 +106,22 @@ export const INCIDENT_TYPE_OPTIONS = [
 "Free Recovery",
 "Police Incident",
 "RTC",
-"Call Log",
 "Drive Off",
-"Pedestrian",
 "Medical Incident",
-"Incursion",
-"Footage Request",
 "Vehicle Fire",
 "Fire",
-"Asset Damage",
 "Other"
+];
+
+export const ACTUAL_TYPE_OPTIONS = [
+  "Puncture",
+  "Mechanical",
+  "Wrong Fuel",
+  "No Fuel",
+  "Drive Off",
+  "Vehicle Fire",
+  "No Fault",
+  "Other"
 ];
 
 export const createEmptyVehicleCondition = () =>

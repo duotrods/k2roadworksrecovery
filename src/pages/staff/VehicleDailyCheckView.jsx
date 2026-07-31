@@ -201,12 +201,28 @@ const VehicleDailyCheckView = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-semibold text-gray-600">
+                  Date
+                </label>
+                <p className="text-gray-800">{form.date || "N/A"}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-600">
                   Week Commencing
                 </label>
                 <p className="text-gray-800">
                   {form.weekCommencing || "N/A"}
                 </p>
               </div>
+              {form.day && (
+                <div>
+                  <label className="text-sm font-semibold text-gray-600">
+                    Day
+                  </label>
+                  <p className="text-gray-800">
+                    {DAY_LABELS[form.day] || form.day}
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="text-sm font-semibold text-gray-600">
                   Drivers Name
@@ -246,37 +262,53 @@ const VehicleDailyCheckView = () => {
             </div>
           </div>
 
-          {/* Daily checks grid */}
+          {/* Daily checks */}
           <div className="p-6 bg-gray-50 rounded-xl border border-gray-200">
             <h4 className="text-lg font-semibold text-gray-800 mb-3 border-b pb-2">
-              Daily Checks
+              {form.day
+                ? `Daily Checks — ${DAY_LABELS[form.day] || form.day}`
+                : "Daily Checks"}
             </h4>
-            <div className="overflow-x-auto">
-              <table className="table w-full text-sm">
-                <thead>
-                  <tr>
-                    <th className="text-left">Check Item</th>
-                    {DAYS_OF_WEEK.map((day) => (
-                      <th key={day} className="text-center">
-                        {DAY_LABELS[day]}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(form.checks || []).map((row) => (
-                    <tr key={row.item}>
-                      <td className="font-semibold">{row.label}</td>
+            {form.day ? (
+              <div className="divide-y divide-gray-200">
+                {(form.checks || []).map((row) => (
+                  <div
+                    key={row.item}
+                    className="flex items-center justify-between py-2"
+                  >
+                    <span className="font-semibold text-sm">{row.label}</span>
+                    <span>{renderCheckCell(row, form.day)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="table w-full text-sm">
+                  <thead>
+                    <tr>
+                      <th className="text-left">Check Item</th>
                       {DAYS_OF_WEEK.map((day) => (
-                        <td key={day} className="text-center">
-                          {renderCheckCell(row, day)}
-                        </td>
+                        <th key={day} className="text-center">
+                          {DAY_LABELS[day]}
+                        </th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {(form.checks || []).map((row) => (
+                      <tr key={row.item}>
+                        <td className="font-semibold">{row.label}</td>
+                        {DAYS_OF_WEEK.map((day) => (
+                          <td key={day} className="text-center">
+                            {renderCheckCell(row, day)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {form.driversReport && (
@@ -300,23 +332,6 @@ const VehicleDailyCheckView = () => {
               </p>
             </div>
           )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-semibold text-gray-600">
-                Supervisor's Signature
-              </label>
-              <p className="text-gray-800">
-                {form.supervisorSignature || "N/A"}
-              </p>
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-gray-600">
-                Date
-              </label>
-              <p className="text-gray-800">{form.date || "N/A"}</p>
-            </div>
-          </div>
 
           {/* Metadata */}
           <div className="border-t pt-4">

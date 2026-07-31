@@ -732,6 +732,11 @@ const StaffReportsPage = () => {
                           {report.type === "Incident Report" && report.incursion === "YES" && (
                             <span className="badge badge-error badge-xs mt-1">Incursion</span>
                           )}
+                          {report.type === "Vehicle Daily Check" && report.day && (
+                            <div className="text-xs font-sans font-normal text-gray-500 mt-1 capitalize">
+                              {report.day}
+                            </div>
+                          )}
                         </td>
                         <td className="text-sm">
                           <div>

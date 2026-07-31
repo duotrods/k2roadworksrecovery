@@ -60,9 +60,17 @@ const parseBritishDate = (str) => {
   return Number.isNaN(d.getTime()) ? null : d;
 };
 
+const formatDateToBritish = (date) => {
+  const d = new Date(date);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
 // Whether `day` (a DAYS_OF_WEEK key) falls after today, given the sheet's
-// week-commencing date — used to lock and auto-mark days that haven't
-// happened yet as N/A.
+// week-commencing date — used to disable days that haven't happened yet in
+// the Day dropdown (a vehicle can't be checked before that day occurs).
 const isFutureDay = (weekCommencing, day) => {
   const monday = parseBritishDate(weekCommencing);
   if (!monday) return false;
@@ -73,6 +81,16 @@ const isFutureDay = (weekCommencing, day) => {
   return dayDate > today;
 };
 
+// The latest day within weekCommencing's week that isn't in the future —
+// today for the current week, or Sunday for any past week — used to pick a
+// sensible default when the form loads or the selected week changes.
+const getDefaultDay = (weekCommencing) => {
+  for (let i = DAYS_OF_WEEK.length - 1; i >= 0; i--) {
+    if (!isFutureDay(weekCommencing, DAYS_OF_WEEK[i])) return DAYS_OF_WEEK[i];
+  }
+  return DAYS_OF_WEEK[0];
+};
+
 const VehicleDailyCheckFormPage = () => {
   const navigate = useNavigate();
   const { userProfile, role } = useAuth();
@@ -81,47 +99,38 @@ const VehicleDailyCheckFormPage = () => {
   const editId = searchParams.get("edit");
   const [loading, setLoading] = useState(false);
 
-  const formatDateToBritish = (date) => {
-    const d = new Date(date);
-    const day = String(d.getDate()).padStart(2, "0");
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
-  };
-
-  const [formData, setFormData] = useState({
-    weekCommencing: formatDateToBritish(getMostRecentMonday()),
-    driversName: userProfile?.displayName || "",
-    vehicleTypeReg: "",
-    mileage: "",
-    scheme: "",
-    checks: seedChecks(),
-    driversReport: "",
-    actionTaken: "",
-    supervisorSignature: "",
-    date: formatDateToBritish(new Date()),
+  const [formData, setFormData] = useState(() => {
+    const weekCommencing = formatDateToBritish(getMostRecentMonday());
+    return {
+      weekCommencing,
+      day: getDefaultDay(weekCommencing),
+      driversName: userProfile?.displayName || "",
+      vehicleTypeReg: "",
+      mileage: "",
+      scheme: "",
+      checks: seedChecks(),
+      driversReport: "",
+      actionTaken: "",
+      date: formatDateToBritish(new Date()),
+    };
   });
 
-  // Today and past days default to OK to save time (most checks pass);
-  // future days are left blank since they haven't happened yet.
+  // The selected day defaults to OK across all items to save time (most
+  // checks pass) — unless it's a future day, which shouldn't be selectable
+  // anyway. Re-runs whenever the selected week or day changes.
   useEffect(() => {
+    if (isFutureDay(formData.weekCommencing, formData.day)) return;
     setFormData((prev) => {
+      if (isFutureDay(prev.weekCommencing, prev.day)) return prev;
       let changed = false;
       const checks = prev.checks.map((row) => {
-        let rowChanged = false;
-        const status = { ...row.status };
-        DAYS_OF_WEEK.forEach((day) => {
-          if (!isFutureDay(prev.weekCommencing, day) && status[day] === "") {
-            status[day] = "ok";
-            rowChanged = true;
-          }
-        });
-        if (rowChanged) changed = true;
-        return rowChanged ? { ...row, status } : row;
+        if (row.status[prev.day] !== "") return row;
+        changed = true;
+        return { ...row, status: { ...row.status, [prev.day]: "ok" } };
       });
       return changed ? { ...prev, checks } : prev;
     });
-  }, [formData.weekCommencing]);
+  }, [formData.weekCommencing, formData.day]);
 
   useEffect(() => {
     if (editId) {
@@ -138,6 +147,7 @@ const VehicleDailyCheckFormPage = () => {
       if (form) {
         setFormData({
           weekCommencing: form.weekCommencing || "",
+          day: form.day || getDefaultDay(form.weekCommencing || ""),
           driversName: form.driversName || "",
           vehicleTypeReg: form.vehicleTypeReg || "",
           mileage: form.mileage || "",
@@ -151,7 +161,6 @@ const VehicleDailyCheckFormPage = () => {
               : seedChecks(),
           driversReport: form.driversReport || "",
           actionTaken: form.actionTaken || "",
-          supervisorSignature: form.supervisorSignature || "",
           date: form.date || "",
         });
       } else {
@@ -186,7 +195,12 @@ const VehicleDailyCheckFormPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.scheme || !formData.weekCommencing || !formData.driversName) {
+    if (
+      !formData.scheme ||
+      !formData.weekCommencing ||
+      !formData.day ||
+      !formData.driversName
+    ) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -217,8 +231,10 @@ const VehicleDailyCheckFormPage = () => {
         );
         toast.success("Vehicle Daily Check submitted successfully!");
 
+        const weekCommencing = formatDateToBritish(getMostRecentMonday());
         setFormData({
-          weekCommencing: formatDateToBritish(getMostRecentMonday()),
+          weekCommencing,
+          day: getDefaultDay(weekCommencing),
           driversName: userProfile?.displayName || "",
           vehicleTypeReg: "",
           mileage: "",
@@ -226,7 +242,6 @@ const VehicleDailyCheckFormPage = () => {
           checks: seedChecks(),
           driversReport: "",
           actionTaken: "",
-          supervisorSignature: "",
           date: formatDateToBritish(new Date()),
         });
       }
@@ -270,21 +285,27 @@ const VehicleDailyCheckFormPage = () => {
             <div>
               <label className="label">
                 <span className="label-text font-semibold mb-2">
-                  Week Commencing (DD/MM/YYYY){" "}
-                  <span className="text-red-500">*</span>
+                  Day <span className="text-red-500">*</span>
                 </span>
               </label>
-              <input
-                type="text"
-                value={formData.weekCommencing}
+              <select
+                value={formData.day}
                 onChange={(e) =>
-                  setFormData({ ...formData, weekCommencing: e.target.value })
+                  setFormData({ ...formData, day: e.target.value })
                 }
-                placeholder="DD/MM/YYYY"
-                pattern="\d{2}/\d{2}/\d{4}"
-                className="input input-accent w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
+                className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
                 required
-              />
+              >
+                {DAYS_OF_WEEK.map((day) => {
+                  const future = isFutureDay(formData.weekCommencing, day);
+                  return (
+                    <option key={day} value={day} disabled={future}>
+                      {DAY_LABELS[day]}
+                      {future ? " (not yet)" : ""}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
             <div>
               <label className="label">
@@ -301,6 +322,45 @@ const VehicleDailyCheckFormPage = () => {
                 className="input input-accent w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
                 maxLength={100}
                 required
+              />
+            </div>
+            <div>
+              <label className="label">
+                <span className="label-text font-semibold mb-2">
+                  Scheme <span className="text-red-500">*</span>
+                </span>
+              </label>
+              <select
+                value={formData.scheme}
+                onChange={(e) =>
+                  setFormData({ ...formData, scheme: e.target.value })
+                }
+                className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+                required
+              >
+                <option value="">Please Select</option>
+                {getSchemesForUser(userProfile).map((scheme) => (
+                  <option key={scheme.id} value={scheme.fullName}>
+                    {scheme.fullName}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">
+                <span className="label-text font-semibold mb-2">
+                  Date (DD/MM/YYYY)
+                </span>
+              </label>
+              <input
+                type="text"
+                value={formData.date}
+                onChange={(e) =>
+                  setFormData({ ...formData, date: e.target.value })
+                }
+                placeholder="DD/MM/YYYY"
+                pattern="\d{2}/\d{2}/\d{4}"
+                className="input input-accent w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
               />
             </div>
             <div>
@@ -336,97 +396,60 @@ const VehicleDailyCheckFormPage = () => {
                 maxLength={20}
               />
             </div>
-            <div>
-              <label className="label">
-                <span className="label-text font-semibold mb-2">
-                  Scheme <span className="text-red-500">*</span>
-                </span>
-              </label>
-              <select
-                value={formData.scheme}
-                onChange={(e) =>
-                  setFormData({ ...formData, scheme: e.target.value })
-                }
-                className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-                required
-              >
-                <option value="">Please Select</option>
-                {getSchemesForUser(userProfile).map((scheme) => (
-                  <option key={scheme.id} value={scheme.fullName}>
-                    {scheme.fullName}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
 
-          {/* Daily checks grid */}
+          {/* Daily checks — single day, matching the selected Day dropdown */}
           <div className="mb-8 p-6 bg-gray-50 rounded-xl border border-gray-200">
             <h4 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">
-              Driver to initial against check list below
+              Driver to check against list below — {DAY_LABELS[formData.day]}
             </h4>
-            <div className="overflow-x-auto">
-              <table className="table w-full text-sm">
-                <thead>
-                  <tr>
-                    <th className="text-left">Check Item</th>
-                    {DAYS_OF_WEEK.map((day) => (
-                      <th key={day} className="text-center">
-                        {DAY_LABELS[day]}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {formData.checks.map((row, idx) => (
-                    <tr key={row.item}>
-                      <td className="font-semibold py-2">{row.label}</td>
-                      {DAYS_OF_WEEK.map((day) => (
-                        <td key={day} className="text-center py-2">
-                          <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
-                            <button
-                              type="button"
-                              onClick={() => updateStatus(idx, day, "ok")}
-                              className={`px-2 py-1 text-xs font-bold ${
-                                row.status[day] === "ok"
-                                  ? "bg-green-500 text-white"
-                                  : "bg-white text-gray-400 hover:bg-gray-100"
-                              }`}
-                              aria-label={`${row.label} ${DAY_LABELS[day]}: OK`}
-                            >
-                              ✓
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => updateStatus(idx, day, "defect")}
-                              className={`px-2 py-1 text-xs font-bold border-l border-gray-300 ${
-                                row.status[day] === "defect"
-                                  ? "bg-red-500 text-white"
-                                  : "bg-white text-gray-400 hover:bg-gray-100"
-                              }`}
-                              aria-label={`${row.label} ${DAY_LABELS[day]}: Defect`}
-                            >
-                              ✗
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => updateStatus(idx, day, "na")}
-                              className={`px-2 py-1 text-xs font-bold border-l border-gray-300 ${
-                                row.status[day] === "na"
-                                  ? "bg-gray-500 text-white"
-                                  : "bg-white text-gray-400 hover:bg-gray-100"
-                              }`}
-                              aria-label={`${row.label} ${DAY_LABELS[day]}: N/A`}
-                            >
-                              –
-                            </button>
-                          </div>
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="divide-y divide-gray-200">
+              {formData.checks.map((row, idx) => (
+                <div
+                  key={row.item}
+                  className="flex items-center justify-between py-3"
+                >
+                  <span className="font-semibold text-sm">{row.label}</span>
+                  <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => updateStatus(idx, formData.day, "ok")}
+                      className={`px-3 py-1.5 text-xs font-bold ${
+                        row.status[formData.day] === "ok"
+                          ? "bg-green-500 text-white"
+                          : "bg-white text-gray-400 hover:bg-gray-100"
+                      }`}
+                      aria-label={`${row.label}: OK`}
+                    >
+                      ✓
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateStatus(idx, formData.day, "defect")}
+                      className={`px-3 py-1.5 text-xs font-bold border-l border-gray-300 ${
+                        row.status[formData.day] === "defect"
+                          ? "bg-red-500 text-white"
+                          : "bg-white text-gray-400 hover:bg-gray-100"
+                      }`}
+                      aria-label={`${row.label}: Defect`}
+                    >
+                      ✗
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateStatus(idx, formData.day, "na")}
+                      className={`px-3 py-1.5 text-xs font-bold border-l border-gray-300 ${
+                        row.status[formData.day] === "na"
+                          ? "bg-gray-500 text-white"
+                          : "bg-white text-gray-400 hover:bg-gray-100"
+                      }`}
+                      aria-label={`${row.label}: N/A`}
+                    >
+                      –
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -463,46 +486,6 @@ const VehicleDailyCheckFormPage = () => {
               className="textarea w-full textarea-accent bg-white border-gray-300 rounded-lg hover:bg-gray-100"
               maxLength={2000}
             />
-          </div>
-
-          {/* Supervisor Signature / Date */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="label">
-                <span className="label-text font-semibold mb-2">
-                  Supervisor's Signature
-                </span>
-              </label>
-              <input
-                type="text"
-                value={formData.supervisorSignature}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    supervisorSignature: e.target.value,
-                  })
-                }
-                className="input input-accent w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
-                maxLength={100}
-              />
-            </div>
-            <div>
-              <label className="label">
-                <span className="label-text font-semibold mb-2">
-                  Date (DD/MM/YYYY)
-                </span>
-              </label>
-              <input
-                type="text"
-                value={formData.date}
-                onChange={(e) =>
-                  setFormData({ ...formData, date: e.target.value })
-                }
-                placeholder="DD/MM/YYYY"
-                pattern="\d{2}/\d{2}/\d{4}"
-                className="input input-accent w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
-              />
-            </div>
           </div>
 
           {/* Submit Buttons */}

@@ -23,6 +23,7 @@ import {
   VEHICLE_ALLOCATED_OPTIONS,
   VEHICLE_TRANSMISSION_OPTIONS,
   INCIDENT_TYPE_OPTIONS,
+  ACTUAL_TYPE_OPTIONS,
 } from "../../utils/incidentForm";
 
 // Builds a fresh Job Sheet form. Step 1 (Start Job) fields default to
@@ -1332,7 +1333,7 @@ const IncidentReportFormPage = () => {
               className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
             >
               <option value="">Please Select</option>
-              {INCIDENT_TYPE_OPTIONS.map((option) => (
+              {ACTUAL_TYPE_OPTIONS.map((option) => (
                 <option key={option} value={option}>
                   {option}
                 </option>
@@ -1619,7 +1620,7 @@ const IncidentReportFormPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
           <div>
             <label className="label">
-              <span className="label-text font-semibold mb-2">Full Name</span>
+              <span className="label-text font-semibold mb-2">Customer Name</span>
             </label>
             <input
               type="text"
@@ -1652,7 +1653,7 @@ const IncidentReportFormPage = () => {
 
         <div>
           <label className="label">
-            <span className="label-text font-semibold mb-2">Signature</span>
+            <span className="label-text font-semibold mb-2">Customer Signature</span>
           </label>
           {formData.signatureUrl && !isRedrawingSignature ? (
             <div className="space-y-2">

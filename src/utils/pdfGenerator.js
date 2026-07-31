@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import lenselogo from "../assets/chellanpng.png";
+import k2logo from "../assets/k2logo.svg";
 import {
   SERVICE_ACCEPTANCE_STATEMENTS,
   VEHICLE_CONDITION_SECTIONS,
@@ -24,8 +24,9 @@ const getCompressedLogo = () => {
     img.crossOrigin = "anonymous";
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      // 3x display size for retina quality (logo displays at 50x25)
-      canvas.width = 150;
+      // 3x display size for retina quality (logo displays at 84x25 — k2logo.svg's
+      // native 664:197 aspect ratio, unlike the old square-ish Chellan logo).
+      canvas.width = 252;
       canvas.height = 75;
       const ctx = canvas.getContext("2d");
       // White background for transparency
@@ -38,9 +39,9 @@ const getCompressedLogo = () => {
     };
     img.onerror = () => {
       // Fallback to original if compression fails
-      resolve(lenselogo);
+      resolve(k2logo);
     };
-    img.src = lenselogo;
+    img.src = k2logo;
   });
 };
 
@@ -145,14 +146,14 @@ export const generateReportPDF = async (report, reportType) => {
     }
   };
 
-  // Header with white background - increased height for centered logo and text
+  // Header with white background, logo centered on top
   doc.setFillColor(255, 255, 255); // White background
   doc.rect(0, 0, pageWidth, 40, "F");
 
   // Add compressed logo centered on top
   try {
     const compressedLogo = await getCompressedLogo();
-    const logoWidth = 50; // Width
+    const logoWidth = 84; // Width — matches k2logo.svg's 664:197 aspect ratio
     const logoHeight = 25; // Height (adjust ratio to prevent distortion)
     const logoX = (pageWidth - logoWidth) / 2; // Center horizontally
     doc.addImage(
@@ -168,12 +169,6 @@ export const generateReportPDF = async (report, reportType) => {
   } catch (error) {
     console.error("Error adding logo:", error);
   }
-
-  // Add text centered below the logo
-  doc.setTextColor(0, 0, 0); // Black text
-  doc.setFontSize(14);
-  doc.setFont("helvetica", "bold");
-  doc.text("LENSE BY CHELLAN", pageWidth / 2, 35, { align: "center" });
 
   yPosition = 50;
   doc.setTextColor(0, 0, 0);
@@ -466,8 +461,21 @@ export const generateReportPDF = async (report, reportType) => {
     }
 
     case "vehicle-check": {
+      const dayLabels = {
+        monday: "Monday",
+        tuesday: "Tuesday",
+        wednesday: "Wednesday",
+        thursday: "Thursday",
+        friday: "Friday",
+        saturday: "Saturday",
+        sunday: "Sunday",
+      };
+      const statusAbbrev = { ok: "OK", defect: "DEFECT", na: "N/A" };
+
+      if (report.date) addField("Date", report.date);
       if (report.weekCommencing)
         addField("Week Commencing", report.weekCommencing);
+      if (report.day) addField("Day", dayLabels[report.day] || report.day);
       if (report.driversName) addField("Drivers Name", report.driversName);
       if (report.vehicleTypeReg)
         addField("Vehicle Type/Registration No", report.vehicleTypeReg);
@@ -476,45 +484,52 @@ export const generateReportPDF = async (report, reportType) => {
       if (Array.isArray(report.checks) && report.checks.length > 0) {
         yPosition += 3;
         addSectionHeader("DAILY CHECKS");
-        const dayOrder = [
-          "monday",
-          "tuesday",
-          "wednesday",
-          "thursday",
-          "friday",
-          "saturday",
-          "sunday",
-        ];
-        const dayAbbrev = {
-          monday: "Mon",
-          tuesday: "Tue",
-          wednesday: "Wed",
-          thursday: "Thu",
-          friday: "Fri",
-          saturday: "Sat",
-          sunday: "Sun",
-        };
-        const statusAbbrev = { ok: "OK", defect: "DEFECT", na: "N/A" };
-        report.checks.forEach((row) => {
-          const line = dayOrder
-            .map((day) => {
-              const status = row.status?.[day];
-              const value = status
-                ? statusAbbrev[status] || status
-                : row.initials?.[day] || "-";
-              return `${dayAbbrev[day]}: ${value}`;
-            })
-            .join("  ");
-          addField(row.label, line);
-        });
+
+        if (report.day) {
+          report.checks.forEach((row) => {
+            const status = row.status?.[report.day];
+            const value = status
+              ? statusAbbrev[status] || status
+              : row.initials?.[report.day] || "-";
+            addField(row.label, value);
+          });
+        } else {
+          const dayOrder = [
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+          ];
+          const dayAbbrev = {
+            monday: "Mon",
+            tuesday: "Tue",
+            wednesday: "Wed",
+            thursday: "Thu",
+            friday: "Fri",
+            saturday: "Sat",
+            sunday: "Sun",
+          };
+          report.checks.forEach((row) => {
+            const line = dayOrder
+              .map((day) => {
+                const status = row.status?.[day];
+                const value = status
+                  ? statusAbbrev[status] || status
+                  : row.initials?.[day] || "-";
+                return `${dayAbbrev[day]}: ${value}`;
+              })
+              .join("  ");
+            addField(row.label, line);
+          });
+        }
       }
 
       if (report.driversReport)
         addField("Driver's Report", report.driversReport);
       if (report.actionTaken) addField("Action Taken", report.actionTaken);
-      if (report.supervisorSignature)
-        addField("Supervisor's Signature", report.supervisorSignature);
-      if (report.date) addField("Date", report.date);
       break;
     }
   }
@@ -602,14 +617,14 @@ export const generateCCTVRecordingPDF = async (recording) => {
     });
   };
 
-  // Header with white background - increased height for centered logo and text
+  // Header with white background, logo centered on top
   doc.setFillColor(255, 255, 255); // White background
   doc.rect(0, 0, pageWidth, 40, "F");
 
   // Add compressed logo centered on top
   try {
     const compressedLogo = await getCompressedLogo();
-    const logoWidth = 50; // Width
+    const logoWidth = 84; // Width — matches k2logo.svg's 664:197 aspect ratio
     const logoHeight = 25; // Height (adjust ratio to prevent distortion)
     const logoX = (pageWidth - logoWidth) / 2; // Center horizontally
     doc.addImage(
@@ -625,12 +640,6 @@ export const generateCCTVRecordingPDF = async (recording) => {
   } catch (error) {
     console.error("Error adding logo:", error);
   }
-
-  // Add text centered below the logo
-  doc.setTextColor(0, 0, 0); // Black text
-  doc.setFontSize(14);
-  doc.setFont("helvetica", "bold");
-  doc.text("LENSE BY CHELLAN", pageWidth / 2, 35, { align: "center" });
 
   yPosition = 50;
   doc.setTextColor(0, 0, 0);

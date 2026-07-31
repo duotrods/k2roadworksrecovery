@@ -5,7 +5,7 @@
 export const fromVehicleCheckRow = (row) => {
   if (!row) return null;
   const {
-    id, week_commencing, drivers_name, vehicle_type_reg, mileage, scheme,
+    id, week_commencing, day, drivers_name, vehicle_type_reg, mileage, scheme,
     checks, drivers_report, action_taken, supervisor_signature, date,
     scheme_id, scheme_ids, reference_id, submitted_by_user_id,
     submitted_by_name, status, created_at, updated_at, edit_history,
@@ -13,7 +13,7 @@ export const fromVehicleCheckRow = (row) => {
   } = row;
 
   return {
-    id, weekCommencing: week_commencing, driversName: drivers_name,
+    id, weekCommencing: week_commencing, day, driversName: drivers_name,
     vehicleTypeReg: vehicle_type_reg, mileage, scheme, checks,
     driversReport: drivers_report, actionTaken: action_taken,
     supervisorSignature: supervisor_signature, date,
@@ -33,7 +33,7 @@ export const fromVehicleCheckRow = (row) => {
 // so partial updates don't clobber columns the caller didn't touch.
 export const toVehicleCheckRow = (formData) => {
   const map = {
-    weekCommencing: "week_commencing", driversName: "drivers_name",
+    weekCommencing: "week_commencing", day: "day", driversName: "drivers_name",
     vehicleTypeReg: "vehicle_type_reg", mileage: "mileage",
     scheme: "scheme", checks: "checks", driversReport: "drivers_report",
     actionTaken: "action_taken",

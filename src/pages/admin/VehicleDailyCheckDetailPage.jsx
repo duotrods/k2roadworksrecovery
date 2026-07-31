@@ -158,12 +158,30 @@ const VehicleDailyCheckDetailPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="text-sm font-semibold text-gray-500 uppercase">
+                  Date
+                </label>
+                <p className="text-lg font-medium text-gray-800 mt-1">
+                  {report.date || "N/A"}
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">
                   Week Commencing
                 </label>
                 <p className="text-lg font-medium text-gray-800 mt-1">
                   {report.weekCommencing || "N/A"}
                 </p>
               </div>
+              {report.day && (
+                <div>
+                  <label className="text-sm font-semibold text-gray-500 uppercase">
+                    Day
+                  </label>
+                  <p className="text-lg font-medium text-gray-800 mt-1">
+                    {DAY_LABELS[report.day] || report.day}
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="text-sm font-semibold text-gray-500 uppercase">
                   Drivers Name
@@ -203,37 +221,53 @@ const VehicleDailyCheckDetailPage = () => {
             </div>
           )}
 
-          {/* Daily checks grid */}
+          {/* Daily checks */}
           <div className="mb-8 pb-8 border-b">
             <h4 className="text-lg font-bold text-gray-800 mb-4">
-              Daily Checks
+              {report.day
+                ? `Daily Checks — ${DAY_LABELS[report.day] || report.day}`
+                : "Daily Checks"}
             </h4>
-            <div className="overflow-x-auto">
-              <table className="table w-full text-sm">
-                <thead>
-                  <tr>
-                    <th className="text-left">Check Item</th>
-                    {DAYS_OF_WEEK.map((day) => (
-                      <th key={day} className="text-center">
-                        {DAY_LABELS[day]}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(report.checks || []).map((row) => (
-                    <tr key={row.item}>
-                      <td className="font-semibold">{row.label}</td>
+            {report.day ? (
+              <div className="divide-y divide-gray-200">
+                {(report.checks || []).map((row) => (
+                  <div
+                    key={row.item}
+                    className="flex items-center justify-between py-2"
+                  >
+                    <span className="font-semibold text-sm">{row.label}</span>
+                    <span>{renderCheckCell(row, report.day)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="table w-full text-sm">
+                  <thead>
+                    <tr>
+                      <th className="text-left">Check Item</th>
                       {DAYS_OF_WEEK.map((day) => (
-                        <td key={day} className="text-center">
-                          {renderCheckCell(row, day)}
-                        </td>
+                        <th key={day} className="text-center">
+                          {DAY_LABELS[day]}
+                        </th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {(report.checks || []).map((row) => (
+                      <tr key={row.item}>
+                        <td className="font-semibold">{row.label}</td>
+                        {DAYS_OF_WEEK.map((day) => (
+                          <td key={day} className="text-center">
+                            {renderCheckCell(row, day)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {(report.driversReport || report.actionTaken) && (
@@ -260,27 +294,6 @@ const VehicleDailyCheckDetailPage = () => {
               )}
             </div>
           )}
-
-          <div className="mb-8 pb-8 border-b">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="text-sm font-semibold text-gray-500 uppercase">
-                  Supervisor's Signature
-                </label>
-                <p className="text-lg font-medium text-gray-800 mt-1">
-                  {report.supervisorSignature || "N/A"}
-                </p>
-              </div>
-              <div>
-                <label className="text-sm font-semibold text-gray-500 uppercase">
-                  Date
-                </label>
-                <p className="text-lg font-medium text-gray-800 mt-1">
-                  {report.date || "N/A"}
-                </p>
-              </div>
-            </div>
-          </div>
 
           {/* Submission Information */}
           <div className="bg-gray-50 rounded-lg p-6">
