@@ -82,8 +82,10 @@ const loadImageAsDataUrl = (url) => {
  * Generate PDF for any report type
  * @param {Object} report - The report data
  * @param {string} reportType - Type of report (incident, cabin-safety, vehicle-check)
+ * @param {Object} [options]
+ * @param {boolean} [options.asBlob] - Return a Blob instead of triggering a download
  */
-export const generateReportPDF = async (report, reportType) => {
+export const generateReportPDF = async (report, reportType, { asBlob = false } = {}) => {
   const doc = new jsPDF({ compress: true });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 20;
@@ -590,9 +592,25 @@ export const generateReportPDF = async (report, reportType) => {
   const refId = report.referenceId || "report";
   const filename = `${reportType}_${refId}_${timestamp}.pdf`;
 
+  if (asBlob) return doc.output("blob");
+
   // Save the PDF
   doc.save(filename);
 };
+
+/**
+ * Converts a Blob to a base64 string (no "data:...;base64," prefix), for
+ * shipping generated PDFs to a serverless function as JSON.
+ * @param {Blob} blob
+ * @returns {Promise<string>}
+ */
+export const blobToBase64 = (blob) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(",")[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 
 /**
  * Generate PDF for CCTV recording details

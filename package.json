@@ -36,6 +36,7 @@
     "react-router-dom": "^7.9.6",
     "react-time-picker": "^8.0.2",
     "recharts": "^3.5.1",
+    "resend": "^6.18.1",
     "tailwindcss": "^4.1.17"
   },
   "devDependencies": {

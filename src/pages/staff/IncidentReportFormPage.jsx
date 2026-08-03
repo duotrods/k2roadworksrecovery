@@ -11,6 +11,7 @@ import StepIndicator from "../../components/staff/incident/StepIndicator";
 import SignaturePad from "../../components/staff/incident/SignaturePad";
 import { compressImage } from "../../utils/imageCompression";
 import { getSchemesForUser } from "../../utils/schemes";
+import { generateReportPDF, blobToBase64 } from "../../utils/pdfGenerator";
 import {
   formatDateToBritish,
   calculateTimeDifferences,
@@ -25,6 +26,8 @@ import {
   INCIDENT_TYPE_OPTIONS,
   ACTUAL_TYPE_OPTIONS,
 } from "../../utils/incidentForm";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Builds a fresh Job Sheet form. Step 1 (Start Job) fields default to
 // "just took this call" state, later-step fields default empty.
@@ -66,11 +69,13 @@ const emptyFormData = (userProfile) => ({
   storageName: "",
   storageAddress: "",
   storageContactNo: "",
+  storageEmail: "",
   propertyRemoved: "",
   vehicleOutcome: "",
   serviceAcceptance: SERVICE_ACCEPTANCE_STATEMENTS.map(() => false),
   name: "",
   satisfactionConfirmed: false,
+  sendReportCopy: false,
   signatureUrl: "",
 });
 
@@ -144,6 +149,7 @@ const IncidentReportFormPage = () => {
           storageName: report.storageName || "",
           storageAddress: report.storageAddress || "",
           storageContactNo: report.storageContactNo || "",
+          storageEmail: report.storageEmail || "",
           propertyRemoved: report.propertyRemoved || "",
           vehicleOutcome: report.vehicleOutcome || "",
           checks: { ...createEmptyChecks(), ...(report.checks || {}) },
@@ -155,6 +161,7 @@ const IncidentReportFormPage = () => {
             report.serviceAcceptance || SERVICE_ACCEPTANCE_STATEMENTS.map(() => false),
           name: report.name || "",
           satisfactionConfirmed: report.satisfactionConfirmed || false,
+          sendReportCopy: report.sendReportCopy || false,
           signatureUrl: report.signatureUrl || "",
           files: report.files || [],
         });
@@ -528,6 +535,48 @@ const IncidentReportFormPage = () => {
     }
   };
 
+  // Emails the customer a PDF copy of the completed Job Sheet, if they
+  // opted in at sign-off. Best-effort: any failure here only shows a toast
+  // warning, it must never block or roll back the report save that already
+  // succeeded by the time this runs. The API route itself is idempotent
+  // (guards against a duplicate send), so this is safe to call every time
+  // this report genuinely completes.
+  const sendReportCopyEmail = async (data, incidentId, referenceId) => {
+    if (!data.sendReportCopy) return;
+    const customerEmail = (data.storageEmail || "").trim();
+    if (!EMAIL_RE.test(customerEmail)) return;
+
+    try {
+      const pdfBlob = await generateReportPDF(data, "incident", { asBlob: true });
+      const pdfBase64 = await blobToBase64(pdfBlob);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const response = await fetch("/api/send-report-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          reportId: incidentId,
+          referenceId,
+          customerEmail,
+          customerName: data.name,
+          pdfBase64,
+        }),
+      });
+
+      if (!response.ok) throw new Error("send-report-email request failed");
+    } catch (error) {
+      console.error("Failed to email report copy:", error);
+      toast.error(
+        "Job Sheet saved, but we couldn't email the customer's copy. Please offer a printed copy.",
+      );
+    }
+  };
+
   // Step 4: Customer Page — complete the Job Sheet (or regular submit for
   // the legacy non-staged workflow).
   const handleSubmit = async (e) => {
@@ -557,6 +606,7 @@ const IncidentReportFormPage = () => {
         storageName: formData.storageName.trim(),
         storageAddress: formData.storageAddress.trim(),
         storageContactNo: formData.storageContactNo.trim(),
+        storageEmail: formData.storageEmail.trim(),
         name: formData.name.trim(),
         signatureUrl,
       };
@@ -588,6 +638,13 @@ const IncidentReportFormPage = () => {
           isEditingLiveIncident,
         );
 
+        // Only the genuine "customer just signed off" completion should
+        // trigger the copy email — not a later admin edit of an
+        // already-completed report.
+        if (isEditingLiveIncident) {
+          await sendReportCopyEmail(dataWithTimings, incidentId, existingReferenceId);
+        }
+
         if (isEditingLiveIncident) {
           toast.success("Job Sheet completed successfully!");
         } else {
@@ -596,15 +653,18 @@ const IncidentReportFormPage = () => {
         navigate(basePath);
       } else {
         // Submit new form (regular flow - not using the staged workflow)
-        await staffService.submitIncidentReport(
-          {
-            ...dataWithTimings,
-            files: uploadedFiles,
-          },
-          userProfile.uid,
-          userProfile.displayName,
-          "submitted",
-        );
+        const { id: newIncidentId, referenceId: newReferenceId } =
+          await staffService.submitIncidentReport(
+            {
+              ...dataWithTimings,
+              files: uploadedFiles,
+            },
+            userProfile.uid,
+            userProfile.displayName,
+            "submitted",
+          );
+
+        await sendReportCopyEmail(dataWithTimings, newIncidentId, newReferenceId);
 
         toast.success("Job Sheet submitted successfully!");
 
@@ -1509,20 +1569,6 @@ const IncidentReportFormPage = () => {
             />
           </div>
 
-           <div>
-            <label className="label">
-              <span className="label-text font-semibold mb-2">Email Address</span>
-            </label>
-            <input
-              type="email"
-              name="storageEmail"
-              value={formData.storageEmail}
-              onChange={handleChange}
-              className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-              maxLength={200}
-            />
-          </div>
-
           <div>
             <label className="label">
               <span className="label-text font-semibold mb-2">Contact No.</span>
@@ -1546,7 +1592,7 @@ const IncidentReportFormPage = () => {
             <span className="label-text font-semibold mb-2">Property Removed</span>
           </label>
           <div className="flex gap-6">
-            {["At Scene", "At Depot"].map((option) => (
+            {["At Scene", "At Depot", "N/A"].map((option) => (
               <label key={option} className="cursor-pointer flex items-center gap-2">
                 <input
                   type="radio"
@@ -1630,9 +1676,7 @@ const IncidentReportFormPage = () => {
               className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
               maxLength={100}
             />
-          </div>
-          <div className="flex items-end">
-            <label className="cursor-pointer flex items-center gap-2">
+            <label className="cursor-pointer flex items-center gap-2 mt-2">
               <input
                 type="checkbox"
                 className="checkbox checkbox-sm border-gray-400"
@@ -1646,6 +1690,35 @@ const IncidentReportFormPage = () => {
               />
               <span className="label-text font-semibold">
                 Confirms satisfaction with the service
+              </span>
+            </label>
+          </div>
+          <div>
+            <label className="label">
+              <span className="label-text font-semibold mb-2">Email Address</span>
+            </label>
+            <input
+              type="email"
+              name="storageEmail"
+              value={formData.storageEmail}
+              onChange={handleChange}
+              className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+              maxLength={200}
+            />
+            <label className="cursor-pointer flex items-center gap-2 mt-2">
+              <input
+                type="checkbox"
+                className="checkbox checkbox-sm border-gray-400"
+                checked={formData.sendReportCopy}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    sendReportCopy: e.target.checked,
+                  }))
+                }
+              />
+              <span className="label-text font-semibold">
+                Send me a copy of this report
               </span>
             </label>
           </div>
