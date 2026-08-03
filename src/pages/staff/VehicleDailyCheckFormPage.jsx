@@ -416,7 +416,7 @@ const VehicleDailyCheckFormPage = () => {
                       onClick={() => updateStatus(idx, formData.day, "ok")}
                       className={`px-3 py-1.5 text-xs font-bold ${
                         row.status[formData.day] === "ok"
-                          ? "bg-green-500 text-white"
+                          ? "bg-brand-500 text-white"
                           : "bg-white text-gray-400 hover:bg-gray-100"
                       }`}
                       aria-label={`${row.label}: OK`}
@@ -500,7 +500,7 @@ const VehicleDailyCheckFormPage = () => {
             <button
               type="submit"
               disabled={loading}
-              className="px-8 py-3 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 transition-colors font-semibold"
+              className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-600 disabled:opacity-50 transition-colors font-semibold"
             >
               {loading
                 ? editId

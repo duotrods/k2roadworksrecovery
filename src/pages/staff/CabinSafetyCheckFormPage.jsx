@@ -408,7 +408,7 @@ const CabinSafetyCheckFormPage = () => {
             <button
               type="submit"
               disabled={loading}
-              className="px-8 py-3 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 transition-colors font-semibold"
+              className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-600 disabled:opacity-50 transition-colors font-semibold"
             >
               {loading
                 ? editId

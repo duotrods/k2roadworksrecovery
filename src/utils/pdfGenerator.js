@@ -85,7 +85,8 @@ const loadImageAsDataUrl = (url) => {
  * @param {Object} [options]
  * @param {boolean} [options.asBlob] - Return a Blob instead of triggering a download
  */
-export const generateReportPDF = async (report, reportType, { asBlob = false } = {}) => {
+export const generateReportPDF = async (report, reportType, options) => {
+  const { asBlob = false } = options || {};
   const doc = new jsPDF({ compress: true });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 20;
@@ -212,7 +213,7 @@ export const generateReportPDF = async (report, reportType, { asBlob = false } =
   yPosition += 10;
 
   // Divider line
-  doc.setDrawColor(0, 186, 168); // Teal color
+  doc.setDrawColor(8, 101, 173); // brand-500
   doc.setLineWidth(0.5);
   doc.line(margin, yPosition, pageWidth - margin, yPosition);
   yPosition += 12;
@@ -224,7 +225,7 @@ export const generateReportPDF = async (report, reportType, { asBlob = false } =
       yPosition = 20;
     }
 
-    doc.setFillColor(0, 186, 168); // Teal background
+    doc.setFillColor(8, 101, 173); // brand-500
     doc.rect(margin, yPosition - 2, contentWidth, 8, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(10);
@@ -383,15 +384,38 @@ export const generateReportPDF = async (report, reportType, { asBlob = false } =
         });
       }
 
-      // Customer/Driver Service Acceptance
+      // Customer/Driver Service Acceptance — each statement is a full
+      // paragraph (see SERVICE_ACCEPTANCE_STATEMENTS), so it's printed as
+      // wrapped body text rather than through addField's fixed label/value
+      // gutter (which is sized for short labels and would leave the
+      // statement text off the page entirely).
       if (report.serviceAcceptance) {
         yPosition += 3;
         addSectionHeader("CUSTOMER/DRIVER SERVICE ACCEPTANCE");
         SERVICE_ACCEPTANCE_STATEMENTS.forEach((statement, index) => {
-          addField(
-            `${index + 1}`,
-            report.serviceAcceptance[index] ? "Accepted" : "Not accepted",
+          const accepted = report.serviceAcceptance[index];
+
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(0, 0, 0);
+          const lines = doc.splitTextToSize(
+            `${index + 1}. ${statement}`,
+            contentWidth,
           );
+
+          if (yPosition + lines.length * 4 + 6 > 280) {
+            doc.addPage();
+            yPosition = 20;
+          }
+
+          doc.text(lines, margin, yPosition);
+          yPosition += lines.length * 4 + 1;
+
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(...(accepted ? [0, 130, 0] : [180, 0, 0]));
+          doc.text(accepted ? "Accepted" : "Not accepted", margin, yPosition);
+          doc.setTextColor(0, 0, 0);
+          yPosition += 6;
         });
       }
 
@@ -683,14 +707,14 @@ export const generateCCTVRecordingPDF = async (recording) => {
   yPosition += 8;
 
   // Divider
-  doc.setDrawColor(0, 186, 168);
+  doc.setDrawColor(8, 101, 173); // brand-500
   doc.setLineWidth(0.5);
   doc.line(margin, yPosition, pageWidth - margin, yPosition);
   yPosition += 12;
 
   // Helper to add section headers
   const addSectionHeader = (title) => {
-    doc.setFillColor(0, 186, 168);
+    doc.setFillColor(8, 101, 173); // brand-500
     doc.rect(margin, yPosition - 2, contentWidth, 8, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(10);

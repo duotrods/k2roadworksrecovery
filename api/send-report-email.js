@@ -96,7 +96,7 @@ export default async function handler(req, res) {
 
     const filename = `IncidentReport_${referenceId || reportId}.pdf`;
     const { error: sendError } = await resend.emails.send({
-      from: "K2 Vehicle Recovery <reports@chellan.co.uk>",
+      from: "K2 Vehicle Recovery <reports@lense.live>",
       to: customerEmail,
       subject: `Your K2 Vehicle Recovery Job Sheet Copy — ${referenceId || reportId}`,
       text: `Hi ${customerName || "there"},\n\nAttached is a copy of your Job Sheet (${referenceId || reportId}) for your records.\n\nThank you,\nK2 Vehicle Recovery`,
