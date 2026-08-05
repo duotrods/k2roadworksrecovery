@@ -18,16 +18,6 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { generateReportPDF } from "../../utils/pdfGenerator";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
-import { defectCountsFromAggregates } from "../../utils/vehicleCheckStats";
 
 // Module-level variable — survives component unmount/remount, no serialization needed
 let _staffReportsRestore = null;
@@ -60,8 +50,6 @@ const StaffReportsPage = () => {
   const [hasMore, setHasMore] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [typeCount, setTypeCount] = useState(0);
-  const [formCounts, setFormCounts] = useState({ incidentReportTotal: 0, cabinSafetyTotal: 0, vehicleCheckTotal: 0 });
-  const [vehicleCheckDefects, setVehicleCheckDefects] = useState([]);
   const reportsPerPage = 10;
 
   // Maps admin display filter values → staffService type keys
@@ -97,17 +85,6 @@ const StaffReportsPage = () => {
       loadAllReports(true);
     }
     loadTotalCount();
-    loadFormCounts();
-  }, []);
-
-  useEffect(() => {
-    // Independent of the paginated `reports` list (which only ever holds one
-    // page of 10) — the chart needs defect counts across every vehicle check,
-    // not just the current page. Aggregated server-side (RPC) instead of
-    // fetching every row, so this stays cheap as the table grows.
-    staffService.getVehicleCheckDefectCounts().then((rows) => {
-      setVehicleCheckDefects(defectCountsFromAggregates(rows));
-    });
   }, []);
 
   useEffect(() => {
@@ -306,15 +283,6 @@ const StaffReportsPage = () => {
       setTotalCount(count);
     } catch (error) {
       console.warn('Could not load total count:', error);
-    }
-  };
-
-  const loadFormCounts = async () => {
-    try {
-      const counts = await staffService.getAllFormsCountByType();
-      setFormCounts(counts);
-    } catch (error) {
-      console.warn('Could not load form counts:', error);
     }
   };
 
@@ -531,14 +499,6 @@ const StaffReportsPage = () => {
     }
   };
 
-  // Statistics - all counts from aggregation queries (no per-page counting)
-  const stats = {
-    total: totalCount,
-    incident: formCounts.incidentReportTotal,
-    cabinSafety: formCounts.cabinSafetyTotal,
-    vehicleCheck: formCounts.vehicleCheckTotal,
-  };
-
   return (
     <AdminSidebarLayout>
       <div className="max-w-7xl mx-auto">
@@ -546,76 +506,6 @@ const StaffReportsPage = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Staff Reports</h1>
           <p className="text-gray-600">View and manage all submitted forms from staff members</p>
-        </div>
-
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 text-sm">Total Reports</p>
-                <p className="text-3xl font-bold text-gray-800 mt-1">{stats.total}</p>
-              </div>
-              <div className="bg-gray-100 p-3 rounded-lg">
-                <FileText className="w-6 h-6 text-gray-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 text-sm">Incidents</p>
-                <p className="text-3xl font-bold text-teal-600 mt-1">{stats.incident}</p>
-              </div>
-              <div className="bg-teal-100 p-3 rounded-lg">
-                <FileText className="w-6 h-6 text-teal-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 text-sm">Cabin H&S Checks</p>
-                <p className="text-3xl font-bold text-green-600 mt-1">{stats.cabinSafety}</p>
-              </div>
-              <div className="bg-green-100 p-3 rounded-lg">
-                <ShieldCheck className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 text-sm">Vehicle Checks</p>
-                <p className="text-3xl font-bold text-amber-600 mt-1">{stats.vehicleCheck}</p>
-              </div>
-              <div className="bg-amber-100 p-3 rounded-lg">
-                <Car className="w-6 h-6 text-amber-600" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Vehicle Check Defect Chart */}
-        <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-          <h5 className="text-lg font-semibold text-gray-800 mb-4">
-            Defect Frequency by Check Item
-          </h5>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={vehicleCheckDefects}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#17af93" />
-              <XAxis dataKey="label" tick={{ fontSize: 12 }} interval={0} angle={-20} textAnchor="end" height={70} />
-              <YAxis tick={{ fontSize: 13 }} allowDecimals={false} />
-              <Tooltip
-                contentStyle={{ backgroundColor: "#fff", border: "1px solid #17af93", borderRadius: "8px" }}
-                labelStyle={{ fontWeight: "bold" }}
-              />
-              <Bar dataKey="count" name="Defects" fill="#17af93" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
         </div>
 
         {/* Filters */}

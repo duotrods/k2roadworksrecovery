@@ -2,12 +2,15 @@ import { useState, useEffect, useRef } from "react";
 import { staffService } from "../../services/staffService";
 import AdminSidebarLayout from "../../components/layout/AdminSidebarLayout";
 import { SCHEMES, getInternalSchemeIds } from "../../utils/schemes";
+import { defectCountsFromAggregates } from "../../utils/vehicleCheckStats";
 import {
   BarChart3,
   AlertTriangle,
   Calendar,
   Download,
   Filter,
+  ShieldCheck,
+  Car,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
@@ -42,7 +45,8 @@ const ClientChartsPage = () => {
   const [reports, setReports] = useState([]);
   const [schemes, setSchemes] = useState([]);
   const [isExporting, setIsExporting] = useState(false);
-  const [formCounts, setFormCounts] = useState({ incidentReportTotal: 0 });
+  const [formCounts, setFormCounts] = useState({ incidentReportTotal: 0, cabinSafetyTotal: 0, vehicleCheckTotal: 0 });
+  const [vehicleCheckDefects, setVehicleCheckDefects] = useState([]);
   const datePickerRef = useRef(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -79,6 +83,16 @@ const ClientChartsPage = () => {
     setSchemes(activeSchemeNames);
     if (activeSchemeNames.length > 0) setSelectedScheme(activeSchemeNames[0]);
     loadFormCounts();
+  }, []);
+
+  useEffect(() => {
+    // Independent of the paginated incident-report data above — the chart
+    // needs defect counts across every vehicle check. Aggregated server-side
+    // (RPC) instead of fetching every row, so this stays cheap as the table
+    // grows. Not scheme-scoped (the RPC has no scheme filter yet).
+    staffService.getVehicleCheckDefectCounts().then((rows) => {
+      setVehicleCheckDefects(defectCountsFromAggregates(rows));
+    });
   }, []);
 
   // Refetch incidents whenever the date range changes — scoped server-side so
@@ -407,7 +421,7 @@ const ClientChartsPage = () => {
       pdf.setTextColor(255, 255, 255);
       pdf.setFontSize(18);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('Client Charts & Analytics', 15, 12);
+      pdf.text('Reports & Analytics', 15, 12);
 
       pdf.setFontSize(11);
       pdf.setFont('helvetica', 'normal');
@@ -438,7 +452,7 @@ const ClientChartsPage = () => {
           pdf.setTextColor(255, 255, 255);
           pdf.setFontSize(18);
           pdf.setFont('helvetica', 'bold');
-          pdf.text('Client Charts & Analytics', 15, 12);
+          pdf.text('Reports & Analytics', 15, 12);
           pdf.setFontSize(11);
           pdf.setFont('helvetica', 'normal');
           pdf.text(`Scheme: ${selectedScheme}`, 15, 19);
@@ -499,8 +513,13 @@ const ClientChartsPage = () => {
 
   // Statistics - use aggregation counts for cards (consistent with other pages)
   const stats = {
-    total: formCounts.incidentReportTotal,
+    total:
+      formCounts.incidentReportTotal +
+      formCounts.cabinSafetyTotal +
+      formCounts.vehicleCheckTotal,
     incident: formCounts.incidentReportTotal,
+    cabinSafety: formCounts.cabinSafetyTotal,
+    vehicleCheck: formCounts.vehicleCheckTotal,
   };
 
   // Extract chart data
@@ -523,7 +542,7 @@ const ClientChartsPage = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h3 className="text-3xl font-bold text-gray-800 mb-2">Client Charts & Analytics</h3>
+          <h3 className="text-3xl font-bold text-gray-800 mb-2">Reports & Analytics</h3>
           <p className="text-gray-600">Visual analytics of all reports and submissions per scheme</p>
         </div>
 
@@ -619,6 +638,30 @@ const ClientChartsPage = () => {
                   </div>
                   <div className="bg-teal-100 p-3 rounded-lg">
                     <AlertTriangle className="w-6 h-6 text-teal-600" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-md p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-500 text-sm">Cabin H&S Checks</p>
+                    <p className="text-3xl font-bold text-green-600 mt-1">{stats.cabinSafety}</p>
+                  </div>
+                  <div className="bg-green-100 p-3 rounded-lg">
+                    <ShieldCheck className="w-6 h-6 text-green-600" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-md p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-500 text-sm">Vehicle Checks</p>
+                    <p className="text-3xl font-bold text-amber-600 mt-1">{stats.vehicleCheck}</p>
+                  </div>
+                  <div className="bg-amber-100 p-3 rounded-lg">
+                    <Car className="w-6 h-6 text-amber-600" />
                   </div>
                 </div>
               </div>
@@ -771,6 +814,17 @@ const ClientChartsPage = () => {
                   <Tooltip {...commonChartProps.tooltip} />
                   <Legend {...commonChartProps.legend} />
                   <Bar dataKey="Number" {...commonChartProps.bar} />
+                </BarChart>
+              </ChartCard>
+
+              {/* Chart 13: Vehicle Check Defect Frequency */}
+              <ChartCard title="Defect Frequency by Check Item" fullWidth>
+                <BarChart data={vehicleCheckDefects}>
+                  <CartesianGrid {...commonChartProps.cartesianGrid} />
+                  <XAxis dataKey="label" tick={{ fontSize: 12 }} interval={0} angle={-20} textAnchor="end" height={70} />
+                  <YAxis {...commonChartProps.yAxis} allowDecimals={false} />
+                  <Tooltip {...commonChartProps.tooltip} />
+                  <Bar dataKey="count" name="Defects" {...commonChartProps.bar} />
                 </BarChart>
               </ChartCard>
             </div>

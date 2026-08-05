@@ -1,11 +1,25 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { userAdminService } from '../../services/userAdminService';
 import { useAuth } from '../../hooks/useAuth';
-import { Key, Users, UserCog, Trash2 } from 'lucide-react';
+import { Key, Users, UserCog, Trash2, LayoutDashboard, LogIn } from 'lucide-react';
+import StaffManagement from '../admin/StaffManagement';
+import LoginLogs from '../admin/LoginLogs';
+
+const TABS = [
+  { key: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { key: 'staff', label: 'Staff', icon: Users },
+  { key: 'logs', label: 'Login Logs', icon: LogIn },
+];
 
 const AdminDashboard = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = TABS.some((t) => t.key === searchParams.get('tab'))
+    ? searchParams.get('tab')
+    : 'overview';
+  const setActiveTab = (key) => setSearchParams(key === 'overview' ? {} : { tab: key });
+
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -100,6 +114,31 @@ const AdminDashboard = () => {
 
   return (
     <div>
+      <div className="border-b border-gray-200 mb-6">
+        <nav className="flex gap-1">
+          {TABS.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 ${
+                activeTab === key
+                  ? 'border-brand-500 text-brand-600 bg-brand-50'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {activeTab === 'staff' ? (
+        <StaffManagement />
+      ) : activeTab === 'logs' ? (
+        <LoginLogs />
+      ) : (
+      <>
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h2>Admin Dashboard</h2>
@@ -337,6 +376,8 @@ const AdminDashboard = () => {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

@@ -47,6 +47,8 @@ const emptyFormData = (userProfile) => ({
   policeOnScene: false,
   nhOnScene: false,
   ripvOnScene: false,
+  otherOnScene: false,
+  otherOnSceneDetails: "",
   timeOfArrival: "",
   markerPost: "",
   vehicleType: "",
@@ -74,6 +76,8 @@ const emptyFormData = (userProfile) => ({
   vehicleOutcome: "",
   serviceAcceptance: SERVICE_ACCEPTANCE_STATEMENTS.map(() => false),
   name: "",
+  customerContactNo: "",
+  customerAddress: "",
   satisfactionConfirmed: false,
   sendReportCopy: false,
   signatureUrl: "",
@@ -122,6 +126,8 @@ const IncidentReportFormPage = () => {
           policeOnScene: report.policeOnScene || false,
           nhOnScene: report.nhOnScene || false,
           ripvOnScene: report.ripvOnScene || false,
+          otherOnScene: report.otherOnScene || false,
+          otherOnSceneDetails: report.otherOnSceneDetails || "",
           firstName: report.firstName || "",
           scheme: report.scheme || "",
           driverName: report.driverName || "",
@@ -152,14 +158,25 @@ const IncidentReportFormPage = () => {
           storageEmail: report.storageEmail || "",
           propertyRemoved: report.propertyRemoved || "",
           vehicleOutcome: report.vehicleOutcome || "",
-          checks: { ...createEmptyChecks(), ...(report.checks || {}) },
+          checks: {
+            ...createEmptyChecks(),
+            ...Object.fromEntries(
+              Object.entries(report.checks || {}).filter(([, value]) => value),
+            ),
+          },
           vehicleCondition: {
             ...createEmptyVehicleCondition(),
-            ...(report.vehicleCondition || {}),
+            ...Object.fromEntries(
+              Object.entries(report.vehicleCondition || {}).filter(
+                ([, section]) => section?.damage || section?.note,
+              ),
+            ),
           },
           serviceAcceptance:
             report.serviceAcceptance || SERVICE_ACCEPTANCE_STATEMENTS.map(() => false),
           name: report.name || "",
+          customerContactNo: report.customerContactNo || "",
+          customerAddress: report.customerAddress || "",
           satisfactionConfirmed: report.satisfactionConfirmed || false,
           sendReportCopy: report.sendReportCopy || false,
           signatureUrl: report.signatureUrl || "",
@@ -469,6 +486,30 @@ const IncidentReportFormPage = () => {
       return;
     }
 
+    if (
+      !formData.driverOnScene &&
+      !formData.policeOnScene &&
+      !formData.nhOnScene &&
+      !formData.ripvOnScene &&
+      !formData.otherOnScene
+    ) {
+      toast.error("Please select at least one On Scene option");
+      return;
+    }
+
+    if (formData.otherOnScene && !formData.otherOnSceneDetails.trim()) {
+      toast.error("Please specify who else was on scene");
+      return;
+    }
+
+    const savedArrivalImages = (formData.files || []).filter(
+      (file) => file.stage === "arrival",
+    );
+    if (savedArrivalImages.length === 0 && arrivalFiles.length === 0) {
+      toast.error("Please upload at least one Arrival Image");
+      return;
+    }
+
     setLoading(true);
     try {
       await persistProgress(3);
@@ -484,6 +525,14 @@ const IncidentReportFormPage = () => {
   // Step 3: Drop-Off Sheet — save progress and continue to the Customer page.
   const handleStep3Next = async (e) => {
     e.preventDefault();
+
+    const savedDropoffImages = (formData.files || []).filter(
+      (file) => file.stage === "dropoff",
+    );
+    if (savedDropoffImages.length === 0 && dropoffFiles.length === 0) {
+      toast.error("Please upload at least one Unloaded Image");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -608,6 +657,8 @@ const IncidentReportFormPage = () => {
         storageContactNo: formData.storageContactNo.trim(),
         storageEmail: formData.storageEmail.trim(),
         name: formData.name.trim(),
+        customerContactNo: formData.customerContactNo.trim(),
+        customerAddress: formData.customerAddress.trim(),
         signatureUrl,
       };
       const dataWithTimings = calculateTimeDifferences(trimmedData);
@@ -716,7 +767,7 @@ const IncidentReportFormPage = () => {
     return (
       <div>
         <label className="label">
-          <span className="label-text font-semibold">{label}</span>
+          <span className="label-text font-semibold">{label} <span className="text-red-500">*</span> </span>
         </label>
         <div
           className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-brand-400 transition-colors"
@@ -847,7 +898,9 @@ const IncidentReportFormPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="label">
-            <span className="label-text font-semibold mb-2">Driver Name</span>
+            <span className="label-text font-semibold mb-2">
+              Driver Name <span className="text-red-500">*</span>
+            </span>
           </label>
           <input
             type="text"
@@ -856,18 +909,22 @@ const IncidentReportFormPage = () => {
             onChange={handleChange}
             className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
             maxLength={100}
+            required
           />
         </div>
 
         <div>
           <label className="label">
-            <span className="label-text font-semibold mb-2">Vehicle Allocated</span>
+            <span className="label-text font-semibold mb-2">
+              Vehicle Allocated <span className="text-red-500">*</span>
+            </span>
           </label>
           <select
             name="vehicleAllocated"
             value={formData.vehicleAllocated}
             onChange={handleChange}
             className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+            required
           >
             <option value="">Please Select</option>
              {VEHICLE_ALLOCATED_OPTIONS.map((option) => (
@@ -883,7 +940,9 @@ const IncidentReportFormPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="label">
-            <span className="label-text font-semibold mb-2">Source of Call</span>
+            <span className="label-text font-semibold mb-2">
+              Source of Call <span className="text-red-500">*</span>
+            </span>
           </label>
           <select
             value={sourceOtherMode ? "Other" : formData.jobSource}
@@ -898,6 +957,7 @@ const IncidentReportFormPage = () => {
               }
             }}
             className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+            required
           >
             <option value="">Please Select</option>
             {SOURCE_OF_CALL_OPTIONS.map((option) => (
@@ -956,7 +1016,9 @@ const IncidentReportFormPage = () => {
 
         <div>
           <label className="label">
-            <span className="label-text font-semibold mb-2">Time</span>
+            <span className="label-text font-semibold mb-2">
+              Time <span className="text-red-500">*</span>
+            </span>
           </label>
           <input
             type="time"
@@ -964,6 +1026,7 @@ const IncidentReportFormPage = () => {
             value={formData.time}
             onChange={handleChange}
             className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+            required
           />
         </div>
       </div>
@@ -1046,7 +1109,9 @@ const IncidentReportFormPage = () => {
             {/* On-scene checkboxes */}
             <div>
               <label className="label">
-                <span className="label-text font-semibold mb-2">On Scene</span>
+                <span className="label-text font-semibold mb-2">
+                  On Scene
+                  </span>
               </label>
               <div className="flex flex-wrap gap-6">
                 {[
@@ -1054,10 +1119,12 @@ const IncidentReportFormPage = () => {
                   ["policeOnScene", "Police on scene"],
                   ["nhOnScene", "NH on scene"],
                   ["ripvOnScene", "RIPV on scene"],
+                  ["otherOnScene", "Other on scene (please specify)"]
                 ].map(([key, label]) => (
                   <label key={key} className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
+                      name="onScene"
                       className="checkbox checkbox-sm border-gray-400"
                       checked={formData[key]}
                       onChange={(e) =>
@@ -1068,6 +1135,16 @@ const IncidentReportFormPage = () => {
                   </label>
                 ))}
               </div>
+              {formData.otherOnScene && (
+                <input
+                  type="text"
+                  name="otherOnSceneDetails"
+                  placeholder="Please specify who else was on scene"
+                  value={formData.otherOnSceneDetails}
+                  onChange={handleChange}
+                  className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full mt-3"
+                />
+              )}
             </div>
 
             {/* Time of Arrival, Marker Post */}
@@ -1108,13 +1185,16 @@ const IncidentReportFormPage = () => {
 
               <div>
                 <label className="label">
-                  <span className="label-text font-semibold mb-2">Vehicle Type</span>
+                  <span className="label-text font-semibold mb-2">
+                    Vehicle Type <span className="text-red-500">*</span>
+                    </span>
                 </label>
                 <select
                   name="vehicleType"
                   value={formData.vehicleType}
                   onChange={handleChange}
                   className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+                  required
                 >
                   <option value="">Please select</option>
                   <option value="Car">Car</option>
@@ -1132,7 +1212,9 @@ const IncidentReportFormPage = () => {
             {/* Time Cleared */}
             <div>
               <label className="label">
-                <span className="label-text font-semibold mb-2">Time Cleared</span>
+                <span className="label-text font-semibold mb-2 mr-2">
+                  Time Cleared <span className="text-red-500">*</span>
+                </span>
               </label>
               <input
                 type="time"
@@ -1205,7 +1287,9 @@ const IncidentReportFormPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
             <label className="label">
-              <span className="label-text font-semibold mb-2">Reg. No.</span>
+              <span className="label-text font-semibold mb-2">
+                Reg. No. <span className="text-red-500">*</span>
+              </span>
             </label>
             <input
               type="text"
@@ -1214,12 +1298,13 @@ const IncidentReportFormPage = () => {
               onChange={handleChange}
               className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
               maxLength={20}
+              required
             />
           </div>
 
           <div>
             <label className="label">
-              <span className="label-text font-semibold mb-2">Make / Model</span>
+              <span className="label-text font-semibold mb-2">Make / Model <span className="text-red-500">*</span></span>
             </label>
             <input
               type="text"
@@ -1228,12 +1313,13 @@ const IncidentReportFormPage = () => {
               onChange={handleChange}
               className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
               maxLength={100}
+              required
             />
           </div>
 
           <div>
             <label className="label">
-              <span className="label-text font-semibold mb-2">Colour</span>
+              <span className="label-text font-semibold mb-2">Colour<span className="text-red-500">*</span></span>
             </label>
             <input
               type="text"
@@ -1242,6 +1328,7 @@ const IncidentReportFormPage = () => {
               onChange={handleChange}
               className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
               maxLength={50}
+              required
             />
           </div>
         </div>
@@ -1249,13 +1336,16 @@ const IncidentReportFormPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
           <div>
             <label className="label">
-              <span className="label-text font-semibold mb-2">Transmission</span>
+              <span className="label-text font-semibold mb-2">
+                Transmission<span className="text-red-500">*</span>
+              </span>
             </label>
               <select
               name="transmission"
               value={formData.transmission}
               onChange={handleChange}
               className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+              required
             >
               <option value="">Please Select</option>
               {VEHICLE_TRANSMISSION_OPTIONS.map((option) => (
@@ -1268,7 +1358,9 @@ const IncidentReportFormPage = () => {
 
           <div>
             <label className="label">
-              <span className="label-text font-semibold mb-2">No. Passengers</span>
+              <span className="label-text font-semibold mb-2">
+                No. Passengers <span className="text-red-500">*</span>
+              </span>
             </label>
             <input
               type="text"
@@ -1277,12 +1369,15 @@ const IncidentReportFormPage = () => {
               onChange={handleChange}
               className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
               maxLength={10}
+              required
             />
           </div>
 
           <div>
             <label className="label">
-              <span className="label-text font-semibold mb-2">Speedo</span>
+              <span className="label-text font-semibold mb-2">
+                Speedo <span className="text-red-500">*</span>
+              </span>
             </label>
             <input
               type="text"
@@ -1291,6 +1386,7 @@ const IncidentReportFormPage = () => {
               onChange={handleChange}
               className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
               maxLength={20}
+              required
             />
           </div>
         </div>
@@ -1334,12 +1430,14 @@ const IncidentReportFormPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="label">
-            <span className="label-text font-semibold mb-2">Fault Reported</span>
+            <span className="label-text font-semibold mb-2">
+              Fault Reported <span className="text-red-500">*</span>
+            </span>
           </label>
            <select
               name="faultReported"
               value={sourceOtherMode ? "Other" : formData.faultReported}
-            onChange={(e) => {
+               onChange={(e) => {
               const value = e.target.value;
               if (value === "Other") {
                 setSourceOtherMode(true);
@@ -1350,6 +1448,7 @@ const IncidentReportFormPage = () => {
               }
             }}
               className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+              required
             >
               <option value="">Please Select</option>
               {INCIDENT_TYPE_OPTIONS.map((option) => (
@@ -1375,11 +1474,14 @@ const IncidentReportFormPage = () => {
 
         <div>
           <label className="label">
-            <span className="label-text font-semibold mb-2">Actual Fault</span>
+            <span className="label-text font-semibold mb-2">
+              Actual Fault <span className="text-red-500">*</span>
+            </span>
           </label>
           <select
               name="actualFault"
               value={sourceOtherMode ? "Other" : formData.actualFault}
+              required
             onChange={(e) => {
               const value = e.target.value;
               if (value === "Other") {
@@ -1451,7 +1553,7 @@ const IncidentReportFormPage = () => {
                 />
                 <span className="text-sm font-medium">{label}</span>
               </label>
-              {formData.vehicleCondition[key].damage && (
+              {formData.vehicleCondition[key].damage && key !== "N/A" && (
                 <input
                   type="text"
                   placeholder="Describe the damage"
@@ -1523,7 +1625,9 @@ const IncidentReportFormPage = () => {
       {/* Recovery Destination */}
       <div>
         <label className="label">
-          <span className="label-text font-semibold mb-2">Drop-Off Destination</span>
+          <span className="label-text font-semibold mb-2">
+            Drop-Off Destination <span className="text-red-500">*</span>
+          </span>
         </label>
         <input
           type="text"
@@ -1532,6 +1636,7 @@ const IncidentReportFormPage = () => {
           onChange={handleChange}
           className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
           maxLength={200}
+          required
         />
       </div>
 
@@ -1543,7 +1648,9 @@ const IncidentReportFormPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
             <label className="label">
-              <span className="label-text font-semibold mb-2">Name</span>
+              <span className="label-text font-semibold mb-2">
+                Storage Name
+              </span>
             </label>
             <input
               type="text"
@@ -1557,7 +1664,7 @@ const IncidentReportFormPage = () => {
 
           <div>
             <label className="label">
-              <span className="label-text font-semibold mb-2">Address</span>
+              <span className="label-text font-semibold mb-2">Storage Address</span>
             </label>
             <input
               type="text"
@@ -1571,7 +1678,7 @@ const IncidentReportFormPage = () => {
 
           <div>
             <label className="label">
-              <span className="label-text font-semibold mb-2">Contact No.</span>
+              <span className="label-text font-semibold mb-2">Storage Contact No. <span className="text-red-500">*</span></span>
             </label>
             <input
               type="text"
@@ -1580,6 +1687,7 @@ const IncidentReportFormPage = () => {
               onChange={handleChange}
               className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
               maxLength={30}
+           
             />
           </div>
         </div>
@@ -1631,11 +1739,11 @@ const IncidentReportFormPage = () => {
       </div>
 
       {/* Customer/Driver Service Acceptance */}
-      <div>
-        <h3 className="font-semibold text-gray-800 mb-3">
+      <div >
+        <h3 className="font-semibold text-gray-800 mb-3 ">
           Customer Acceptance
         </h3>
-        <div className="space-y-3">
+        <div className="space-y-4">
           {SERVICE_ACCEPTANCE_STATEMENTS.map((statement, index) => (
             <label
               key={index}
@@ -1666,7 +1774,7 @@ const IncidentReportFormPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
           <div>
             <label className="label">
-              <span className="label-text font-semibold mb-2">Customer Name</span>
+              <span className="label-text font-semibold mb-2">Customer Name <span className="text-red-500">*</span></span>
             </label>
             <input
               type="text"
@@ -1675,6 +1783,7 @@ const IncidentReportFormPage = () => {
               onChange={handleChange}
               className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
               maxLength={100}
+              required
             />
             <label className="cursor-pointer flex items-center gap-2 mt-2">
               <input
@@ -1721,6 +1830,35 @@ const IncidentReportFormPage = () => {
                 Send me a copy of this report
               </span>
             </label>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+          <div>
+            <label className="label">
+              <span className="label-text font-semibold mb-2">Contact No.</span>
+            </label>
+            <input
+              type="tel"
+              name="customerContactNo"
+              value={formData.customerContactNo}
+              onChange={handleChange}
+              className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+              maxLength={20}
+            />
+          </div>
+          <div>
+            <label className="label">
+              <span className="label-text font-semibold mb-2">Address</span>
+            </label>
+            <input
+              type="text"
+              name="customerAddress"
+              value={formData.customerAddress}
+              onChange={handleChange}
+              className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+              maxLength={200}
+            />
           </div>
         </div>
 

@@ -44,7 +44,6 @@
   const BackfillHasVideoPage = lazy(() => import("./pages/admin/BackfillHasVideoPage"));
   const ReferenceIdManagerPage = lazy(() => import("./pages/admin/ReferenceIdManagerPage"));
   const SchemeAssignmentPage = lazy(() => import("./pages/admin/SchemeAssignmentPage"));
-  const StaffManagementPage = lazy(() => import("./pages/admin/StaffManagementPage"));
   const StaffReportsPage = lazy(() => import("./pages/admin/StaffReportsPage"));
   const DailyAllocationsListPage = lazy(() => import("./pages/admin/DailyAllocationsListPage"));
   const DailyAllocationsFormPage = lazy(() => import("./pages/admin/DailyAllocationsFormPage"));
@@ -164,11 +163,7 @@
 
                 <Route
                   path="/dashboard/admin/staff-management"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
-                      <StaffManagementPage />
-                    </ProtectedRoute>
-                  }
+                  element={<Navigate to="/dashboard/admin?tab=staff" replace />}
                 />
 
                 <Route

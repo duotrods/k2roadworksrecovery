@@ -38,10 +38,14 @@
     };
 
     const isActive = (path, exact = false) => {
-      if (exact) {
-        return location.pathname === path;
+      const [pathname, query] = path.split('?');
+      if (query) {
+        return location.pathname === pathname && location.search === `?${query}`;
       }
-      return location.pathname === path || location.pathname.startsWith(path + '/');
+      if (exact) {
+        return location.pathname === pathname;
+      }
+      return location.pathname === pathname || location.pathname.startsWith(pathname + '/');
     };
 
     const navItems = [
@@ -63,7 +67,7 @@
       },
       {
         name: "Staff Management",
-        path: "/dashboard/admin/staff-management",
+        path: "/dashboard/admin?tab=staff",
         icon: Users,
       },
       {
@@ -77,7 +81,7 @@
         icon: CalendarDays,
       },
       {
-        name: "Client Charts",
+        name: "Reports & Analytics",
         path: "/dashboard/admin/client-charts",
         icon: BarChart3,
       },

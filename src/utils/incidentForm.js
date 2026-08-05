@@ -126,8 +126,11 @@ export const ACTUAL_TYPE_OPTIONS = [
 
 export const createEmptyVehicleCondition = () =>
   Object.fromEntries(
-    VEHICLE_CONDITION_SECTIONS.map(({ key }) => [key, { damage: false, note: "" }]),
+    VEHICLE_CONDITION_SECTIONS.map(({ key }) => [
+      key,
+      { damage: key === "N/A", note: "" },
+    ]),
   );
 
 export const createEmptyChecks = () =>
-  Object.fromEntries(CHECK_ITEMS.map(({ key }) => [key, ""]));
+  Object.fromEntries(CHECK_ITEMS.map(({ key }) => [key, "No"]));

@@ -291,6 +291,8 @@ export const generateReportPDF = async (report, reportType, options) => {
         report.policeOnScene && "Police",
         report.nhOnScene && "NH",
         report.ripvOnScene && "RIPV",
+        report.otherOnScene &&
+          `Other${report.otherOnSceneDetails ? ` (${report.otherOnSceneDetails})` : ""}`,
       ].filter(Boolean);
       addField("On Scene", onScene.length > 0 ? onScene.join(", ") : "None");
       if (report.firstName) addField("Operator", report.firstName);
@@ -377,6 +379,10 @@ export const generateReportPDF = async (report, reportType, options) => {
         VEHICLE_CONDITION_SECTIONS.forEach(({ key, label }) => {
           const section = report.vehicleCondition[key];
           if (!section) return;
+          if (key === "N/A") {
+            addField(label, section.damage ? "N/A" : "Not marked N/A");
+            return;
+          }
           addField(
             label,
             section.damage ? `Damaged — ${section.note || "no note"}` : "No damage",
@@ -423,6 +429,9 @@ export const generateReportPDF = async (report, reportType, options) => {
       yPosition += 3;
       addSectionHeader("SIGN OFF");
       if (report.name) addField("Name", report.name);
+      if (report.customerContactNo)
+        addField("Contact No.", report.customerContactNo);
+      if (report.customerAddress) addField("Address", report.customerAddress);
       addField(
         "Confirmed Satisfaction",
         report.satisfactionConfirmed ? "Yes" : "No",
