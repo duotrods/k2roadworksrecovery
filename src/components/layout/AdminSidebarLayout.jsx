@@ -8,7 +8,6 @@
     FolderKanban,
     FileText,
     BarChart3,
-    Users,
     LogOut,
     HelpCircle,
     PanelLeftClose,
@@ -64,11 +63,6 @@
         name: "Assign Schemes",
         path: "/dashboard/admin/scheme-assignment",
         icon: FolderKanban,
-      },
-      {
-        name: "Staff Management",
-        path: "/dashboard/admin?tab=staff",
-        icon: Users,
       },
       {
         name: "Staff Reports",

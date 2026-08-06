@@ -4,7 +4,7 @@
 @plugin "daisyui";
 
 :root {
-  font-family: "Montserrat", system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: "Poppins", system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
@@ -19,19 +19,20 @@
 }
 
 h1 {
-  font-size: 2rem;
+  font-size: clamp(28px, 3vw, 32px);;
   font-weight: 600;
   line-height: 1.25;
+  letter-spacing: -0.2%;
 }
 
 h2 {
-  font-size: 1.5rem;
+  font-size: 24px;
   font-weight: 600;
   line-height: 1.3;
 }
 
 h3 {
-  font-size: 1.25rem;
+  font-size: 20px;
   font-weight: 600;
   line-height: 1.35;
 }
@@ -70,4 +71,6 @@ a {
   --color-brand-700: #06487b;
   --color-brand-800: #04385f;
   --color-brand-900: #032a49;
+
+  --color-textb-light:#637381;
 }

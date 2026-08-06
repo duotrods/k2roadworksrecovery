@@ -24,15 +24,19 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { jsPDF } from 'jspdf';
-import { DateRangePicker } from 'react-date-range';
+import { DateRangePicker, defaultStaticRanges } from 'react-date-range';
 import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
 import { addDays } from 'date-fns';
 
+// Static ranges (Today/This Week/etc.) hidden entirely on mobile so the
+// picker stays short enough to avoid scrolling into view.
+const MOBILE_STATIC_RANGES = [];
+
 // Chart Card Component
 const ChartCard = ({ title, children, fullWidth = false, height = 300 }) => (
   <div className={`bg-white rounded-xl shadow-md p-6 ${fullWidth ? 'col-span-full' : ''}`}>
-    <h5 className="text-lg font-semibold text-gray-800 mb-4">{title}</h5>
+    <h4 className="text-lg font-semibold text-gray-800 mb-4">{title}</h4>
     <ResponsiveContainer width="100%" height={height}>
       {children}
     </ResponsiveContainer>
@@ -49,6 +53,17 @@ const ClientChartsPage = () => {
   const [vehicleCheckDefects, setVehicleCheckDefects] = useState([]);
   const datePickerRef = useRef(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Drives DateRangePicker's month count/direction — its own props don't
+  // respond to CSS breakpoints, so we track viewport width in JS instead.
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 639px)');
+    setIsMobile(mediaQuery.matches);
+    const handleChange = (e) => setIsMobile(e.matches);
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
 
   // Set default date range to last 30 days
   const [dateRange, setDateRange] = useState([
@@ -59,21 +74,25 @@ const ClientChartsPage = () => {
     }
   ]);
 
+  //bar chart color
   const COLORS = {
-    primary: "#17af93",
+    brand: "#0865ad",
   };
 
   // Common chart props
   const commonChartProps = {
-    cartesianGrid: { strokeDasharray: "3 3", stroke: "#17af93" },
-    xAxis: { tick: { fontSize: 13 } },
-    yAxis: { tick: { fontSize: 13 } },
+    //background grid lines of the charts
+    cartesianGrid: { strokeDasharray: "4 5", stroke: COLORS.brand },
+    //font size of the x and y axis labels
+    xAxis: { tick: { fontSize: 12 } },
+    yAxis: { tick: { fontSize: 12 } },
     tooltip: {
-      contentStyle: { backgroundColor: '#fff', border: '1px solid #17af93', borderRadius: '8px' },
+      contentStyle: { backgroundColor: '#fff', border: '1px solid #0865ad', borderRadius: '8px' },
       labelStyle: { fontWeight: 'bold' }
     },
-    legend: { wrapperStyle: { paddingTop: '6px' } },
-    bar: { fill: COLORS.primary, radius: [8, 8, 0, 0] }
+    legend: { wrapperStyle: { paddingTop: '0px' } },
+    bar: { fill: COLORS.brand, radius: [8, 8, 0, 0] },
+    chartMargin: { top: 10, right: 20, left: -35, bottom: 10 }
   };
 
   useEffect(() => {
@@ -81,7 +100,7 @@ const ClientChartsPage = () => {
     // selected date range, so changing the range never disturbs the selection).
     const activeSchemeNames = SCHEMES.map((s) => s.fullName).sort();
     setSchemes(activeSchemeNames);
-    if (activeSchemeNames.length > 0) setSelectedScheme(activeSchemeNames[0]);
+    if (activeSchemeNames.length > 0) setSelectedScheme(activeSchemeNames.find(name => name.startsWith('M3')) || activeSchemeNames[0]);
     loadFormCounts();
   }, []);
 
@@ -366,21 +385,45 @@ const ClientChartsPage = () => {
     const margin = { top: 12, right: 10, bottom: 18, left: 10 };
     const chartWidth = width - margin.left - margin.right;
     const chartHeight = height - margin.top - margin.bottom;
+    const plotLeft = x + margin.left;
+    const plotTop = y + margin.top;
+    const plotBottom = plotTop + chartHeight;
 
     // Calculate max value
-    const maxValue = Math.max(...data.map(d => d.Number));
-    const barWidth = chartWidth / data.length * 0.7;
-    const gap = chartWidth / data.length * 0.3;
+    // Floor of 1 avoids a divide-by-zero (-> NaN -> jsPDF throws) when every
+    // bucket in this chart is 0, e.g. no incidents matched in the date range.
+    const maxValue = Math.max(...data.map(d => d.Number), 1);
+    // Bars are centered within their slot (rather than packed from the left
+    // edge) so there's breathing room before the first bar/axis line and
+    // after the last, not just between bars.
+    const slotWidth = chartWidth / data.length;
+    const barWidth = slotWidth * 0.4;
+    const barCornerRadius = 1; // mm — jsPDF's roundedRect takes rx/ry in the doc's own unit
+
+    // Cartesian grid: horizontal gridlines + y-axis tick labels, mirroring
+    // the on-screen <CartesianGrid>/<YAxis>.
+    const tickCount = 4;
+    pdf.setLineDashPattern([1, 1], 0);
+    pdf.setDrawColor(229, 231, 235);
+    for (let i = 0; i <= tickCount; i++) {
+      const tickValue = Math.round((maxValue / tickCount) * i);
+      const tickY = plotBottom - (tickValue / maxValue) * chartHeight;
+      pdf.line(plotLeft, tickY, plotLeft + chartWidth, tickY);
+      pdf.setFontSize(6);
+      pdf.setTextColor(107, 114, 128);
+      pdf.text(String(tickValue), plotLeft - 2, tickY, { align: 'right', baseline: 'middle' });
+    }
+    pdf.setLineDashPattern([], 0);
 
     // Draw bars
     data.forEach((item, index) => {
       const barHeight = (item.Number / maxValue) * chartHeight;
-      const barX = x + margin.left + (index * (barWidth + gap));
-      const barY = y + margin.top + chartHeight - barHeight;
+      const barX = plotLeft + index * slotWidth + (slotWidth - barWidth) / 2;
+      const barY = plotBottom - barHeight;
 
       // Draw bar
-      pdf.setFillColor(23, 175, 147); // Teal color
-      pdf.roundedRect(barX, barY, barWidth, barHeight, 2, 2, 'F');
+      pdf.setFillColor(COLORS.brand); // Teal color
+      pdf.roundedRect(barX, barY, barWidth, barHeight, barCornerRadius, barCornerRadius, 'F');
 
       // Draw value on top of bar
       pdf.setFontSize(8);
@@ -391,9 +434,14 @@ const ClientChartsPage = () => {
       pdf.setFontSize(7);
       pdf.setTextColor(107, 114, 128);
       const label = item.name.length > 12 ? item.name.substring(0, 12) + '...' : item.name;
-      const labelY = y + margin.top + chartHeight + 5; // Just 5mm below the chart area
+      const labelY = plotBottom + 10; // Just 10mm below the chart area
       pdf.text(label, barX + barWidth / 2, labelY, { align: 'center', maxWidth: barWidth });
     });
+
+    // X/Y axis lines, drawn last so they sit crisp on top of the grid and bars.
+    pdf.setDrawColor(107, 114, 122);
+    pdf.line(plotLeft, plotTop, plotLeft, plotBottom); // y-axis
+    pdf.line(plotLeft, plotBottom, plotLeft + chartWidth, plotBottom); // x-axis
   };
 
   // Export dashboard as PDF
@@ -414,7 +462,7 @@ const ClientChartsPage = () => {
 
       // Add header to the PDF
       const headerHeight = 25;
-      pdf.setFillColor(23, 175, 147); // Teal color
+      pdf.setFillColor(COLORS.brand); // Brand color
       pdf.rect(0, 0, pdfWidth, headerHeight, 'F');
 
       // Header text - left side
@@ -447,7 +495,7 @@ const ClientChartsPage = () => {
           pdf.addPage();
 
           // Add header to new page
-          pdf.setFillColor(23, 175, 147);
+          pdf.setFillColor(COLORS.brand);
           pdf.rect(0, 0, pdfWidth, headerHeight, 'F');
           pdf.setTextColor(255, 255, 255);
           pdf.setFontSize(18);
@@ -539,39 +587,39 @@ const ClientChartsPage = () => {
 
   return (
     <AdminSidebarLayout>
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-8xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h3 className="text-3xl font-bold text-gray-800 mb-2">Reports & Analytics</h3>
-          <p className="text-gray-600">Visual analytics of all reports and submissions per scheme</p>
+          <h1 className="font-semibold text-gray-800 mb-2">Reports & Analytics</h1>
+          <p className="text-gray-500 text-[14px]">Visual analytics of all reports and submissions per scheme</p>
         </div>
 
         {/* Filter and Export */}
         <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-4 flex-1">
-              <Filter className="w-5 h-5 text-gray-400" />
-              <select
-                value={selectedScheme}
-                onChange={(e) => setSelectedScheme(e.target.value)}
-                className="select bg-white border-gray-300 rounded-lg w-full max-w-md focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
-              >
-                {schemes.map((scheme) => (
-                  <option key={scheme} value={scheme}>
-                    {scheme}
-                  </option>
-                ))}
-              </select>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="relative w-full sm:w-auto max-w-md">
+                <Filter className="w-5 h-5 text-brand-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
+                <select
+                  value={selectedScheme}
+                  onChange={(e) => setSelectedScheme(e.target.value)}
+                  className="select text-gray-600 pl-10 bg-white border-gray-200 rounded-lg w-full focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500"
+                >
+                  {schemes.map((scheme) => (
+                    <option key={scheme} value={scheme}>
+                      {scheme}
+                    </option>
+                  ))}
+                </select>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
               {/* Date Range Picker */}
               <div className="relative" ref={datePickerRef}>
                 <button
                   onClick={() => setShowDatePicker(!showDatePicker)}
-                  className="flex items-center gap-3 bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                  className="flex items-center justify-center sm:justify-start gap-3 bg-white px-4 py-2.5 sm:py-2 rounded-lg border border-gray-200 hover:shadow-xs transition-shadow cursor-pointer w-full sm:w-auto"
                 >
-                  <Calendar className="w-5 h-5 text-teal-600" />
+                  <Calendar className="w-5 h-5 text-brand-500" />
                   <div className="flex items-center gap-2 text-sm">
                     <span className="font-medium text-gray-700">
                       {dateRange[0].startDate.toLocaleDateString('en-GB')}
@@ -584,15 +632,16 @@ const ClientChartsPage = () => {
                 </button>
 
                 {showDatePicker && (
-                  <div className="absolute right-0 top-full mt-2 z-50 shadow-xl rounded-lg overflow-hidden border border-gray-200">
+                  <div className="absolute left-1/2 -translate-x-1/2 sm:left-auto sm:right-0 sm:translate-x-0 top-full mt-2 z-50 max-w-[92vw] overflow-x-auto shadow-xl rounded-lg border border-gray-200 [&_.rdrDateRangePickerWrapper]:flex-col sm:[&_.rdrDateRangePickerWrapper]:flex-row [&_.rdrDefinedRangesWrapper]:w-full! sm:[&_.rdrDefinedRangesWrapper]:w-[226px]! [&_.rdrDefinedRangesWrapper]:border-r-0! [&_.rdrDefinedRangesWrapper]:border-b sm:[&_.rdrDefinedRangesWrapper]:border-b-0 sm:[&_.rdrDefinedRangesWrapper]:border-r! [&_.rdrDefinedRangesWrapper]:border-gray-100 [&_.rdrStaticRanges]:grid [&_.rdrStaticRanges]:grid-cols-2 sm:[&_.rdrStaticRanges]:block [&_.rdrInputRanges]:grid [&_.rdrInputRanges]:grid-cols-2 sm:[&_.rdrInputRanges]:block">
                     <DateRangePicker
                       ranges={dateRange}
                       onChange={(item) => setDateRange([item.selection])}
                       moveRangeOnFirstSelection={false}
-                      months={2}
-                      direction="horizontal"
+                      staticRanges={isMobile ? MOBILE_STATIC_RANGES : defaultStaticRanges}
+                      months={isMobile ? 1 : 2}
+                      direction={isMobile ? 'vertical' : 'horizontal'}
                       showDateDisplay={false}
-                      rangeColors={['#17af93']}
+                      rangeColors={[COLORS.brand]}
                     />
                   </div>
                 )}
@@ -601,10 +650,10 @@ const ClientChartsPage = () => {
               <button
                 onClick={handleExportPDF}
                 disabled={isExporting || loading}
-                className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-teal-600 hover:shadow-md transition-all disabled:bg-gray-300 disabled:cursor-not-allowed"
+                className="flex items-center justify-center gap-2 bg-brand-500 text-white px-4 py-2 sm:py-1.5 rounded-lg shadow-sm hover:bg-brand-600 hover:shadow-md transition-all disabled:bg-gray-300 disabled:cursor-not-allowed w-full sm:w-auto"
               >
-                <Download className="w-5 h-5" />
-                <span className="font-medium">Export Charts</span>
+                <Download className="w-4 h-4" />
+                <span className="text-sm py-1 font-semibold">Export Charts</span>
               </button>
             </div>
           </div>
@@ -612,7 +661,7 @@ const ClientChartsPage = () => {
 
         {loading ? (
           <div className="flex justify-center items-center h-96">
-            <div className="loading loading-spinner loading-lg text-teal-500"></div>
+            <div className="loading loading-spinner loading-lg text-brand-500"></div>
           </div>
         ) : (
           <>
@@ -634,10 +683,10 @@ const ClientChartsPage = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-gray-500 text-sm">Incidents</p>
-                    <p className="text-3xl font-bold text-teal-600 mt-1">{stats.incident}</p>
+                    <p className="text-3xl font-bold text-brand-500 mt-1">{stats.incident}</p>
                   </div>
-                  <div className="bg-teal-100 p-3 rounded-lg">
-                    <AlertTriangle className="w-6 h-6 text-teal-600" />
+                  <div className="bg-brand-100 p-3 rounded-lg">
+                    <AlertTriangle className="w-6 h-6 text-brand-500" />
                   </div>
                 </div>
               </div>
@@ -669,10 +718,13 @@ const ClientChartsPage = () => {
             </div>
 
             {/* Incident Analytics Charts Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                        {/* Chart 9: Time to Site */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              {/* Chart 9: Time to Site */}
               <ChartCard title="Time to Site (mins)">
-                <BarChart data={timeToSiteData.length > 0 ? timeToSiteData : [{ name: "No Data", Number: 0 }]}>
+                <BarChart
+                  data={timeToSiteData.length > 0 ? timeToSiteData : [{ name: "No Data", Number: 0 }]}
+                  margin={commonChartProps.chartMargin}
+                >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
                   <YAxis {...commonChartProps.yAxis} />
@@ -681,10 +733,13 @@ const ClientChartsPage = () => {
                   <Bar dataKey="Number" {...commonChartProps.bar} />
                 </BarChart>
               </ChartCard>
-              
-                {/* Chart 6: Time to Recover */}
+
+              {/* Chart 6: Time to Recover */}
               <ChartCard title="Time to recover (mins)">
-                <BarChart data={timeToRecoverData.length > 0 ? timeToRecoverData : [{ name: "No Data", Number: 0 }]}>
+                <BarChart
+                  data={timeToRecoverData.length > 0 ? timeToRecoverData : [{ name: "No Data", Number: 0 }]}
+                  margin={commonChartProps.chartMargin}
+                >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
                   <YAxis {...commonChartProps.yAxis} />
@@ -696,7 +751,10 @@ const ClientChartsPage = () => {
 
               {/* Chart 1: Fault */}
               <ChartCard title="Fault">
-                <BarChart data={faultData.length > 0 ? faultData : [{ name: "No Data", Number: 0 }]}>
+                <BarChart
+                  data={faultData.length > 0 ? faultData : [{ name: "No Data", Number: 0 }]}
+                  margin={commonChartProps.chartMargin}
+                >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
                   <YAxis {...commonChartProps.yAxis} />
@@ -708,7 +766,10 @@ const ClientChartsPage = () => {
 
               {/* Chart 2: Incident Type */}
               <ChartCard title="Incident Type">
-                <BarChart data={incidentTypeData.length > 0 ? incidentTypeData : [{ name: "No Data", Number: 0 }]}>
+                <BarChart
+                  data={incidentTypeData.length > 0 ? incidentTypeData : [{ name: "No Data", Number: 0 }]}
+                  margin={commonChartProps.chartMargin}
+                >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
                   <YAxis {...commonChartProps.yAxis} />
@@ -720,7 +781,10 @@ const ClientChartsPage = () => {
 
               {/* Chart 3: Vehicles Dispatched */}
               <ChartCard title="Vehicles Dispatched">
-                <BarChart data={vehiclesDispatchedData.length > 0 ? vehiclesDispatchedData : [{ name: "No Data", Number: 0 }]}>
+                <BarChart
+                  data={vehiclesDispatchedData.length > 0 ? vehiclesDispatchedData : [{ name: "No Data", Number: 0 }]}
+                  margin={commonChartProps.chartMargin}
+                >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
                   <YAxis {...commonChartProps.yAxis} />
@@ -732,7 +796,10 @@ const ClientChartsPage = () => {
 
               {/* Chart 4: Spotted By */}
               <ChartCard title="Spotted By">
-                <BarChart data={spottedByData.length > 0 ? spottedByData : [{ name: "No Data", Number: 0 }]}>
+                <BarChart
+                  data={spottedByData.length > 0 ? spottedByData : [{ name: "No Data", Number: 0 }]}
+                  margin={commonChartProps.chartMargin}
+                >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
                   <YAxis {...commonChartProps.yAxis} />
@@ -744,7 +811,10 @@ const ClientChartsPage = () => {
 
               {/* Chart 5: Lane Affected */}
               <ChartCard title="Lane Affected">
-                <BarChart data={laneAffectedData.length > 0 ? laneAffectedData : [{ name: "No Data", Number: 0 }]}>
+                <BarChart
+                  data={laneAffectedData.length > 0 ? laneAffectedData : [{ name: "No Data", Number: 0 }]}
+                  margin={commonChartProps.chartMargin}
+                >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
                   <YAxis {...commonChartProps.yAxis} />
@@ -754,10 +824,13 @@ const ClientChartsPage = () => {
                 </BarChart>
               </ChartCard>
 
-             
+
               {/* Chart 7: Traffic Conditions */}
               <ChartCard title="Traffic Conditions">
-                <BarChart data={trafficConditionsData.length > 0 ? trafficConditionsData : [{ name: "No Data", Number: 0 }]}>
+                <BarChart
+                  data={trafficConditionsData.length > 0 ? trafficConditionsData : [{ name: "No Data", Number: 0 }]}
+                  margin={commonChartProps.chartMargin}
+                >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
                   <YAxis {...commonChartProps.yAxis} />
@@ -769,7 +842,10 @@ const ClientChartsPage = () => {
 
               {/* Chart 8: Emergency Services Attended */}
               <ChartCard title="Emergency Services Attended">
-                <BarChart data={emergencyServicesData.length > 0 ? emergencyServicesData : [{ name: "No Data", Number: 0 }]}>
+                <BarChart
+                  data={emergencyServicesData.length > 0 ? emergencyServicesData : [{ name: "No Data", Number: 0 }]}
+                  margin={commonChartProps.chartMargin}
+                >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
                   <YAxis {...commonChartProps.yAxis} />
@@ -779,11 +855,14 @@ const ClientChartsPage = () => {
                 </BarChart>
               </ChartCard>
 
-        
+
 
               {/* Chart 10: Track of Incident */}
               <ChartCard title="Track of Incident">
-                <BarChart data={trackData.length > 0 ? trackData : [{ name: "No Data", Number: 0 }]}>
+                <BarChart
+                  data={trackData.length > 0 ? trackData : [{ name: "No Data", Number: 0 }]}
+                  margin={commonChartProps.chartMargin}
+                >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
                   <YAxis {...commonChartProps.yAxis} />
@@ -795,7 +874,10 @@ const ClientChartsPage = () => {
 
               {/* Chart 11: Vehicle Type */}
               <ChartCard title="Vehicle Type">
-                <BarChart data={vehicleTypeData.length > 0 ? vehicleTypeData : [{ name: "No Data", Number: 0 }]}>
+                <BarChart
+                  data={vehicleTypeData.length > 0 ? vehicleTypeData : [{ name: "No Data", Number: 0 }]}
+                  margin={commonChartProps.chartMargin}
+                >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
                   <YAxis {...commonChartProps.yAxis} />
@@ -807,7 +889,10 @@ const ClientChartsPage = () => {
 
               {/* Chart 12: Incursions */}
               <ChartCard title="Incursions">
-                <BarChart data={incursionsData.length > 0 ? incursionsData : [{ name: "No Data", Number: 0 }]}>
+                <BarChart
+                  data={incursionsData.length > 0 ? incursionsData : [{ name: "No Data", Number: 0 }]}
+                  margin={commonChartProps.chartMargin}
+                >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" tick={{ fontSize: 13 }} />
                   <YAxis {...commonChartProps.yAxis} />
@@ -819,7 +904,10 @@ const ClientChartsPage = () => {
 
               {/* Chart 13: Vehicle Check Defect Frequency */}
               <ChartCard title="Defect Frequency by Check Item" fullWidth>
-                <BarChart data={vehicleCheckDefects}>
+                <BarChart
+                  data={vehicleCheckDefects}
+                  margin={commonChartProps.chartMargin}
+                >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="label" tick={{ fontSize: 12 }} interval={0} angle={-20} textAnchor="end" height={70} />
                   <YAxis {...commonChartProps.yAxis} allowDecimals={false} />
@@ -838,6 +926,7 @@ const ClientChartsPage = () => {
                       ? timeSeriesData.map(d => ({ ...d, Number: d.count }))
                       : [{ name: "No Data", Number: 0 }]
                   }
+                  margin={commonChartProps.chartMargin}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="name" tick={{ fontSize: 13 }} />
