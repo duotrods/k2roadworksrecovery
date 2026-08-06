@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { staffService } from "../../services/staffService";
 import AdminSidebarLayout from "../../components/layout/AdminSidebarLayout";
+import DrillDownSidebar from "../../components/dashboard/DrillDownSidebar";
 import { SCHEMES, getInternalSchemeIds } from "../../utils/schemes";
 import { defectCountsFromAggregates } from "../../utils/vehicleCheckStats";
 import {
-  BarChart3,
   AlertTriangle,
   Calendar,
   Download,
   Filter,
-  ShieldCheck,
+  Truck,
   Car,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -34,9 +35,12 @@ import { addDays } from 'date-fns';
 const MOBILE_STATIC_RANGES = [];
 
 // Chart Card Component
-const ChartCard = ({ title, children, fullWidth = false, height = 300 }) => (
-  <div className={`bg-white rounded-xl shadow-md p-6 ${fullWidth ? 'col-span-full' : ''}`}>
-    <h4 className="text-lg font-semibold text-gray-800 mb-4">{title}</h4>
+const ChartCard = ({ title, children, fullWidth = false, height = 380 }) => (
+  <div
+    className={`bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow ${fullWidth ? 'col-span-full' : ''}`}
+    onMouseDown={(e) => e.preventDefault()}
+  >
+    <h4 className="text-xl font-bold text-gray-800 mb-6 border-b pb-3">{title}</h4>
     <ResponsiveContainer width="100%" height={height}>
       {children}
     </ResponsiveContainer>
@@ -44,6 +48,7 @@ const ChartCard = ({ title, children, fullWidth = false, height = 300 }) => (
 );
 
 const ClientChartsPage = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [selectedScheme, setSelectedScheme] = useState("");
   const [reports, setReports] = useState([]);
@@ -54,6 +59,23 @@ const ClientChartsPage = () => {
   const datePickerRef = useRef(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [drillDown, setDrillDown] = useState(null); // { title, incidents }
+
+  const openDrillDown = (data) => {
+    if (!data.incidents.length) return;
+    const toMillis = (createdAt) => {
+      if (!createdAt) return 0;
+      if (typeof createdAt.toDate === "function") return createdAt.toDate().getTime();
+      return new Date(createdAt).getTime();
+    };
+    const sorted = [...data.incidents].sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+    setDrillDown({ ...data, incidents: sorted });
+  };
+  const closeDrillDown = () => setDrillDown(null);
+  const navigateToReport = (id) => {
+    setDrillDown(null);
+    navigate(`/dashboard/admin/staff-reports/incident/${id}`);
+  };
 
   // Drives DateRangePicker's month count/direction — its own props don't
   // respond to CSS breakpoints, so we track viewport width in JS instead.
@@ -168,6 +190,10 @@ const ClientChartsPage = () => {
   const endDate = new Date(dateRange[0].endDate);
   endDate.setHours(23, 59, 59, 999); // Include the entire end date
 
+  // Compact label for the selected range, shown as the stat cards' subtitle
+  const formatShortDate = (d) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const periodLabel = `${formatShortDate(startDate)} – ${endDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+
   // Filter reports by selected scheme and date range
   const getFilteredReports = () => {
     let filtered = reports;
@@ -197,8 +223,8 @@ const ClientChartsPage = () => {
     const incidents = getIncidentReports();
     const faultCounts = {};
     incidents.forEach(report => {
-      if (report.fault) {
-        faultCounts[report.fault] = (faultCounts[report.fault] || 0) + 1;
+      if (report.faultReported) {
+        faultCounts[report.faultReported] = (faultCounts[report.faultReported] || 0) + 1;
       }
     });
     return Object.entries(faultCounts).map(([name, Number]) => ({ name, Number }));
@@ -208,8 +234,11 @@ const ClientChartsPage = () => {
     const incidents = getIncidentReports();
     const typeCounts = {};
     incidents.forEach(report => {
-      if (report.incidentType) {
-        typeCounts[report.incidentType] = (typeCounts[report.incidentType] || 0) + 1;
+      // Confirmed/final classification once inspected, falling back to the
+      // initial call-time guess — mirrors clientDataService.incidentClassification.
+      const type = report.actualFault || report.faultReported;
+      if (type) {
+        typeCounts[type] = (typeCounts[type] || 0) + 1;
       }
     });
     return Object.entries(typeCounts).map(([name, Number]) => ({ name, Number }));
@@ -217,40 +246,24 @@ const ClientChartsPage = () => {
 
   const getVehiclesDispatchedData = () => {
     const incidents = getIncidentReports();
-    const dispatchData = { Light: 0, Heavy: 0, IPV: 0, HETOS: 0 };
+    const dispatchCounts = {};
     incidents.forEach(report => {
-      if (report.recoveryRequested) {
-        dispatchData.Light += report.recoveryRequested.light || 0;
-        dispatchData.Heavy += report.recoveryRequested.heavy || 0;
-        dispatchData.IPV += report.recoveryRequested.ipv || 0;
-        dispatchData.HETOS += report.recoveryRequested.hetos || 0;
+      if (report.vehicleAllocated) {
+        dispatchCounts[report.vehicleAllocated] = (dispatchCounts[report.vehicleAllocated] || 0) + 1;
       }
     });
-    return Object.entries(dispatchData).map(([name, Number]) => ({ name, Number }));
+    return Object.entries(dispatchCounts).map(([name, Number]) => ({ name, Number }));
   };
 
   const getSpottedByData = () => {
     const incidents = getIncidentReports();
     const spottedCounts = {};
     incidents.forEach(report => {
-      if (report.reportedBy) {
-        spottedCounts[report.reportedBy] = (spottedCounts[report.reportedBy] || 0) + 1;
+      if (report.jobSource) {
+        spottedCounts[report.jobSource] = (spottedCounts[report.jobSource] || 0) + 1;
       }
     });
     return Object.entries(spottedCounts).map(([name, Number]) => ({ name, Number }));
-  };
-
-  const getLaneAffectedData = () => {
-    const incidents = getIncidentReports();
-    const laneCounts = {};
-    incidents.forEach(report => {
-      if (report.affectedLanes && Array.isArray(report.affectedLanes)) {
-        report.affectedLanes.forEach(lane => {
-          laneCounts[lane] = (laneCounts[lane] || 0) + 1;
-        });
-      }
-    });
-    return Object.entries(laneCounts).map(([name, Number]) => ({ name, Number }));
   };
 
   const getTimeToRecoverData = () => {
@@ -272,26 +285,20 @@ const ClientChartsPage = () => {
     return Object.entries(timeBuckets).map(([name, Number]) => ({ name, Number }));
   };
 
-  const getTrafficConditionsData = () => {
-    const incidents = getIncidentReports();
-    const trafficCounts = {};
-    incidents.forEach(report => {
-      if (report.trafficConditions) {
-        trafficCounts[report.trafficConditions] = (trafficCounts[report.trafficConditions] || 0) + 1;
-      }
-    });
-    return Object.entries(trafficCounts).map(([name, Number]) => ({ name, Number }));
-  };
-
   const getEmergencyServicesData = () => {
     const incidents = getIncidentReports();
-    const serviceCounts = {};
+    // Attendance is stored as separate on-scene booleans, not an array field.
+    const serviceCounts = {
+      'Driver on scene': 0,
+      'Police on scene': 0,
+      'NH on scene': 0,
+      'RIPV on scene': 0,
+    };
     incidents.forEach(report => {
-      if (report.emergencyServices && Array.isArray(report.emergencyServices)) {
-        report.emergencyServices.forEach(service => {
-          serviceCounts[service] = (serviceCounts[service] || 0) + 1;
-        });
-      }
+      if (report.driverOnScene) serviceCounts['Driver on scene']++;
+      if (report.policeOnScene) serviceCounts['Police on scene']++;
+      if (report.nhOnScene) serviceCounts['NH on scene']++;
+      if (report.ripvOnScene) serviceCounts['RIPV on scene']++;
     });
     return Object.entries(serviceCounts).map(([name, Number]) => ({ name, Number }));
   };
@@ -315,41 +322,15 @@ const ClientChartsPage = () => {
     return Object.entries(timeBuckets).map(([name, Number]) => ({ name, Number }));
   };
 
-  const getTrackData = () => {
-    const incidents = getIncidentReports();
-    const trackCounts = {};
-    incidents.forEach(report => {
-      if (report.track) {
-        trackCounts[report.track] = (trackCounts[report.track] || 0) + 1;
-      }
-    });
-    return Object.entries(trackCounts).map(([name, Number]) => ({ name, Number }));
-  };
-
   const getVehicleTypeData = () => {
     const incidents = getIncidentReports();
     const vehicleCounts = {};
     incidents.forEach(report => {
-      if (report.vehicles && Array.isArray(report.vehicles)) {
-        report.vehicles.forEach(vehicle => {
-          if (vehicle.type) {
-            vehicleCounts[vehicle.type] = (vehicleCounts[vehicle.type] || 0) + 1;
-          }
-        });
+      if (report.vehicleType) {
+        vehicleCounts[report.vehicleType] = (vehicleCounts[report.vehicleType] || 0) + 1;
       }
     });
     return Object.entries(vehicleCounts).map(([name, Number]) => ({ name, Number }));
-  };
-
-  const getIncursionsData = () => {
-    const incidents = getIncidentReports();
-    const incursionCounts = { YES: 0, NO: 0 };
-    incidents.forEach(report => {
-      if (report.incursion) {
-        incursionCounts[report.incursion] = (incursionCounts[report.incursion] || 0) + 1;
-      }
-    });
-    return Object.entries(incursionCounts).map(([name, Number]) => ({ name, Number }));
   };
 
   const getTimeSeriesData = () => {
@@ -363,6 +344,60 @@ const ClientChartsPage = () => {
       }
     });
     return Object.entries(monthlyCounts).map(([name, count]) => ({ name, count, Number: count }));
+  };
+
+  // Clicking a bar drills into the underlying incidents behind that label —
+  // each branch mirrors the same grouping logic as its get*Data function above.
+  const handleBarClick = (chartType, label) => {
+    if (!label) return;
+    const incidents = getIncidentReports();
+    const onSceneFieldByLabel = {
+      'Driver on scene': 'driverOnScene',
+      'Police on scene': 'policeOnScene',
+      'NH on scene': 'nhOnScene',
+      'RIPV on scene': 'ripvOnScene',
+    };
+    let filtered = [];
+
+    if (chartType === 'fault') filtered = incidents.filter((r) => r.faultReported === label);
+    else if (chartType === 'incidentType') filtered = incidents.filter((r) => (r.actualFault || r.faultReported) === label);
+    else if (chartType === 'vehiclesDispatched') filtered = incidents.filter((r) => r.vehicleAllocated === label);
+    else if (chartType === 'spottedBy') filtered = incidents.filter((r) => r.jobSource === label);
+    else if (chartType === 'emergencyServices') {
+      const field = onSceneFieldByLabel[label];
+      filtered = field ? incidents.filter((r) => r[field]) : [];
+    } else if (chartType === 'vehicleType') filtered = incidents.filter((r) => r.vehicleType === label);
+    else if (chartType === 'timeToSite') {
+      filtered = incidents.filter((r) => {
+        const m = parseInt(r.timeSpottedToOn?.match(/(\d+)/)?.[1]);
+        if (isNaN(m)) return false;
+        if (label === '0-5') return m <= 5;
+        if (label === '6-10') return m >= 6 && m <= 10;
+        if (label === '11-15') return m >= 11 && m <= 15;
+        if (label === '16-20') return m >= 16 && m <= 20;
+        if (label === '20+') return m > 20;
+        return false;
+      });
+    } else if (chartType === 'timeToRecover') {
+      filtered = incidents.filter((r) => {
+        const m = parseInt(r.timeOnsiteToCleared?.match(/(\d+)/)?.[1]);
+        if (isNaN(m)) return false;
+        if (label === '0-15') return m <= 15;
+        if (label === '16-30') return m >= 16 && m <= 30;
+        if (label === '31-45') return m >= 31 && m <= 45;
+        if (label === '46-60') return m >= 46 && m <= 60;
+        if (label === '60+') return m > 60;
+        return false;
+      });
+    } else if (chartType === 'timeSeries') {
+      filtered = incidents.filter((r) => {
+        if (!r.createdAt) return false;
+        const date = r.createdAt.toDate ? r.createdAt.toDate() : new Date(r.createdAt);
+        return `${date.toLocaleString('default', { month: 'short' })} ${date.getFullYear()}` === label;
+      });
+    }
+
+    if (filtered.length) openDrillDown({ title: label, incidents: filtered });
   };
 
   // Helper function to draw a bar chart in PDF
@@ -516,16 +551,12 @@ const ClientChartsPage = () => {
       const charts = [
         { data: timeToSiteData, title: 'Time to Site (mins)' },
         { data: timeToRecoverData, title: 'Time to Recover (mins)' },
-        { data: faultData, title: 'Fault' },
+        { data: faultData, title: 'Fault Reported' },
         { data: incidentTypeData, title: 'Incident Type' },
-        { data: vehiclesDispatchedData, title: 'Vehicles Dispatched' },
-        { data: spottedByData, title: 'Spotted By' },
-        { data: laneAffectedData, title: 'Lane Affected' },
-        { data: trafficConditionsData, title: 'Traffic Conditions' },
+        { data: vehiclesDispatchedData, title: 'Vehicle Allocated' },
+        { data: spottedByData, title: 'Source of Call' },
         { data: emergencyServicesData, title: 'Emergency Services Attended' },
-        { data: trackData, title: 'Track of Incident' },
         { data: vehicleTypeData, title: 'Vehicle Type' },
-        { data: incursionsData, title: 'Incursions' },
       ];
 
       charts.forEach((chart) => {
@@ -570,19 +601,41 @@ const ClientChartsPage = () => {
     vehicleCheck: formCounts.vehicleCheckTotal,
   };
 
+  // Stat cards — same metrics as the client dashboard's KPI row (minus
+  // Police On Scene), scoped to this scheme + selected date range.
+  const dispatchedIncidents = getIncidentReports().filter((r) => r.vehicleAllocated);
+  const vehicleCards = [
+    {
+      title: 'Total Vehicle Dispatched',
+      icon: AlertTriangle,
+      incidents: dispatchedIncidents,
+    },
+    {
+      title: 'IPV Recovery',
+      icon: Truck,
+      incidents: dispatchedIncidents.filter((r) => r.vehicleAllocated === 'IPV'),
+    },
+    {
+      title: 'Light Recovery',
+      icon: Car,
+      incidents: dispatchedIncidents.filter((r) => r.vehicleAllocated === 'Light Recovery'),
+    },
+    {
+      title: 'Heavy Recovery',
+      icon: Truck,
+      incidents: dispatchedIncidents.filter((r) => r.vehicleAllocated === 'Heavy Recovery'),
+    },
+  ];
+
   // Extract chart data
   const faultData = getFaultData();
   const incidentTypeData = getIncidentTypeData();
   const vehiclesDispatchedData = getVehiclesDispatchedData();
   const spottedByData = getSpottedByData();
-  const laneAffectedData = getLaneAffectedData();
   const timeToRecoverData = getTimeToRecoverData();
-  const trafficConditionsData = getTrafficConditionsData();
   const emergencyServicesData = getEmergencyServicesData();
   const timeToSiteData = getTimeToSiteData();
-  const trackData = getTrackData();
   const vehicleTypeData = getVehicleTypeData();
-  const incursionsData = getIncursionsData();
   const timeSeriesData = getTimeSeriesData();
 
   return (
@@ -666,55 +719,32 @@ const ClientChartsPage = () => {
         ) : (
           <>
             {/* Statistics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-500 text-sm">Total Reports</p>
-                    <p className="text-3xl font-bold text-gray-800 mt-1">{stats.total}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              {vehicleCards.map((card) => (
+                <div
+                  key={card.title}
+                  role="button"
+                  tabIndex={0}
+                  className="bg-white rounded-xl shadow-lg p-7 hover:shadow-xl transition-shadow cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  onClick={() => openDrillDown({ title: card.title, incidents: card.incidents })}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== ' ') return;
+                    e.preventDefault();
+                    openDrillDown({ title: card.title, incidents: card.incidents });
+                  }}
+                >
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="w-10 h-10 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
+                      <card.icon className="w-5 h-5 text-white" />
+                    </div>
+                    <h6 className="text-sm font-medium text-gray-600 leading-tight">{card.title}</h6>
                   </div>
-                  <div className="bg-gray-100 p-3 rounded-lg">
-                    <BarChart3 className="w-6 h-6 text-gray-600" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-500 text-sm">Incidents</p>
-                    <p className="text-3xl font-bold text-brand-500 mt-1">{stats.incident}</p>
-                  </div>
-                  <div className="bg-brand-100 p-3 rounded-lg">
-                    <AlertTriangle className="w-6 h-6 text-brand-500" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-500 text-sm">Cabin H&S Checks</p>
-                    <p className="text-3xl font-bold text-green-600 mt-1">{stats.cabinSafety}</p>
-                  </div>
-                  <div className="bg-green-100 p-3 rounded-lg">
-                    <ShieldCheck className="w-6 h-6 text-green-600" />
+                  <div className="mt-2">
+                    <span className="text-4xl font-bold text-gray-800">{card.incidents.length}</span>
+                    <p className="text-sm text-gray-400 mt-1">{periodLabel}</p>
                   </div>
                 </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-500 text-sm">Vehicle Checks</p>
-                    <p className="text-3xl font-bold text-amber-600 mt-1">{stats.vehicleCheck}</p>
-                  </div>
-                  <div className="bg-amber-100 p-3 rounded-lg">
-                    <Car className="w-6 h-6 text-amber-600" />
-                  </div>
-                </div>
-              </div>
-
+              ))}
             </div>
 
             {/* Incident Analytics Charts Grid */}
@@ -724,6 +754,8 @@ const ClientChartsPage = () => {
                 <BarChart
                   data={timeToSiteData.length > 0 ? timeToSiteData : [{ name: "No Data", Number: 0 }]}
                   margin={commonChartProps.chartMargin}
+                  onClick={(d) => d?.activeLabel && handleBarClick('timeToSite', d.activeLabel)}
+                  style={{ cursor: 'pointer' }}
                 >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
@@ -739,6 +771,8 @@ const ClientChartsPage = () => {
                 <BarChart
                   data={timeToRecoverData.length > 0 ? timeToRecoverData : [{ name: "No Data", Number: 0 }]}
                   margin={commonChartProps.chartMargin}
+                  onClick={(d) => d?.activeLabel && handleBarClick('timeToRecover', d.activeLabel)}
+                  style={{ cursor: 'pointer' }}
                 >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
@@ -750,10 +784,12 @@ const ClientChartsPage = () => {
               </ChartCard>
 
               {/* Chart 1: Fault */}
-              <ChartCard title="Fault">
+              <ChartCard title="Fault Reported">
                 <BarChart
                   data={faultData.length > 0 ? faultData : [{ name: "No Data", Number: 0 }]}
                   margin={commonChartProps.chartMargin}
+                  onClick={(d) => d?.activeLabel && handleBarClick('fault', d.activeLabel)}
+                  style={{ cursor: 'pointer' }}
                 >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
@@ -769,6 +805,8 @@ const ClientChartsPage = () => {
                 <BarChart
                   data={incidentTypeData.length > 0 ? incidentTypeData : [{ name: "No Data", Number: 0 }]}
                   margin={commonChartProps.chartMargin}
+                  onClick={(d) => d?.activeLabel && handleBarClick('incidentType', d.activeLabel)}
+                  style={{ cursor: 'pointer' }}
                 >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
@@ -780,10 +818,12 @@ const ClientChartsPage = () => {
               </ChartCard>
 
               {/* Chart 3: Vehicles Dispatched */}
-              <ChartCard title="Vehicles Dispatched">
+              <ChartCard title="Vehicle Allocated">
                 <BarChart
                   data={vehiclesDispatchedData.length > 0 ? vehiclesDispatchedData : [{ name: "No Data", Number: 0 }]}
                   margin={commonChartProps.chartMargin}
+                  onClick={(d) => d?.activeLabel && handleBarClick('vehiclesDispatched', d.activeLabel)}
+                  style={{ cursor: 'pointer' }}
                 >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
@@ -795,41 +835,12 @@ const ClientChartsPage = () => {
               </ChartCard>
 
               {/* Chart 4: Spotted By */}
-              <ChartCard title="Spotted By">
+              <ChartCard title="Source of Call">
                 <BarChart
                   data={spottedByData.length > 0 ? spottedByData : [{ name: "No Data", Number: 0 }]}
                   margin={commonChartProps.chartMargin}
-                >
-                  <CartesianGrid {...commonChartProps.cartesianGrid} />
-                  <XAxis dataKey="name" {...commonChartProps.xAxis} />
-                  <YAxis {...commonChartProps.yAxis} />
-                  <Tooltip {...commonChartProps.tooltip} />
-                  <Legend {...commonChartProps.legend} />
-                  <Bar dataKey="Number" {...commonChartProps.bar} />
-                </BarChart>
-              </ChartCard>
-
-              {/* Chart 5: Lane Affected */}
-              <ChartCard title="Lane Affected">
-                <BarChart
-                  data={laneAffectedData.length > 0 ? laneAffectedData : [{ name: "No Data", Number: 0 }]}
-                  margin={commonChartProps.chartMargin}
-                >
-                  <CartesianGrid {...commonChartProps.cartesianGrid} />
-                  <XAxis dataKey="name" {...commonChartProps.xAxis} />
-                  <YAxis {...commonChartProps.yAxis} />
-                  <Tooltip {...commonChartProps.tooltip} />
-                  <Legend {...commonChartProps.legend} />
-                  <Bar dataKey="Number" {...commonChartProps.bar} />
-                </BarChart>
-              </ChartCard>
-
-
-              {/* Chart 7: Traffic Conditions */}
-              <ChartCard title="Traffic Conditions">
-                <BarChart
-                  data={trafficConditionsData.length > 0 ? trafficConditionsData : [{ name: "No Data", Number: 0 }]}
-                  margin={commonChartProps.chartMargin}
+                  onClick={(d) => d?.activeLabel && handleBarClick('spottedBy', d.activeLabel)}
+                  style={{ cursor: 'pointer' }}
                 >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
@@ -845,6 +856,8 @@ const ClientChartsPage = () => {
                 <BarChart
                   data={emergencyServicesData.length > 0 ? emergencyServicesData : [{ name: "No Data", Number: 0 }]}
                   margin={commonChartProps.chartMargin}
+                  onClick={(d) => d?.activeLabel && handleBarClick('emergencyServices', d.activeLabel)}
+                  style={{ cursor: 'pointer' }}
                 >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
@@ -854,47 +867,16 @@ const ClientChartsPage = () => {
                   <Bar dataKey="Number" {...commonChartProps.bar} />
                 </BarChart>
               </ChartCard>
-
-
-
-              {/* Chart 10: Track of Incident */}
-              <ChartCard title="Track of Incident">
-                <BarChart
-                  data={trackData.length > 0 ? trackData : [{ name: "No Data", Number: 0 }]}
-                  margin={commonChartProps.chartMargin}
-                >
-                  <CartesianGrid {...commonChartProps.cartesianGrid} />
-                  <XAxis dataKey="name" {...commonChartProps.xAxis} />
-                  <YAxis {...commonChartProps.yAxis} />
-                  <Tooltip {...commonChartProps.tooltip} />
-                  <Legend {...commonChartProps.legend} />
-                  <Bar dataKey="Number" {...commonChartProps.bar} />
-                </BarChart>
-              </ChartCard>
-
               {/* Chart 11: Vehicle Type */}
               <ChartCard title="Vehicle Type">
                 <BarChart
                   data={vehicleTypeData.length > 0 ? vehicleTypeData : [{ name: "No Data", Number: 0 }]}
                   margin={commonChartProps.chartMargin}
+                  onClick={(d) => d?.activeLabel && handleBarClick('vehicleType', d.activeLabel)}
+                  style={{ cursor: 'pointer' }}
                 >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />
                   <XAxis dataKey="name" {...commonChartProps.xAxis} />
-                  <YAxis {...commonChartProps.yAxis} />
-                  <Tooltip {...commonChartProps.tooltip} />
-                  <Legend {...commonChartProps.legend} />
-                  <Bar dataKey="Number" {...commonChartProps.bar} />
-                </BarChart>
-              </ChartCard>
-
-              {/* Chart 12: Incursions */}
-              <ChartCard title="Incursions">
-                <BarChart
-                  data={incursionsData.length > 0 ? incursionsData : [{ name: "No Data", Number: 0 }]}
-                  margin={commonChartProps.chartMargin}
-                >
-                  <CartesianGrid {...commonChartProps.cartesianGrid} />
-                  <XAxis dataKey="name" tick={{ fontSize: 13 }} />
                   <YAxis {...commonChartProps.yAxis} />
                   <Tooltip {...commonChartProps.tooltip} />
                   <Legend {...commonChartProps.legend} />
@@ -927,6 +909,8 @@ const ClientChartsPage = () => {
                       : [{ name: "No Data", Number: 0 }]
                   }
                   margin={commonChartProps.chartMargin}
+                  onClick={(d) => d?.activeLabel && handleBarClick('timeSeries', d.activeLabel)}
+                  style={{ cursor: 'pointer' }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="name" tick={{ fontSize: 13 }} />
@@ -943,6 +927,13 @@ const ClientChartsPage = () => {
           </>
         )}
       </div>
+
+      {/* Drill-down sidebar — rendered in a portal so it never affects page scroll */}
+      <DrillDownSidebar
+        drillDown={drillDown}
+        onClose={closeDrillDown}
+        onNavigate={navigateToReport}
+      />
     </AdminSidebarLayout>
   );
 };

@@ -26,9 +26,8 @@ const DAY_LABELS = {
   sunday: "Sunday",
 };
 
-// Mirrors the paper template's ~6 blank rows per day — a scaffold, not a
-// constraint; admin can add/remove rows freely.
-const ROWS_PER_DAY_SEED = 6;
+// A scaffold, not a constraint — admin can add/remove rows freely.
+const ROWS_PER_DAY_SEED = 1;
 
 // This is a real operational roster, not a demo-mode form — exclude the demo scheme.
 const REAL_SCHEMES = SCHEMES.filter((s) => !s.isDemo);
@@ -168,19 +167,19 @@ const DailyAllocationForm = () => {
   };
 
   return (
-    <div className="p-6">
-      <div className="flex items-center gap-4 mb-6">
+    <div className="max-w-8xl mx-auto">
+      <div className="flex items-start mb-6">
         <button
           onClick={() => navigate("/dashboard/admin/daily-allocations")}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
         >
-          <ArrowLeft className="w-6 h-6 text-gray-600" />
+          <ArrowLeft className="w-6 h-6  text-gray-800" />
         </button>
         <div>
-          <h3 className="text-2xl font-bold text-gray-800">
+          <h1 className=" font-bold text-gray-800 mb-2">
             {id ? "Edit Daily Allocations" : "Daily Allocations"}
-          </h3>
-          <p className="text-gray-600 mt-1">
+          </h1>
+          <p className="text-gray-500 text-[13px] sm:text-[14px]">
             Weekly roster of operator allocations by scheme
           </p>
         </div>
@@ -260,106 +259,198 @@ const DailyAllocationForm = () => {
                   No rows for this day.
                 </p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs font-medium text-gray-500 uppercase">
-                        <th className="pb-2 pr-2">Op Name</th>
-                        <th className="pb-2 pr-2">Class</th>
-                        <th className="pb-2 pr-2">Location</th>
-                        <th className="pb-2 pr-2">Reg</th>
-                        <th className="pb-2 pr-2">Type of Vehicle</th>
-                        <th className="pb-2 w-8"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dayRows.map((row) => (
-                        <tr key={row.rowId}>
-                          <td className="py-1 pr-2">
-                            <input
-                              type="text"
-                              value={row.opName}
-                              onChange={(e) =>
-                                handleRowChange(
-                                  row.rowId,
-                                  "opName",
-                                  e.target.value,
-                                )
-                              }
-                              className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
-                            />
-                          </td>
-                          <td className="py-1 pr-2">
-                            <input
-                              type="text"
-                              value={row.class}
-                              onChange={(e) =>
-                                handleRowChange(
-                                  row.rowId,
-                                  "class",
-                                  e.target.value,
-                                )
-                              }
-                              className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
-                            />
-                          </td>
-                          <td className="py-1 pr-2">
-                            <input
-                              type="text"
-                              value={row.location}
-                              onChange={(e) =>
-                                handleRowChange(
-                                  row.rowId,
-                                  "location",
-                                  e.target.value,
-                                )
-                              }
-                              className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
-                            />
-                          </td>
-                          <td className="py-1 pr-2">
-                            <input
-                              type="text"
-                              value={row.reg}
-                              onChange={(e) =>
-                                handleRowChange(
-                                  row.rowId,
-                                  "reg",
-                                  e.target.value,
-                                )
-                              }
-                              className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
-                            />
-                          </td>
-                          <td className="py-1 pr-2">
-                            <input
-                              type="text"
-                              value={row.vehicleType}
-                              onChange={(e) =>
-                                handleRowChange(
-                                  row.rowId,
-                                  "vehicleType",
-                                  e.target.value,
-                                )
-                              }
-                              className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
-                            />
-                          </td>
-                          <td className="py-1">
-                            <button
-                              type="button"
-                              onClick={() => removeRow(row.rowId)}
-                              className="text-red-500 hover:text-red-700"
-                              title="Remove row"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
+                <>
+                  {/* Desktop: table */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs font-medium text-gray-500 uppercase">
+                          <th className="pb-2 pr-2">Op Name</th>
+                          <th className="pb-2 pr-2">Class</th>
+                          <th className="pb-2 pr-2">Location</th>
+                          <th className="pb-2 pr-2">Reg</th>
+                          <th className="pb-2 pr-2">Type of Vehicle</th>
+                          <th className="pb-2 w-8"></th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {dayRows.map((row) => (
+                          <tr key={row.rowId}>
+                            <td className="py-1 pr-2">
+                              <input
+                                type="text"
+                                value={row.opName}
+                                onChange={(e) =>
+                                  handleRowChange(
+                                    row.rowId,
+                                    "opName",
+                                    e.target.value,
+                                  )
+                                }
+                                className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
+                              />
+                            </td>
+                            <td className="py-1 pr-2">
+                              <input
+                                type="text"
+                                value={row.class}
+                                onChange={(e) =>
+                                  handleRowChange(
+                                    row.rowId,
+                                    "class",
+                                    e.target.value,
+                                  )
+                                }
+                                className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
+                              />
+                            </td>
+                            <td className="py-1 pr-2">
+                              <input
+                                type="text"
+                                value={row.location}
+                                onChange={(e) =>
+                                  handleRowChange(
+                                    row.rowId,
+                                    "location",
+                                    e.target.value,
+                                  )
+                                }
+                                className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
+                              />
+                            </td>
+                            <td className="py-1 pr-2">
+                              <input
+                                type="text"
+                                value={row.reg}
+                                onChange={(e) =>
+                                  handleRowChange(
+                                    row.rowId,
+                                    "reg",
+                                    e.target.value,
+                                  )
+                                }
+                                className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
+                              />
+                            </td>
+                            <td className="py-1 pr-2">
+                              <input
+                                type="text"
+                                value={row.vehicleType}
+                                onChange={(e) =>
+                                  handleRowChange(
+                                    row.rowId,
+                                    "vehicleType",
+                                    e.target.value,
+                                  )
+                                }
+                                className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
+                              />
+                            </td>
+                            <td className="py-1">
+                              <button
+                                type="button"
+                                onClick={() => removeRow(row.rowId)}
+                                className="text-red-500 hover:text-red-700"
+                                title="Remove row"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile: one stacked card per row instead of a squeezed table */}
+                  <div className="sm:hidden space-y-3">
+                    {dayRows.map((row) => (
+                      <div
+                        key={row.rowId}
+                        className="relative border border-gray-200 bg-brand-100 rounded-lg p-4 space-y-2"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => removeRow(row.rowId)}
+                          className="absolute top-3 right-4 text-red-500 hover:text-red-700"
+                          title="Remove row"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+
+                        <div>
+                          <label className="text-xs font-medium text-gray-500">
+                            Op Name
+                          </label>
+                          <input
+                            type="text"
+                            value={row.opName}
+                            onChange={(e) =>
+                              handleRowChange(row.rowId, "opName", e.target.value)
+                            }
+                            className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100 mt-1"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-medium text-gray-500">
+                            Class
+                          </label>
+                          <input
+                            type="text"
+                            value={row.class}
+                            onChange={(e) =>
+                              handleRowChange(row.rowId, "class", e.target.value)
+                            }
+                            className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100 mt-1"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-medium text-gray-500">
+                            Location
+                          </label>
+                          <input
+                            type="text"
+                            value={row.location}
+                            onChange={(e) =>
+                              handleRowChange(row.rowId, "location", e.target.value)
+                            }
+                            className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100 mt-1"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-medium text-gray-500">
+                            Reg
+                          </label>
+                          <input
+                            type="text"
+                            value={row.reg}
+                            onChange={(e) =>
+                              handleRowChange(row.rowId, "reg", e.target.value)
+                            }
+                            className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100 mt-1"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-medium text-gray-500">
+                            Type of Vehicle
+                          </label>
+                          <input
+                            type="text"
+                            value={row.vehicleType}
+                            onChange={(e) =>
+                              handleRowChange(row.rowId, "vehicleType", e.target.value)
+                            }
+                            className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100 mt-1"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           );
