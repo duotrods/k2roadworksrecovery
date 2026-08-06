@@ -936,7 +936,7 @@ const ClientChartsPage = () => {
                     labelStyle={{ fontWeight: 'bold' }}
                   />
                   <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                  <Bar dataKey="Number" fill="#17af93" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="Number" fill={COLORS.brand} radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ChartCard>
             </div>
