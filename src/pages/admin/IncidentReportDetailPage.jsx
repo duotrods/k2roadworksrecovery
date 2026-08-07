@@ -6,7 +6,7 @@ import { staffService } from '../../services/staffService';
 import AdminSidebarLayout from '../../components/layout/AdminSidebarLayout';
 import { generateReportPDF } from '../../utils/pdfGenerator';
 import { SERVICE_ACCEPTANCE_STATEMENTS, VEHICLE_CONDITION_SECTIONS, CHECK_ITEMS } from '../../utils/incidentForm';
-import chellanlogo from "../../assets/chellanpng.png";
+import k2logo from "../../assets/k2logo.svg";
 
 const IncidentReportDetailPage = () => {
   const navigate = useNavigate();
@@ -70,7 +70,7 @@ const IncidentReportDetailPage = () => {
     return (
       <AdminSidebarLayout>
         <div className="flex justify-center items-center h-96">
-          <span className="loading loading-spinner loading-lg text-teal-500"></span>
+          <span className="loading loading-spinner loading-lg text-brand-500"></span>
         </div>
       </AdminSidebarLayout>
     );
@@ -82,24 +82,36 @@ const IncidentReportDetailPage = () => {
 
   return (
     <AdminSidebarLayout>
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-8xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-start">
             <button
               onClick={() => navigate(backPath)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
             >
               <ArrowLeft className="w-6 h-6 text-gray-600" />
             </button>
             <div>
-              <h3 className="text-2xl font-bold text-gray-800">Job Sheet Details</h3>
-              <p className="text-sm text-gray-500 mt-1">Reference: {report.referenceId || 'N/A'}</p>
+              <div className="flex flex-wrap items-center gap-3 mb-2">
+                <h1 className="text-2xl font-bold text-gray-800">Job Sheet Details</h1>
+                {report.status === 'live' ? (
+                  <span className="badge badge-error gap-1.5 text-white">
+                    <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                    LIVE
+                  </span>
+                ) : report.status === 'completed' ? (
+                  <span className="badge badge-success text-white">Completed</span>
+                ) : (
+                  <span className="badge badge-warning capitalize">{report.status || 'submitted'}</span>
+                )}
+              </div>
+              <p className="text-gray-500 text-[13px] sm:text-[14px]">Reference: {report.referenceId || 'N/A'}</p>
             </div>
           </div>
           <button
             onClick={handleDownloadPDF}
-            className="btn bg-blue-500 text-white hover:bg-blue-600 border-none"
+            className="btn bg-blue-500 text-white hover:bg-blue-600 border-none w-full sm:w-auto shrink-0"
           >
             <Download className="w-4 h-4 mr-2" />
             Download PDF
@@ -110,7 +122,7 @@ const IncidentReportDetailPage = () => {
         <div className="bg-white rounded-xl shadow-md p-8">
           {/* Logo */}
           <div className="flex justify-center items-center mb-8">
-            <img src={chellanlogo} alt="Company Logo" className="h-25 w-auto" />
+            <img src={k2logo} alt="Company Logo" className="h-25 w-auto" />
           </div>
 
           {/* Arrival Details */}
@@ -432,8 +444,12 @@ const IncidentReportDetailPage = () => {
               )}
               <div>
                 <span className="text-gray-500">Status:</span>
-                <span className={`ml-2 badge ${
-                  report.status === 'submitted' ? 'badge-warning' : 'badge-success'
+                <span className={`ml-2 badge capitalize ${
+                  report.status === 'live'
+                    ? 'badge-error text-white'
+                    : report.status === 'completed'
+                      ? 'badge-success text-white'
+                      : 'badge-warning'
                 }`}>
                   {report.status || 'submitted'}
                 </span>

@@ -97,6 +97,7 @@ const OTPManagement = () => {
         formData.schemeId.toUpperCase(),
         formData.schemeName,
         userProfile.uid,
+        userProfile.displayName,
       );
 
       toast.success(`Client Access Code created: ${otpCode}`);
@@ -234,17 +235,17 @@ const OTPManagement = () => {
   };
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-8xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">
+          <h1 className="text-2xl font-bold text-gray-800">
             Access Code Management
-          </h2>
-          <p className="text-gray-600 mt-1">
+          </h1>
+          <p className="text-gray-500 text-[13px] sm:text-[14px]">
             Generate and manage codes for client and staff registration
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex justify-between gap-2">
           <button
             onClick={loadAllCodes}
             disabled={loading}
@@ -267,7 +268,7 @@ const OTPManagement = () => {
       <div className="flex gap-2 mb-6 border-b">
         <button
           onClick={() => setActiveTab("client")}
-          className={`flex items-center gap-2 px-4 py-3 font-semibold border-b-2 transition-colors ${
+          className={`flex items-center gap-2 px-4 py-3 text-[13px] sm:text-[14px] font-semibold border-b-2 transition-colors ${
             activeTab === "client"
               ? "border-brand-500 text-brand-600"
               : "border-transparent text-gray-500 hover:text-gray-700"
@@ -278,7 +279,7 @@ const OTPManagement = () => {
         </button>
         <button
           onClick={() => setActiveTab("staff")}
-          className={`flex items-center gap-2 px-4 py-3 font-semibold border-b-2 transition-colors ${
+          className={`flex items-center gap-2 px-4 py-3 text-[13px] sm:text-[14px] font-semibold border-b-2 transition-colors ${
             activeTab === "staff"
               ? "border-brand-500 text-brand-600"
               : "border-transparent text-gray-500 hover:text-gray-700"
@@ -311,37 +312,35 @@ const OTPManagement = () => {
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Desktop: table */}
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-brand-500 border-b">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                   Code
                 </th>
                 {activeTab === "client" ? (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Scheme
-                  </th>
-                ) : activeTab === "staff" ? (
                   <>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Created By
+                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                      Scheme
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                       Expires
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Uses
-                    </th>
                   </>
+                ) : activeTab === "staff" ? (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                    Expires
+                  </th>
                 ) : null}
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                   Created
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -364,6 +363,13 @@ const OTPManagement = () => {
                             {otp.schemeName}
                           </p>
                         </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <p
+                          className={`text-sm ${isExpired(otp.expiresAt) ? "text-red-500" : "text-gray-500"}`}
+                        >
+                          {formatDate(otp.expiresAt)}
+                        </p>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {renderStatus(otp)}
@@ -390,20 +396,10 @@ const OTPManagement = () => {
                           </code>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <p className="text-sm text-gray-800">
-                            {code.createdByName || "Admin"}
-                          </p>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
                           <p
                             className={`text-sm ${isExpired(code.expiresAt) ? "text-red-500" : "text-gray-500"}`}
                           >
                             {formatDate(code.expiresAt)}
-                          </p>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <p className="text-sm text-gray-800">
-                            {code.usesRemaining}/{code.maxUses}
                           </p>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -425,6 +421,69 @@ const OTPManagement = () => {
                     ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile: one card per code instead of a side-scrolling table */}
+        <div className="sm:hidden p-3 space-y-3">
+          {activeTab === "client"
+            ? clientOTPs.map((otp) => (
+                <div key={otp.id} className="border border-gray-200 rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <code className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
+                      {otp.otpCode}
+                    </code>
+                    <button
+                      onClick={() => copyToClipboard(otp.otpCode)}
+                      className="flex items-center gap-1 text-sm text-brand-600 hover:text-brand-700 shrink-0"
+                    >
+                      <Copy className="w-4 h-4" />
+                      Copy
+                    </button>
+                  </div>
+                  <p className="font-semibold text-gray-800">{otp.schemeId}</p>
+                  <p className="text-xs text-gray-500">{otp.schemeName}</p>
+                  <div className="mt-2 text-sm text-gray-700">
+                    <span className="text-gray-400">Expires:</span>{" "}
+                    <span className={isExpired(otp.expiresAt) ? "text-red-500" : ""}>
+                      {formatDate(otp.expiresAt)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    {renderStatus(otp)}
+                    <span className="text-xs text-gray-400">
+                      Created {formatDate(otp.createdAt)}
+                    </span>
+                  </div>
+                </div>
+              ))
+            : staffInviteCodes.map((code) => (
+                <div key={code.id} className="border border-gray-200 rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <code className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
+                      {code.inviteCode}
+                    </code>
+                    <button
+                      onClick={() => copyToClipboard(code.inviteCode)}
+                      className="flex items-center gap-1 text-sm text-brand-600 hover:text-brand-700 shrink-0"
+                    >
+                      <Copy className="w-4 h-4" />
+                      Copy
+                    </button>
+                  </div>
+                  <div className="mt-2 text-sm text-gray-700">
+                    <span className="text-gray-400">Expires:</span>{" "}
+                    <span className={isExpired(code.expiresAt) ? "text-red-500" : ""}>
+                      {formatDate(code.expiresAt)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    {renderStatus(code)}
+                    <span className="text-xs text-gray-400">
+                      Created {formatDate(code.createdAt)}
+                    </span>
+                  </div>
+                </div>
+              ))}
         </div>
 
         {displayCodes.length === 0 && !loading && (
@@ -513,7 +572,7 @@ const OTPManagement = () => {
             >
               {activeTab === "client" && (
                 <div className="form-control">
-                  <label className="label">
+                    <label className="label">
                     <span className="label-text font-semibold">
                       Select Scheme
                     </span>
@@ -539,14 +598,14 @@ const OTPManagement = () => {
                         {scheme.fullName}
                       </option>
                     ))}
-                  </select>
+                   </select>           
                   <label className="label">
-                    <span className="label-text-alt text-gray-500">
+                    <span className="label-text-alt text-gray-500 text-[14px]">
                       {formData.schemeId &&
                         `Code will be generated for: ${formData.schemeId}`}
                     </span>
                   </label>
-                </div>
+               </div>          
               )}
               {activeTab !== "client" && (
                 <div className="form-control">
@@ -566,11 +625,11 @@ const OTPManagement = () => {
                         expiresInDays: parseInt(e.target.value),
                       })
                     }
-                    className="input input-bordered w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
+                    className="input input-bordered mt-2 w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
                     required
                   />
                   <label className="label">
-                    <span className="label-text-alt text-gray-500">
+                    <span className="label-text-alt text-gray-500 text-[14px]">
                       Code will expire in {formData.expiresInDays} days. Each
                       code is single-use only.
                     </span>

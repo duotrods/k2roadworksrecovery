@@ -8,6 +8,7 @@ const mapClientCode = (row) => ({
   otpCode: row.code,
   schemeId: row.scheme_id,
   schemeName: row.scheme_name,
+  createdByName: row.created_by_name,
   isUsed: row.is_used,
   createdAt: row.created_at,
   expiresAt: row.expires_at,
@@ -40,7 +41,7 @@ class InviteCodeService {
     return `STAFF-${year}-${randomPart}`;
   }
 
-  async createClientCode(schemeId, schemeName, adminUid, expiresInDays = 30) {
+  async createClientCode(schemeId, schemeName, adminUid, adminName, expiresInDays = 30) {
     try {
       const code = this.generateOTPCode(schemeId);
       const expiresAt = new Date();
@@ -52,6 +53,7 @@ class InviteCodeService {
         scheme_id: schemeId,
         scheme_name: schemeName,
         created_by: adminUid,
+        created_by_name: adminName,
         expires_at: expiresAt.toISOString(),
       });
       if (error) throw error;

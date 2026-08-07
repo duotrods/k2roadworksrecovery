@@ -102,7 +102,7 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
             </Link>
           ) : (
             <Link to={basePath} className="flex items-center justify-center">
-              <img src={k2icon} alt="K@" className="h-8 w-8 object-contain" />
+              <img src={k2icon} alt="K2" className="h-8 w-8 object-contain" />
             </Link>
           )}
         </div>
@@ -127,19 +127,19 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
                     <Link
                       to={item.submenu[0].path}
                       title="Forms"
-                      className={`flex items-center justify-center px-3 py-3 rounded-lg transition-colors ${
+                      className={`flex items-center text-[14px] justify-center px-3 py-3 rounded-lg transition-colors ${
                         isActive(item.path, item.exact)
                           ? "bg-brand-500 text-white"
                           : "text-gray-700 hover:bg-gray-100"
                       }`}
                     >
-                      <item.icon className="w-5 h-5 shrink-0" />
+                      <item.icon className="w-4 h-4 shrink-0" />
                     </Link>
                   ) : (
                     <>
                       <button
                         onClick={() => setFormsOpen(!formsOpen)}
-                        className={`w-full flex items-center justify-between px-3 py-3 rounded-lg transition-colors ${
+                        className={`w-full flex items-center text-[14px] justify-between px-3 py-3 rounded-lg transition-colors ${
                           isActive(item.path, item.exact)
                             ? "bg-brand-500 text-white"
                             : "text-gray-700 hover:bg-gray-100"
@@ -236,17 +236,17 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
           <button
             onClick={() => navigate('/help')}
             title={collapsed ? 'Help' : undefined}
-            className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors ${collapsed ? 'justify-center' : ''}`}
+            className={`w-full flex items-center text-[14px] gap-3 px-3 py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors ${collapsed ? 'justify-center' : ''}`}
           >
-            <HelpCircle className="w-5 h-5 shrink-0" />
+            <HelpCircle className="w-4 h-4 shrink-0" />
             {!collapsed && <span className="font-medium">Help</span>}
           </button>
           <button
             onClick={() => setShowLogoutModal(true)}
             title={collapsed ? 'Logout' : undefined}
-            className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors ${collapsed ? 'justify-center' : ''}`}
+            className={`w-full flex items-center text-[14px] gap-3 px-3 py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors ${collapsed ? 'justify-center' : ''}`}
           >
-            <LogOut className="w-5 h-5 shrink-0" />
+            <LogOut className="w-4 h-4 shrink-0" />
             {!collapsed && <span className="font-medium">Logout</span>}
           </button>
         </div>

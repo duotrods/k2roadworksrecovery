@@ -644,7 +644,7 @@ const ClientChartsPage = () => {
         {/* Header */}
         <div className="mb-8">
           <h1 className="font-semibold text-gray-800 mb-2">Reports & Analytics</h1>
-          <p className="text-gray-500 text-[14px]">Visual analytics of all reports and submissions per scheme</p>
+          <p className="text-gray-500 text-[13px] sm:text-[14px]">Visual analytics of all reports and submissions per scheme</p>
         </div>
 
         {/* Filter and Export */}

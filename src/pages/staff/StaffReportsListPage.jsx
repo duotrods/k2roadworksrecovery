@@ -14,10 +14,10 @@ import {
   Radio,
   CheckCircle,
   FilePlus2,
-  AlertTriangle,
-  ShieldCheck,
-  Car,
+  MoreVertical,
 } from "lucide-react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCarBurst, faUserShield, faCar } from "@fortawesome/free-solid-svg-icons";
 import { toast } from "react-hot-toast";
 import { generateReportPDF } from "../../utils/pdfGenerator";
 import {
@@ -321,21 +321,27 @@ const StaffReportsListPage = () => {
   const getFormTypeIcon = (type) => {
     switch (type) {
       case "Incident Report":
-        return <AlertTriangle className="w-5 h-5 text-amber-500" />;
+        return (
+          <FontAwesomeIcon icon={faCarBurst} className="text-amber-600 text-[14px]" />
+        );
       case "Cabin H&S Check":
-        return <ShieldCheck className="w-5 h-5 text-green-500" />;
+        return (
+          <FontAwesomeIcon icon={faUserShield} className="text-emerald-600 text-[14px]" />
+        );
       case "Vehicle Daily Check":
-        return <Car className="w-5 h-5 text-amber-500" />;
+        return (
+          <FontAwesomeIcon icon={faCar} className="text-rose-500 text-[14px]" />
+        );
       default:
-        return <FileText className="w-5 h-5 text-gray-500" />;
+        return <FileText className="w-5 h-5 text-gray-500 text-[10px]" />;
     }
   };
 
   const getFormTypeBadge = (type) => {
     const badges = {
-      "Incident Report": "badge-warning",
-      "Cabin H&S Check": "badge-success",
-      "Vehicle Daily Check": "badge-warning",
+      "Incident Report": "bg-amber-100 text-amber-600 font-semibold",
+      "Cabin H&S Check": "bg-emerald-100 text-emerald-600 font-semibold",
+      "Vehicle Daily Check": "bg-rose-100 text-rose-600 font-semibold",
     };
     return badges[type] || "badge-ghost";
   };
@@ -545,150 +551,267 @@ const StaffReportsListPage = () => {
             </div>
 
             {/* All Forms Table - Full Width */}
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="table w-full">
-                  <thead className="bg-brand-500">
-                    <tr>
-                      <th className="text-left text-white">Type</th>
-                      <th className="text-left text-white">Reference ID</th>
-                      <th className="text-left text-white">Created By</th>
-                      <th className="text-left text-white">Scheme</th>
-                      <th className="text-left text-white">Date & Time</th>
-                      <th className="text-center text-white"> Status </th>
-                      <th className="text-center text-white">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {searchLoading ? (
-                      <tr>
-                        <td colSpan="7" className="text-center py-12">
-                          <span className="loading loading-spinner loading-lg text-brand-500"></span>
-                        </td>
-                      </tr>
-                    ) : currentForms.length === 0 ? (
-                      <tr>
-                        <td colSpan="7" className="text-center py-12">
-                          <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                          <p className="text-gray-500 text-lg">
-                            No forms found
-                          </p>
-                          <p className="text-gray-400 text-sm mt-2">
-                            Try adjusting your search or filter criteria
-                          </p>
-                        </td>
-                      </tr>
-                    ) : (
-                      currentForms.map((form) => (
-                        <tr key={form.id} className="hover:bg-gray-50">
-                          <td>
-                            <div className="flex items-center gap-2">
-                              {getFormTypeIcon(form.type)}
-                              <span
-                                className={`badge ${getFormTypeBadge(form.type)} badge-sm`}
-                              >
-                                {form.type.toUpperCase()}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="font-mono text-sm font-semibold">
-                            <div>
-                              {form.referenceId || form.id.slice(0, 12)}
-                            </div>
-                            {form.type === "Vehicle Daily Check" &&
-                              form.day && (
-                                <div className="text-xs font-sans font-normal text-gray-500 mt-1 capitalize">
-                                  {form.day}
-                                </div>
-                              )}
-                          </td>
-                          <td className="text-sm">
-                            <div>
-                              <div className="text-gray-800">
-                                {form.submittedBy?.name ||
-                                  `${form.firstName || ""} ${form.lastName || ""}`.trim() ||
-                                  "N/A"}
+            <div className="bg-white rounded-lg shadow sm:overflow-hidden">
+              {searchLoading ? (
+                <div className="flex justify-center items-center py-12">
+                  <span className="loading loading-spinner loading-lg text-brand-500"></span>
+                </div>
+              ) : currentForms.length === 0 ? (
+                <div className="text-center py-12">
+                  <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500 text-lg">No forms found</p>
+                  <p className="text-gray-400 text-sm mt-2">
+                    Try adjusting your search or filter criteria
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Desktop: table */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="table w-full">
+                      <thead className="bg-brand-500">
+                        <tr>
+                          <th className="text-left text-white">Type</th>
+                          <th className="text-left text-white">Reference ID</th>
+                          <th className="text-left text-white">Created By</th>
+                          <th className="text-left text-white">Scheme</th>
+                          <th className="text-left text-white">Date & Time</th>
+                          <th className="text-center text-white"> Status </th>
+                          <th className="text-center text-white">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {currentForms.map((form) => (
+                          <tr key={form.id} className="hover:bg-gray-50">
+                            <td>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`badge ${getFormTypeBadge(form.type)} badge-sm p-3`}
+                                >
+                                  {getFormTypeIcon(form.type)}
+                                  {form.type.toUpperCase()}
+                                </span>
                               </div>
-                              {form.lastEditedBy && (
-                                <div className="text-xs text-blue-600 mt-1">
-                                  Edited by:{" "}
-                                  {form.lastEditedBy?.name || "Unknown"}
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="text-sm text-gray-600 max-w-xs truncate">
-                            {getFormScheme(form)}
-                          </td>
-                          <td className="text-sm">
-                            <div className="text-gray-800 font-medium">
-                              {getFormDate(form)}
-                            </div>
-                            <div className="text-gray-400">
-                              {getFormTime(form)}
-                            </div>
-                          </td>
-                          <td>
-                            <div className="flex items-center justify-center gap-2 font-semibold">
-                              {form.type === "Incident Report" &&
-                                form.status === "live" && (
-                                  <div className="badge badge-error badge-soft">
-                                    <Radio className="w-4 h-4 text-red-500" />
-                                    Live
+                            </td>
+                            <td className="font-mono text-sm font-semibold">
+                              <div>
+                                {form.referenceId || form.id.slice(0, 12)}
+                              </div>
+                              {form.type === "Vehicle Daily Check" &&
+                                form.day && (
+                                  <div className="text-xs font-sans font-normal text-gray-500 mt-1 capitalize">
+                                    {form.day}
                                   </div>
                                 )}
+                            </td>
+                            <td className="text-sm">
+                              <div>
+                                <div className="text-gray-800">
+                                  {form.submittedBy?.name ||
+                                    `${form.firstName || ""} ${form.lastName || ""}`.trim() ||
+                                    "N/A"}
+                                </div>
+                                {form.lastEditedBy && (
+                                  <div className="text-xs text-blue-600 mt-1">
+                                    Edited by:{" "}
+                                    {form.lastEditedBy?.name || "Unknown"}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="text-sm text-gray-600 max-w-xs truncate">
+                              {getFormScheme(form)}
+                            </td>
+                            <td className="text-sm">
+                              <div className="text-gray-800 font-medium">
+                                {getFormDate(form)}
+                              </div>
+                              <div className="text-gray-400">
+                                {getFormTime(form)}
+                              </div>
+                            </td>
+                            <td>
+                              <div className="flex items-center justify-center gap-2 font-semibold">
+                                {form.type === "Incident Report" &&
+                                  form.status === "live" && (
+                                    <div className="badge badge-error badge-soft">
+                                      <Radio className="w-4 h-4 text-red-500" />
+                                      Live
+                                    </div>
+                                  )}
+                                {form.type === "Incident Report" &&
+                                  form.status === "completed" && (
+                                    <div className="badge badge-success badge-soft">
+                                      <CheckCircle className="w-4 h-4 text-green-400" />
+                                      Completed
+                                    </div>
+                                  )}
+                              </div>
+                            </td>
+                            <td>
+                              <div className="flex items-center justify-center gap-2">
+                                {form.type === "Incident Report" &&
+                                form.status === "live" ? (
+                                  <button
+                                    onClick={() => handleEditForm(form)}
+                                    className="btn btn-sm btn-ghost text-red-500 hover:text-red-800"
+                                    title="Edit"
+                                  >
+                                    <FilePlus2 className="w-4 h-4" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleEditForm(form)}
+                                    className="btn btn-sm btn-ghost text-green-600 hover:text-green-800"
+                                    title="Edit"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleViewForm(form)}
+                                  className="btn btn-sm btn-ghost text-blue-600 hover:text-blue-800"
+                                  title="View"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+
+                                <button
+                                  onClick={() => handleDownloadForm(form)}
+                                  className="btn btn-sm btn-ghost text-purple-600 hover:text-purple-800"
+                                  title="Download PDF"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile: one card per form, actions tucked into a kebab menu */}
+                  <div className="sm:hidden p-3 space-y-3">
+                    {currentForms.map((form) => {
+                      const isLive =
+                        form.type === "Incident Report" &&
+                        form.status === "live";
+                      return (
+                        <div
+                          key={form.id}
+                          className="border border-gray-200 rounded-xl p-4 shadow-sm"
+                        >
+                          <div className="flex items-start justify-between mb-2 gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <code className="text-xs font-mono text-white bg-brand-600 px-2 py-1 rounded">
+                                {form.referenceId || form.id.slice(0, 12)}
+                              </code>
+                              <span
+                                className={`badge ${getFormTypeBadge(form.type)} badge-sm pl-2`}
+                              >
+                                {getFormTypeIcon(form.type)}
+                                {form.type.toUpperCase()}
+                              </span>
+                              {isLive && (
+                                <div className="badge badge-error badge-soft badge-sm gap-1">
+                                  <Radio className="w-3 h-3 text-red-500" />
+                                  Live
+                                </div>
+                              )}
                               {form.type === "Incident Report" &&
                                 form.status === "completed" && (
-                                  <div className="badge badge-success badge-soft">
-                                    <CheckCircle className="w-4 h-4 text-green-400" />
+                                  <div className="badge badge-success badge-soft badge-sm gap-1">
+                                    <CheckCircle className="w-3 h-3 text-green-500" />
                                     Completed
                                   </div>
                                 )}
                             </div>
-                          </td>
-                          <td>
-                            <div className="flex items-center justify-center gap-2">
-                              {form.type === "Incident Report" &&
-                              form.status === "live" ? (
-                                <button
-                                  onClick={() => handleEditForm(form)}
-                                  className="btn btn-sm btn-ghost text-red-500 hover:text-red-800"
-                                  title="Edit"
-                                >
-                                  <FilePlus2 className="w-4 h-4" />
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => handleEditForm(form)}
-                                  className="btn btn-sm btn-ghost text-green-600 hover:text-green-800"
-                                  title="Edit"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </button>
-                              )}
-                              <button
-                                onClick={() => handleViewForm(form)}
-                                className="btn btn-sm btn-ghost text-blue-600 hover:text-blue-800"
-                                title="View"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </button>
 
+                            <div className="dropdown dropdown-end shrink-0">
                               <button
-                                onClick={() => handleDownloadForm(form)}
-                                className="btn btn-sm btn-ghost text-purple-600 hover:text-purple-800"
-                                title="Download PDF"
+                                tabIndex={0}
+                                type="button"
+                                className="btn btn-ghost btn-sm btn-circle text-gray-500"
+                                title="Actions"
                               >
-                                <Download className="w-4 h-4" />
+                                <MoreVertical className="w-5 h-5" />
                               </button>
+                              <ul
+                                tabIndex={0}
+                                className="dropdown-content menu bg-white rounded-lg border border-gray-200 shadow-lg z-20 w-44 p-2"
+                              >
+                                <li>
+                                  <button
+                                    onClick={() => {
+                                      document.activeElement?.blur();
+                                      handleEditForm(form);
+                                    }}
+                                    className={isLive ? "text-red-500" : "text-green-600"}
+                                  >
+                                    {isLive ? (
+                                      <FilePlus2 className="w-4 h-4" />
+                                    ) : (
+                                      <Edit className="w-4 h-4" />
+                                    )}
+                                    Edit
+                                  </button>
+                                </li>
+                                <li>
+                                  <button
+                                    onClick={() => {
+                                      document.activeElement?.blur();
+                                      handleViewForm(form);
+                                    }}
+                                    className="text-blue-600"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                    View
+                                  </button>
+                                </li>
+                                <li>
+                                  <button
+                                    onClick={() => {
+                                      document.activeElement?.blur();
+                                      handleDownloadForm(form);
+                                    }}
+                                    className="text-purple-600"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                    Download PDF
+                                  </button>
+                                </li>
+                              </ul>
                             </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                          </div>
+
+                          <p className="font-semibold text-brand-500">
+                            {getFormScheme(form)}
+                          </p>
+
+                          <div className="flex items-center justify-between mt-2 text-sm text-gray-600">
+                            <span>
+                              {getFormDate(form)} · {getFormTime(form)}
+                            </span>
+                            {form.type === "Vehicle Daily Check" && form.day && (
+                              <span className="capitalize">{form.day}</span>
+                            )}
+                          </div>
+
+                          <p className="text-xs text-gray-400 mt-1">
+                            {form.submittedBy?.name ||
+                              `${form.firstName || ""} ${form.lastName || ""}`.trim() ||
+                              "N/A"}
+                            {form.lastEditedBy && (
+                              <> · Edited by {form.lastEditedBy?.name || "Unknown"}</>
+                            )}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
 
               {/* Pagination */}
               {isSearchMode && (searchPage > 1 || searchHasMore) && (

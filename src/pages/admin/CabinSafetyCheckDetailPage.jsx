@@ -5,7 +5,7 @@ import { ArrowLeft, Download } from "lucide-react";
 import { staffService } from "../../services/staffService";
 import AdminSidebarLayout from "../../components/layout/AdminSidebarLayout";
 import { generateReportPDF } from "../../utils/pdfGenerator";
-import chellanlogo from "../../assets/chellanpng.png";
+import k2logo from "../../assets/k2logo.svg";
 
 const CabinSafetyCheckDetailPage = () => {
   const navigate = useNavigate();
@@ -80,28 +80,28 @@ const CabinSafetyCheckDetailPage = () => {
 
   return (
     <AdminSidebarLayout>
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-8xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-start gap-4">
             <button
               onClick={() => navigate(backPath)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
             >
               <ArrowLeft className="w-6 h-6 text-gray-600" />
             </button>
             <div>
-              <h3 className="text-2xl font-bold text-gray-800">
+              <h1 className="text-2xl font-bold text-gray-800">
                 Cabin Health & Safety Check Details
-              </h3>
-              <p className="text-sm text-gray-500 mt-1">
+              </h1>
+              <p className="text-gray-500 text-[13px] sm:text-[14px]">
                 Reference: {report.referenceId || "N/A"}
               </p>
             </div>
           </div>
           <button
             onClick={handleDownloadPDF}
-            className="btn bg-blue-500 text-white hover:bg-blue-600 border-none"
+            className="btn bg-blue-500 text-white hover:bg-blue-600 border-none w-full sm:w-auto shrink-0"
           >
             <Download className="w-4 h-4 mr-2" />
             Download PDF
@@ -113,7 +113,7 @@ const CabinSafetyCheckDetailPage = () => {
           {/* Logo */}
           <div className="flex justify-center items-center mb-8">
             <img
-              src={chellanlogo}
+              src={k2logo}
               alt="Company Logo"
               className="h-25 w-auto"
             />

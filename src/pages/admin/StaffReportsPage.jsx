@@ -5,7 +5,6 @@ import AdminSidebarLayout from "../../components/layout/AdminSidebarLayout";
 import { SCHEMES, DEMO_SCHEME_ID } from "../../utils/schemes";
 import {
   FileText,
-  AlertTriangle,
   Eye,
   Download,
   Filter,
@@ -15,7 +14,10 @@ import {
   Trash2,
   ShieldCheck,
   Car,
+  MoreVertical,
 } from "lucide-react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCarBurst, faUserShield, faCar } from "@fortawesome/free-solid-svg-icons";
 import { toast } from "react-hot-toast";
 import { generateReportPDF } from "../../utils/pdfGenerator";
 
@@ -102,9 +104,9 @@ const StaffReportsPage = () => {
 
   const mapSearchResults = (results) => {
     const typeMap = {
-      'Incident Report':  { type: 'Incident Report', icon: FileText,      color: 'bg-teal-100 text-teal-600'    },
-      'Cabin H&S Check':  { type: 'Cabin H&S Check', icon: ShieldCheck,   color: 'bg-green-100 text-green-600'  },
-      'Vehicle Daily Check': { type: 'Vehicle Daily Check', icon: Car,    color: 'bg-amber-100 text-amber-600'  },
+      'Incident Report': { type: 'Incident Report', icon: FileText, color: 'bg-teal-100 text-teal-600' },
+      'Cabin H&S Check': { type: 'Cabin H&S Check', icon: ShieldCheck, color: 'bg-green-100 text-green-600' },
+      'Vehicle Daily Check': { type: 'Vehicle Daily Check', icon: Car, color: 'bg-amber-100 text-amber-600' },
     };
     return results.map(f => ({ ...f, ...(typeMap[f.type] || {}) }));
   };
@@ -139,9 +141,9 @@ const StaffReportsPage = () => {
       const schemeId = activeScheme !== 'all' ? activeScheme : null;
       const filtered = schemeId
         ? results.filter(f => {
-            if (f.schemeIds?.length) return f.schemeIds.includes(schemeId);
-            return f.schemeId === schemeId || f.scheme?.split(' ')[0] === schemeId;
-          })
+          if (f.schemeIds?.length) return f.schemeIds.includes(schemeId);
+          return f.schemeId === schemeId || f.scheme?.split(' ')[0] === schemeId;
+        })
         : results;
 
       const mapped = mapSearchResults(filtered);
@@ -409,23 +411,40 @@ const StaffReportsPage = () => {
   const getFormTypeIcon = (type) => {
     switch (type) {
       case "Incident Report":
-        return <AlertTriangle className="w-5 h-5 text-orange-500" />;
+        return (
+          <FontAwesomeIcon icon={faCarBurst} className="text-amber-600 text-[14px]" />
+        );
       case "Cabin H&S Check":
-        return <ShieldCheck className="w-5 h-5 text-green-500" />;
+        return (
+          <FontAwesomeIcon icon={faUserShield} className="text-emerald-600 text-[14px]"/>
+        );
       case "Vehicle Daily Check":
-        return <Car className="w-5 h-5 text-amber-500" />;
+        return (
+          <FontAwesomeIcon icon={faCar} className="text-rose-500 text-[14px]" />
+        );
       default:
-        return <FileText className="w-5 h-5 text-gray-500" />;
+        return <FileText className="w-5 h-5 text-gray-500 text-[10px]" />;
     }
   };
 
-  const getFormTypeBadge = (type) => {
-    const badges = {
-      "Incident Report": "badge-warning",
-      "Cabin H&S Check": "badge-success",
-      "Vehicle Daily Check": "badge-warning",
+    const getFormTypeBadge = (type) => {
+      const badges = {
+        "Incident Report": "bg-amber-100 text-amber-600 font-semibold",
+        "Cabin H&S Check": "bg-emerald-100 text-emerald-600 font-semibold",
+        "Vehicle Daily Check": "bg-rose-100 text-rose-600 font-semibold",
+      };
+      return badges[type] || "badge-ghost";
     };
-    return badges[type] || "badge-ghost";
+
+  // Live pill — shown only for incidents still live; completed/others get nothing.
+  const renderStatusBadge = (report) => {
+    if (report.type !== "Incident Report" || report.status !== "live") return null;
+    return (
+      <span className="badge bg-red-50 badge-sm gap-2 text-[11px] text-red-600">
+        <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
+        LIVE
+      </span>
+    );
   };
 
   // Get scheme(s) from form - handles different form structures
@@ -501,11 +520,13 @@ const StaffReportsPage = () => {
 
   return (
     <AdminSidebarLayout>
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-8xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Staff Reports</h1>
-          <p className="text-gray-600">View and manage all submitted forms from staff members</p>
+          <h1 className=" text-gray-800 mb-2">Staff Reports</h1>
+          <p className="text-gray-500 text-[13px] sm:text-[14px]">
+            View and manage all submitted forms from staff members
+          </p>
         </div>
 
         {/* Filters */}
@@ -582,7 +603,7 @@ const StaffReportsPage = () => {
         </div>
 
         {/* Reports Table */}
-        <div className="bg-white rounded-xl shadow-md overflow-hidden">
+        <div className="bg-white rounded-xl shadow-md sm:overflow-hidden">
           {loading || searchLoading ? (
             <div className="flex justify-center items-center h-64">
               <div className="loading loading-spinner loading-lg text-teal-500"></div>
@@ -594,9 +615,10 @@ const StaffReportsPage = () => {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              {/* Desktop: table */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="table w-full">
-                  <thead className="bg-teal-500">
+                  <thead className="bg-brand-500">
                     <tr>
                       <th className="text-left text-white">Type</th>
                       <th className="text-left text-white">Reference ID</th>
@@ -611,14 +633,16 @@ const StaffReportsPage = () => {
                       <tr key={report.id} className="hover:bg-gray-50">
                         <td>
                           <div className="flex items-center gap-2">
-                            {getFormTypeIcon(report.type)}
-                            <span className={`badge ${getFormTypeBadge(report.type)} badge-sm`}>
+                            
+                            <span className={`badge ${getFormTypeBadge(report.type)} badge-sm p-3`}>
+                              {getFormTypeIcon(report.type)}
                               {(report.type || '').toUpperCase()}
                             </span>
                           </div>
                         </td>
                         <td className="font-mono text-sm font-semibold">
                           <div>{report.referenceId || report.id.slice(0, 12)}</div>
+                          {renderStatusBadge(report)}
                           {report.type === "Incident Report" && report.incursion === "YES" && (
                             <span className="badge badge-error badge-xs mt-1">Incursion</span>
                           )}
@@ -676,6 +700,106 @@ const StaffReportsPage = () => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Mobile: one card per report, actions tucked into a kebab menu */}
+              <div className="sm:hidden p-3 space-y-3">
+                {currentReports.map((report) => (
+                  <div
+                    key={report.id}
+                    className="border border-gray-200 rounded-xl p-4 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between mb-2 gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <code className="text-xs font-mono text-white bg-brand-600 px-2 py-1 rounded">
+                          {report.referenceId || report.id.slice(0, 12)}
+                        </code>
+                        <span className={`badge ${getFormTypeBadge(report.type)} badge-sm pl-2`}>
+                          {getFormTypeIcon(report.type)}
+                          {(report.type || "").toUpperCase()}
+                        </span>
+                        {renderStatusBadge(report)}
+                        {report.type === "Incident Report" &&
+                          report.incursion === "YES" && (
+                            <span className="badge badge-error badge-xs">
+                              Incursion
+                            </span>
+                          )}
+                      </div>
+
+                      <div className="dropdown dropdown-end shrink-0">
+                        <button
+                          tabIndex={0}
+                          type="button"
+                          className="btn btn-ghost btn-sm btn-circle text-gray-500"
+                          title="Actions"
+                        >
+                          <MoreVertical className="w-5 h-5" />
+                        </button>
+                        <ul
+                          tabIndex={0}
+                          className="dropdown-content menu bg-white rounded-lg border border-gray-200 shadow-lg z-20 w-44 p-2"
+                        >
+                          <li>
+                            <button
+                              onClick={() => {
+                                document.activeElement?.blur();
+                                handleViewReport(report);
+                              }}
+                              className="text-blue-600"
+                            >
+                              <Eye className="w-4 h-4" />
+                              View
+                            </button>
+                          </li>
+                          <li>
+                            <button
+                              onClick={() => {
+                                document.activeElement?.blur();
+                                handleDownloadPDF(report);
+                              }}
+                              className="text-purple-600"
+                            >
+                              <Download className="w-4 h-4" />
+                              Download PDF
+                            </button>
+                          </li>
+                          <li>
+                            <button
+                              onClick={() => {
+                                document.activeElement?.blur();
+                                handleDeleteClick(report);
+                              }}
+                              className="text-red-500"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Delete
+                            </button>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    <p className="font-semibold text-brand-500">
+                      {getFormScheme(report)}
+                    </p>
+
+                    <div className="flex items-center justify-between mt-2 text-sm text-gray-600">
+                      <span>
+                        {getFormDate(report)} · {getFormTime(report)}
+                      </span>
+                      {report.type === "Vehicle Daily Check" && report.day && (
+                        <span className="capitalize">{report.day}</span>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-gray-400 mt-1">
+                      {report.submittedBy?.name ||
+                        `${report.firstName || ""} ${report.lastName || ""}`.trim() ||
+                        "N/A"}
+                    </p>
+                  </div>
+                ))}
               </div>
 
               {/* Search pagination */}

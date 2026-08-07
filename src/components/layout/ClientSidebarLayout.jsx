@@ -132,13 +132,13 @@ const ClientSidebarLayout = ({ children, basePath: basePathProp }) => {
               key={item.name}
               to={item.path}
               title={collapsed ? item.name : undefined}
-              className={`flex items-center gap-3 px-3 py-3 rounded-lg transition-colors ${
+              className={`flex items-center text-[14px] gap-3 px-3 py-3 rounded-lg transition-colors ${
                 isActive(item.path, item.exact)
                   ? "bg-brand-500 text-white"
                   : "text-gray-700 hover:bg-gray-100"
               } ${collapsed ? 'justify-center' : ''}`}
             >
-              <item.icon className="w-5 h-5 shrink-0" />
+              <item.icon className="w-4 h-4 shrink-0" />
               {!collapsed && <span className="font-medium">{item.name}</span>}
             </Link>
           ))}
@@ -177,9 +177,9 @@ const ClientSidebarLayout = ({ children, basePath: basePathProp }) => {
           <button
             onClick={() => setCollapsed((c) => !c)}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors ${collapsed ? 'justify-center' : ''}`}
+            className={`w-full flex items-center text-[14px] gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors ${collapsed ? 'justify-center' : ''}`}
           >
-            {collapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+            {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-5 h-5" />}
             {!collapsed && <span className="text-sm">Collapse</span>}
           </button>
         </div>
@@ -212,17 +212,17 @@ const ClientSidebarLayout = ({ children, basePath: basePathProp }) => {
           <button
             onClick={() => navigate('/help')}
             title={collapsed ? 'Help' : undefined}
-            className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors ${collapsed ? 'justify-center' : ''}`}
+            className={`w-full flex items-center text-[14px] gap-3 px-3 py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors ${collapsed ? 'justify-center' : ''}`}
           >
-            <HelpCircle className="w-5 h-5 shrink-0" />
+            <HelpCircle className="w-4 h-4 shrink-0" />
             {!collapsed && <span className="font-medium">Help</span>}
           </button>
           <button
             onClick={() => setShowLogoutModal(true)}
             title={collapsed ? 'Logout' : undefined}
-            className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors ${collapsed ? 'justify-center' : ''}`}
+            className={`w-full flex items-center text-[14px] gap-3 px-3 py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors ${collapsed ? 'justify-center' : ''}`}
           >
-            <LogOut className="w-5 h-5 shrink-0" />
+            <LogOut className="w-4 h-4 shrink-0" />
             {!collapsed && <span className="font-medium">Logout</span>}
           </button>
         </div>

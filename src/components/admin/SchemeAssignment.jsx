@@ -15,6 +15,7 @@ import {
   ChevronRight,
   LayoutGrid,
   Users,
+  MoreVertical,
 } from "lucide-react";
 
 const SchemeAssignment = () => {
@@ -209,16 +210,16 @@ const SchemeAssignment = () => {
   }).filter((s) => s.clients.length > 0);
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-8xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h3 className="text-2xl font-bold text-gray-800">Scheme Assignment</h3>
-          <p className="text-gray-600 mt-1">Manage scheme access for users</p>
+          <h1 className="text-2xl font-bold text-gray-800">Scheme Assignment</h1>
+          <p className="text-gray-500 text-[13px] sm:text-[14px]">Manage scheme access for users</p>
         </div>
         <button
           onClick={activeTab === "assignments" ? () => loadUsers(currentPage) : loadOverview}
           disabled={loading || overviewLoading}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+          className="btn gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
         >
           <RefreshCw className={`w-4 h-4 ${loading || overviewLoading ? "animate-spin" : ""}`} />
           Refresh
@@ -275,59 +276,230 @@ const SchemeAssignment = () => {
           </div>
 
           {/* Users Table */}
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Schemes</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Active Scheme</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {loading && users.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" className="px-6 py-12 text-center">
-                        <div className="flex flex-col items-center justify-center">
-                          <RefreshCw className="w-8 h-8 text-gray-400 animate-spin mb-2" />
-                          <p className="text-gray-500">Loading users...</p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : users.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" className="px-6 py-12 text-center">
-                        <div className="flex flex-col items-center justify-center">
-                          <User className="w-12 h-12 text-gray-300 mb-2" />
-                          <p className="text-gray-500">No users found</p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    users.map((user) => {
-                      // Normalise: CCTV operators from signup only have schemeId (singular)
-                      const effectiveSchemeIds =
-                        user.schemeIds?.length > 0
-                          ? user.schemeIds
-                          : user.schemeId
-                          ? [user.schemeId]
-                          : [];
-                      return (
-                      <tr key={user.uid} className="hover:bg-gray-50">
-                        <td className="px-6 py-4">
-                          <div>
-                            <p className="font-medium text-gray-800">{user.displayName}</p>
-                            <p className="text-sm text-gray-500">{user.email}</p>
+          <div className="bg-white rounded-lg shadow sm:overflow-hidden">
+            {loading && users.length === 0 ? (
+              <div className="px-6 py-12 text-center">
+                <div className="flex flex-col items-center justify-center">
+                  <RefreshCw className="w-8 h-8 text-gray-400 animate-spin mb-2" />
+                  <p className="text-gray-500">Loading users...</p>
+                </div>
+              </div>
+            ) : users.length === 0 ? (
+              <div className="px-6 py-12 text-center">
+                <div className="flex flex-col items-center justify-center">
+                  <User className="w-12 h-12 text-gray-300 mb-2" />
+                  <p className="text-gray-500">No users found</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Desktop: table */}
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-brand-500 border-b">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">User</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Company</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Assigned Schemes</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Active Scheme</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {users.map((user) => {
+                        // Normalise: CCTV operators from signup only have schemeId (singular)
+                        const effectiveSchemeIds =
+                          user.schemeIds?.length > 0
+                            ? user.schemeIds
+                            : user.schemeId
+                            ? [user.schemeId]
+                            : [];
+                        return (
+                        <tr key={user.uid} className="hover:bg-gray-50">
+                          <td className="px-6 py-4">
+                            <div>
+                              <p className="font-medium text-gray-800">{user.displayName}</p>
+                              <p className="text-sm text-gray-500">{user.email}</p>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-gray-800">{user.company || "N/A"}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-wrap gap-2">
+                              {effectiveSchemeIds.length > 0 ? (
+                                effectiveSchemeIds.map((sid) => (
+                                  <div
+                                    key={sid}
+                                    className="flex items-center gap-1 px-2 py-1 bg-brand-50 text-brand-700 rounded text-sm"
+                                  >
+                                    <Building2 className="w-3 h-3" />
+                                    <span>{user.schemeNames?.[sid] || sid}</span>
+                                    {effectiveSchemeIds.length > 1 && user.schemeIds?.includes(sid) && (
+                                      <button
+                                        onClick={() => handleRemoveScheme(user, sid)}
+                                        disabled={loading}
+                                        className="ml-1 hover:text-red-600 transition-colors"
+                                        title="Remove scheme"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                ))
+                              ) : (
+                                <span className="text-gray-400 text-sm">No schemes</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-1 text-sm">
+                              <Building2 className="w-4 h-4 text-blue-500" />
+                              <span className="font-medium text-blue-700">
+                                {user.activeSchemeId || user.schemeId || "None"}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            {user.isArchived ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
+                                <Archive className="w-3 h-3" />
+                                Archived
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                                Active
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              {!user.isArchived && (
+                                <button
+                                  onClick={() => openAssignModal(user)}
+                                  disabled={loading}
+                                  className="flex items-center gap-1 px-3 py-1 bg-brand-500 hover:bg-brand-600 text-white rounded text-sm transition-colors"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                  Assign
+                                </button>
+                              )}
+                              {user.isArchived && (
+                                <button
+                                  onClick={() => handleUnarchiveUser(user)}
+                                  disabled={loading}
+                                  className="flex items-center gap-1 px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm transition-colors"
+                                >
+                                  <ArchiveRestore className="w-4 h-4" />
+                                  Unarchive
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile: one card per user instead of a side-scrolling table */}
+                <div className="sm:hidden divide-y divide-gray-100">
+                  {users.map((user) => {
+                    const effectiveSchemeIds =
+                      user.schemeIds?.length > 0
+                        ? user.schemeIds
+                        : user.schemeId
+                        ? [user.schemeId]
+                        : [];
+                    return (
+                      <div key={user.uid} className="p-5">
+                        <div className="flex items-start justify-between gap-2 mb-4">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-semibold text-gray-800 truncate">{user.displayName}</p>
+                              {user.isArchived ? (
+                                <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
+                                  <Archive className="w-3 h-3" />
+                                  Archived
+                                </span>
+                              ) : (
+                                <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                                  <Building2 className="w-3 h-3" />
+                                  Active: {user.activeSchemeId || user.schemeId || "None"}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-500 truncate mt-0.5">{user.email}</p>
+                            {user.company && (
+                              <p className="text-xs text-gray-400 mt-0.5">{user.company}</p>
+                            )}
                           </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="text-gray-800">{user.company || "N/A"}</p>
-                        </td>
-                        <td className="px-6 py-4">
+
+                          <div className="dropdown dropdown-end shrink-0">
+                            <button
+                              tabIndex={0}
+                              type="button"
+                              className="btn btn-ghost btn-sm btn-circle text-gray-500"
+                              title="Actions"
+                            >
+                              <MoreVertical className="w-5 h-5" />
+                            </button>
+                            <ul
+                              tabIndex={0}
+                              className="dropdown-content menu bg-white rounded-lg border border-gray-200 shadow-lg z-20 w-48 p-2"
+                            >
+                              {!user.isArchived && (
+                                <li>
+                                  <button
+                                    onClick={() => {
+                                      document.activeElement?.blur();
+                                      openAssignModal(user);
+                                    }}
+                                    disabled={loading}
+                                    className="text-brand-600"
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                    Assign Scheme
+                                  </button>
+                                </li>
+                              )}
+                              {user.isArchived ? (
+                                <li>
+                                  <button
+                                    onClick={() => {
+                                      document.activeElement?.blur();
+                                      handleUnarchiveUser(user);
+                                    }}
+                                    disabled={loading}
+                                    className="text-blue-600"
+                                  >
+                                    <ArchiveRestore className="w-4 h-4" />
+                                    Unarchive
+                                  </button>
+                                </li>
+                              ) : (
+                                <li>
+                                  <button
+                                    onClick={() => {
+                                      document.activeElement?.blur();
+                                      handleArchiveUser(user);
+                                    }}
+                                    disabled={loading}
+                                    className="text-gray-700"
+                                  >
+                                    <Archive className="w-4 h-4" />
+                                    Archive
+                                  </button>
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Assigned Schemes</p>
                           <div className="flex flex-wrap gap-2">
                             {effectiveSchemeIds.length > 0 ? (
                               effectiveSchemeIds.map((sid) => (
@@ -353,67 +525,13 @@ const SchemeAssignment = () => {
                               <span className="text-gray-400 text-sm">No schemes</span>
                             )}
                           </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-1 text-sm">
-                            <Building2 className="w-4 h-4 text-blue-500" />
-                            <span className="font-medium text-blue-700">
-                              {user.activeSchemeId || user.schemeId || "None"}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          {user.isArchived ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
-                              <Archive className="w-3 h-3" />
-                              Archived
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                              Active
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            {!user.isArchived && (
-                              <button
-                                onClick={() => openAssignModal(user)}
-                                disabled={loading}
-                                className="flex items-center gap-1 px-3 py-1 bg-brand-500 hover:bg-brand-600 text-white rounded text-sm transition-colors"
-                              >
-                                <Plus className="w-4 h-4" />
-                                Assign
-                              </button>
-                            )}
-                            {user.isArchived ? (
-                              <button
-                                onClick={() => handleUnarchiveUser(user)}
-                                disabled={loading}
-                                className="flex items-center gap-1 px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm transition-colors"
-                              >
-                                <ArchiveRestore className="w-4 h-4" />
-                                Unarchive
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleArchiveUser(user)}
-                                disabled={loading}
-                                className="flex items-center gap-1 px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm transition-colors"
-                              >
-                                <Archive className="w-4 h-4" />
-                                Archive
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
+                        </div>
+                      </div>
                     );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  })}
+                </div>
+              </>
+            )}
 
             {/* Pagination */}
             {totalPages > 1 && (

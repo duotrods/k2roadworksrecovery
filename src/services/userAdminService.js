@@ -41,15 +41,17 @@ const logAudit = (action, performedBy, targetUser, details) => {
 class UserAdminService {
   // All users (no role filter), offset-paginated — backs the admin
   // "User Management" dashboard.
-  async getUsersPaginated(page = 1, pageSize = 10) {
+  async getUsersPaginated(page = 1, pageSize = 10, archiveStatus = 'all') {
     try {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
-      const { data, error, count } = await supabase
+      let query = supabase
         .from('users')
         .select('*, user_schemes(scheme_id, scheme_name)', { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .range(from, to);
+        .order('created_at', { ascending: false });
+      if (archiveStatus === 'active') query = query.eq('is_archived', false);
+      else if (archiveStatus === 'archived') query = query.eq('is_archived', true);
+      const { data, error, count } = await query.range(from, to);
       if (error) throw error;
 
       return {
@@ -170,16 +172,18 @@ class UserAdminService {
     }
   }
 
-  async getUsersByRolePaginated(role, page = 1, pageSize = 10) {
+  async getUsersByRolePaginated(role, page = 1, pageSize = 10, archiveStatus = 'all') {
     try {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
-      const { data, error, count } = await supabase
+      let query = supabase
         .from('users')
         .select('*, user_schemes(scheme_id, scheme_name)', { count: 'exact' })
         .eq('role', role)
-        .order('created_at', { ascending: false })
-        .range(from, to);
+        .order('created_at', { ascending: false });
+      if (archiveStatus === 'active') query = query.eq('is_archived', false);
+      else if (archiveStatus === 'archived') query = query.eq('is_archived', true);
+      const { data, error, count } = await query.range(from, to);
       if (error) throw error;
 
       return {

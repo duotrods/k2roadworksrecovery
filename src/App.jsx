@@ -163,7 +163,7 @@
 
                 <Route
                   path="/dashboard/admin/staff-management"
-                  element={<Navigate to="/dashboard/admin?tab=staff" replace />}
+                  element={<Navigate to="/dashboard/admin" replace />}
                 />
 
                 <Route
