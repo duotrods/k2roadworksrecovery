@@ -115,7 +115,7 @@ const CabinSafetyCheckView = () => {
     <StaffSidebarLayout basePath={basePath}>
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate(-1)}
@@ -133,24 +133,24 @@ const CabinSafetyCheckView = () => {
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0">
             <button
               onClick={handleDownloadPDF}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              className="flex flex-1 md:flex-none items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
             >
               <Download className="w-4 h-4" />
               PDF
             </button>
             <button
               onClick={handleEdit}
-              className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+              className="flex flex-1 md:flex-none items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
             >
               <Edit className="w-4 h-4" />
               Edit
             </button>
             <button
               onClick={handleDelete}
-              className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              className="flex flex-1 md:flex-none items-center justify-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
               Delete
@@ -159,7 +159,7 @@ const CabinSafetyCheckView = () => {
         </div>
 
         {/* Form Content */}
-        <div className="bg-white rounded-xl shadow-md p-8 space-y-6">
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-8 space-y-6">
           {/* Basic Information */}
           <div>
             <h4 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">
@@ -217,12 +217,58 @@ const CabinSafetyCheckView = () => {
           {sections.map((sectionName) => (
             <div
               key={sectionName}
-              className="p-6 bg-gray-50 rounded-xl border border-gray-200"
+              className="p-4 md:p-6 bg-gray-50 rounded-xl border border-gray-200"
             >
               <h4 className="text-lg font-semibold text-gray-800 mb-3 border-b pb-2">
                 {sectionName}
               </h4>
-              <div className="overflow-x-auto">
+              {/* Mobile: stacked cards so the view never scrolls sideways */}
+              <div className="md:hidden space-y-3">
+                {form.checklist
+                  .filter((row) => row.section === sectionName)
+                  .map((row, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-white rounded-lg border border-gray-200 p-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm font-medium text-gray-800">
+                          {row.question}
+                        </p>
+                        <span className="text-sm font-semibold shrink-0">
+                          {row.answer || "—"}
+                        </span>
+                      </div>
+                      {row.comments && (
+                        <p className="text-xs text-gray-600 mt-2">
+                          <span className="font-semibold text-gray-500">
+                            Comments:{" "}
+                          </span>
+                          {row.comments}
+                        </p>
+                      )}
+                      {row.actionOwner && (
+                        <p className="text-xs text-gray-600 mt-1">
+                          <span className="font-semibold text-gray-500">
+                            Action Owner:{" "}
+                          </span>
+                          {row.actionOwner}
+                        </p>
+                      )}
+                      {row.completed && (
+                        <p className="text-xs text-gray-600 mt-1">
+                          <span className="font-semibold text-gray-500">
+                            Completed:{" "}
+                          </span>
+                          {row.completed}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+              </div>
+
+              {/* Desktop: full table */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="table w-full text-sm">
                   <thead>
                     <tr>

@@ -8,8 +8,6 @@ import StaffSidebarLayout from "../../components/layout/StaffSidebarLayout";
 import { getSchemesForUser } from "../../utils/schemes";
 import { getStaffBasePath } from "../../utils/constants";
 
-import chellanlogo from "../../assets/chellanpng.png";
-
 // Fixed 22-question checklist, grouped into 6 sections — matches the paper
 // "Cabin Health and Safety Monthly Inspection Checklist" template exactly.
 // Not user-addable/removable; only the answer/comments/actionOwner/completed
@@ -190,7 +188,7 @@ const CabinSafetyCheckFormPage = () => {
         {/* Form */}
         <form
           onSubmit={handleSubmit}
-          className="bg-white rounded-xl shadow-md p-8"
+          className="bg-white rounded-xl shadow-md p-4 sm:p-8"
         >
           {/* <div className="flex justify-center items-center space-x-2 mb-8">
             <img src={chellanlogo} alt="MyApp Logo" className="h-25 w-auto" />
@@ -300,12 +298,99 @@ const CabinSafetyCheckFormPage = () => {
           {CABIN_SAFETY_SECTIONS.map((sectionName) => (
             <div
               key={sectionName}
-              className="mb-6 p-6 bg-gray-50 rounded-xl border border-gray-200"
+              className="mb-6 p-4 md:p-6 bg-gray-50 rounded-xl border border-gray-200"
             >
               <h4 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">
                 {sectionName}
               </h4>
-              <div className="overflow-x-auto">
+
+              {/* Mobile: stacked cards so the form never scrolls sideways */}
+              <div className="md:hidden space-y-4">
+                {formData.checklist
+                  .map((row, idx) => ({ row, idx }))
+                  .filter(({ row }) => row.section === sectionName)
+                  .map(({ row, idx }) => (
+                    <div
+                      key={idx}
+                      className="bg-white rounded-lg border border-gray-200 p-4 space-y-3"
+                    >
+                      <p className="text-sm font-medium text-gray-800">
+                        {row.question}
+                      </p>
+                      <div className="flex gap-4">
+                        {["Yes", "No", "N/A"].map((opt) => (
+                          <label
+                            key={opt}
+                            className="flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <input
+                              type="radio"
+                              name={`checklist_m_${idx}`}
+                              checked={row.answer === opt}
+                              onChange={() =>
+                                updateChecklistField(idx, "answer", opt)
+                              }
+                              className="radio radio-sm radio-neutral"
+                            />
+                            <span className="text-sm">{opt}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-500">
+                          Comments / Actions
+                        </label>
+                        <input
+                          type="text"
+                          value={row.comments}
+                          onChange={(e) =>
+                            updateChecklistField(idx, "comments", e.target.value)
+                          }
+                          className="input input-sm w-full bg-white border-gray-300 rounded-lg mt-1"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-gray-500">
+                            Action Owner
+                          </label>
+                          <input
+                            type="text"
+                            value={row.actionOwner}
+                            onChange={(e) =>
+                              updateChecklistField(
+                                idx,
+                                "actionOwner",
+                                e.target.value,
+                              )
+                            }
+                            className="input input-sm w-full bg-white border-gray-300 rounded-lg mt-1"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-500">
+                            Completed
+                          </label>
+                          <input
+                            type="text"
+                            value={row.completed}
+                            onChange={(e) =>
+                              updateChecklistField(
+                                idx,
+                                "completed",
+                                e.target.value,
+                              )
+                            }
+                            className="input input-sm w-full bg-white border-gray-300 rounded-lg mt-1"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+
+              {/* Desktop: full table */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="table w-full text-sm">
                   <thead>
                     <tr>

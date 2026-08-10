@@ -3,9 +3,19 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { staffService } from "../../services/staffService";
 import NoticeBoard from "../staff/NoticeBoard";
+import LiveJobsPanel from "./LiveJobsPanel";
+import TeamActivityFeed from "./TeamActivityFeed";
 import { AlertTriangle, Truck, Car, FilePlus, ChevronRight, ShieldCheck } from "lucide-react";
 import { getViewerSchemeScope } from "../../utils/schemes";
 import { getStaffBasePath } from "../../utils/constants";
+
+// Time-of-day greeting for the dashboard header.
+const greetingFor = (date = new Date()) => {
+  const h = date.getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+};
 
 const NewStaffDashboard = () => {
   const navigate = useNavigate();
@@ -89,11 +99,18 @@ const NewStaffDashboard = () => {
 
       <div>
         {/* Welcome Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            Welcome back,{" "}
-            <span className="text-brand-500">{userProfile?.displayName}!</span>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
+            {greetingFor()},{" "}
+            <span className="text-brand-500">{userProfile?.displayName}</span>
           </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {new Date().toLocaleDateString("en-GB", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+            })}
+          </p>
         </div>
 
         {/* Statistics Cards */}
@@ -103,30 +120,41 @@ const NewStaffDashboard = () => {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+            <h2 className="text-lg font-semibold text-gray-800 mb-3">
+              This week
+            </h2>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-6 mb-6 sm:mb-8">
               {statCards.map((card, index) => (
                 <div
                   key={index}
-                  className="bg-white rounded-xl shadow-md p-7 hover:shadow-lg transition-shadow"
+                  className={`bg-white rounded-xl shadow-md p-4 sm:p-6 hover:shadow-lg transition-shadow ${
+                    index === statCards.length - 1 && statCards.length % 2 === 1
+                      ? "col-span-2 lg:col-span-1"
+                      : ""
+                  }`}
                 >
-                  <div className="flex items-center gap-3 mb-5">
-                    <div className="w-10 h-10 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
-                      <card.icon className="w-5 h-5 text-white" />
+                  <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
+                      <card.icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                     </div>
-                    <h5 className="text-sm font-medium text-gray-600 leading-tight">
+                    <h5 className="text-xs sm:text-sm font-medium text-gray-600 leading-tight">
                       {card.title}
                     </h5>
                   </div>
 
                   <div className="mt-2">
-                    <span className="text-4xl font-bold text-gray-800">
+                    <span className="text-3xl sm:text-4xl font-bold text-gray-800">
                       {card.count}
                     </span>
-                    <p className="text-sm text-gray-400 mt-1">This week</p>
+                    <p className="text-xs sm:text-sm text-gray-400 mt-1">This week</p>
                   </div>
                 </div>
               ))}
             </div>
+
+            <h2 className="text-lg font-semibold text-gray-800 mb-3">
+              Start something new
+            </h2>
 
             {/* New Job Sheet CTA */}
             <div
@@ -136,7 +164,7 @@ const NewStaffDashboard = () => {
               onKeyDown={(e) => handleCardKeyDown(e, `${basePath}/forms/incident-report`)}
               className="bg-white rounded-xl shadow-md p-5 hover:shadow-lg transition-shadow cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
-              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex flex-col md:flex-row md:items-center items-start justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <div className="w-11 h-11 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
                     <FilePlus className="w-5 h-5 text-white" />
@@ -155,7 +183,7 @@ const NewStaffDashboard = () => {
                     e.stopPropagation();
                     navigate(`${basePath}/forms/incident-report`);
                   }}
-                  className="px-6 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 transition-colors font-semibold flex items-center gap-2 shrink-0"
+                  className="px-6 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 transition-colors font-semibold flex items-center justify-center gap-2 shrink-0 w-full md:w-auto"
                 >
                   + New Job Sheet
                   <ChevronRight className="w-5 h-5" />
@@ -171,7 +199,7 @@ const NewStaffDashboard = () => {
               onKeyDown={(e) => handleCardKeyDown(e, `${basePath}/forms/cabin-safety-check`)}
               className="bg-white rounded-xl shadow-md p-5 hover:shadow-lg transition-shadow cursor-pointer mt-4 focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
-              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex flex-col md:flex-row md:items-center items-start justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <div className="w-11 h-11 rounded-lg bg-green-500 flex items-center justify-center shrink-0">
                     <ShieldCheck className="w-5 h-5 text-white" />
@@ -190,7 +218,7 @@ const NewStaffDashboard = () => {
                     e.stopPropagation();
                     navigate(`${basePath}/forms/cabin-safety-check`);
                   }}
-                  className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-semibold flex items-center gap-2 shrink-0"
+                  className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-semibold flex items-center justify-center gap-2 shrink-0 w-full md:w-auto"
                 >
                   + New Cabin H&S Check
                   <ChevronRight className="w-5 h-5" />
@@ -206,7 +234,7 @@ const NewStaffDashboard = () => {
               onKeyDown={(e) => handleCardKeyDown(e, `${basePath}/forms/vehicle-daily-check`)}
               className="bg-white rounded-xl shadow-md p-5 hover:shadow-lg transition-shadow cursor-pointer mt-4 focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
-              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex flex-col md:flex-row md:items-center items-start justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <div className="w-11 h-11 rounded-lg bg-amber-500 flex items-center justify-center shrink-0">
                     <Car className="w-5 h-5 text-white" />
@@ -225,12 +253,17 @@ const NewStaffDashboard = () => {
                     e.stopPropagation();
                     navigate(`${basePath}/forms/vehicle-daily-check`);
                   }}
-                  className="px-6 py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-semibold flex items-center gap-2 shrink-0"
+                  className="px-6 py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-semibold flex items-center justify-center gap-2 shrink-0 w-full md:w-auto"
                 >
                   + New Vehicle Check
                   <ChevronRight className="w-5 h-5" />
                 </button>
               </div>
+            </div>
+
+            <div className="mt-8">
+              <LiveJobsPanel basePath={basePath} />
+              <TeamActivityFeed />
             </div>
           </>
         )}

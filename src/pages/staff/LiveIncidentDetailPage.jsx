@@ -80,7 +80,7 @@ const LiveIncidentDetailPage = () => {
     <StaffSidebarLayout>
       <div className="max-w-5xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate('/dashboard/staff/live-incidents')}
@@ -95,7 +95,7 @@ const LiveIncidentDetailPage = () => {
           </div>
           <button
             onClick={handleDownloadPDF}
-            className="btn bg-blue-500 text-white hover:bg-blue-600 border-none"
+            className="btn bg-blue-500 text-white hover:bg-blue-600 border-none w-full md:w-auto shrink-0"
           >
             <Download className="w-4 h-4 mr-2" />
             Download PDF
@@ -103,7 +103,7 @@ const LiveIncidentDetailPage = () => {
         </div>
 
         {/* Report Content */}
-        <div className="bg-white rounded-xl shadow-md p-8">
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-8">
           {/* Logo */}
           <div className="flex justify-center items-center mb-8">
             <img src={chellanlogo} alt="Company Logo" className="h-25 w-auto" />

@@ -195,6 +195,29 @@ class StaffService {
     }
   }
 
+  // The current operator's own in-progress ("live") Job Sheets, most recently
+  // touched first — powers the dashboard's "Your live jobs" resume panel.
+  // Filtered by the submitter, not by scheme, so a multi-scheme operator still
+  // only sees jobs they started. Fails soft (returns []) so the dashboard never
+  // breaks if this read errors.
+  async getMyLiveIncidents(userId) {
+    if (!userId) return [];
+    try {
+      const { data, error } = await supabase
+        .from("incident_reports")
+        .select("*")
+        .eq("submitted_by_user_id", userId)
+        .eq("status", "live")
+        .order("updated_at", { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return (data || []).map(fromIncidentRow);
+    } catch (error) {
+      console.warn("Failed to get my live incidents:", error);
+      return [];
+    }
+  }
+
   async updateIncidentReport(reportId, formData, userId, userName, isCompletion = false) {
     try {
       const { data: currentRow, error: fetchError } = await supabase

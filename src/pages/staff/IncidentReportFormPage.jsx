@@ -840,7 +840,7 @@ const IncidentReportFormPage = () => {
   const renderStep1 = () => (
     <form
       onSubmit={handleStep1Submit}
-      className="bg-white rounded-xl shadow-md p-8 space-y-6"
+      className="bg-white rounded-xl shadow-md p-4 sm:p-8 space-y-6"
     >
       <StepIndicator currentStep={currentStep} />
 
@@ -1074,7 +1074,7 @@ const IncidentReportFormPage = () => {
     const hasClockedOnScene = Boolean(formData.timeOfArrival);
 
     return (
-      <div className="bg-white rounded-xl shadow-md p-8 space-y-6">
+      <div className="bg-white rounded-xl shadow-md p-4 sm:p-8 space-y-6">
         <StepIndicator currentStep={currentStep} />
 
         <div className="bg-brand-50 border border-brand-200 rounded-lg p-4 mb-6">
@@ -1270,7 +1270,7 @@ const IncidentReportFormPage = () => {
   const renderStep3 = () => (
     <form
       onSubmit={handleStep3Next}
-      className="bg-white rounded-xl shadow-md p-8 space-y-6"
+      className="bg-white rounded-xl shadow-md p-4 sm:p-8 space-y-6"
     >
       <StepIndicator currentStep={currentStep} />
 
@@ -1611,7 +1611,7 @@ const IncidentReportFormPage = () => {
   const renderStep4 = () => (
     <form
       onSubmit={handleSubmit}
-      className="bg-white rounded-xl shadow-md p-8 space-y-6"
+      className="bg-white rounded-xl shadow-md p-4 sm:p-8 space-y-6"
     >
       <StepIndicator currentStep={currentStep} />
 

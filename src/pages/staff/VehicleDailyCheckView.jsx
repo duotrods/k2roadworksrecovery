@@ -148,7 +148,7 @@ const VehicleDailyCheckView = () => {
     <StaffSidebarLayout basePath={basePath}>
       <div className="max-w-5xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate(-1)}
@@ -166,24 +166,24 @@ const VehicleDailyCheckView = () => {
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0">
             <button
               onClick={handleDownloadPDF}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              className="flex flex-1 md:flex-none items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
             >
               <Download className="w-4 h-4" />
               PDF
             </button>
             <button
               onClick={handleEdit}
-              className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+              className="flex flex-1 md:flex-none items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
             >
               <Edit className="w-4 h-4" />
               Edit
             </button>
             <button
               onClick={handleDelete}
-              className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              className="flex flex-1 md:flex-none items-center justify-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
               Delete
@@ -192,7 +192,7 @@ const VehicleDailyCheckView = () => {
         </div>
 
         {/* Form Content */}
-        <div className="bg-white rounded-xl shadow-md p-8 space-y-6">
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-8 space-y-6">
           {/* Basic Information */}
           <div>
             <h4 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">
@@ -263,7 +263,7 @@ const VehicleDailyCheckView = () => {
           </div>
 
           {/* Daily checks */}
-          <div className="p-6 bg-gray-50 rounded-xl border border-gray-200">
+          <div className="p-4 md:p-6 bg-gray-50 rounded-xl border border-gray-200">
             <h4 className="text-lg font-semibold text-gray-800 mb-3 border-b pb-2">
               {form.day
                 ? `Daily Checks — ${DAY_LABELS[form.day] || form.day}`

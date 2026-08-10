@@ -144,7 +144,7 @@ export const generateReportPDF = async (report, reportType, options) => {
         hour: "2-digit",
         minute: "2-digit",
       });
-    } catch (error) {
+    } catch {
       return "N/A";
     }
   };
@@ -256,6 +256,36 @@ export const generateReportPDF = async (report, reportType, options) => {
     doc.text(lines, margin + 50, yPosition);
 
     yPosition += Math.max(lines.length * 5, 7);
+  };
+
+  // Checklist row display — unlike addField (short label + value at a fixed
+  // x-offset), the question here is long free text, so it must wrap across the
+  // full width while the short answer (Yes/No/N/A) is right-aligned on the
+  // first line. Reserves a 22mm answer column on the right so the two never
+  // overlap.
+  const answerColWidth = 22;
+  const addChecklistItem = (question, answer) => {
+    if (yPosition > 270) {
+      doc.addPage();
+      yPosition = 20;
+    }
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(60, 60, 60);
+    const questionLines = doc.splitTextToSize(
+      question,
+      contentWidth - answerColWidth,
+    );
+    doc.text(questionLines, margin, yPosition);
+
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 0);
+    doc.text((answer || "N/A").toString(), pageWidth - margin, yPosition, {
+      align: "right",
+    });
+
+    yPosition += Math.max(questionLines.length * 5, 7);
   };
 
   // Basic Information Section
@@ -485,7 +515,7 @@ export const generateReportPDF = async (report, reportType, options) => {
           report.checklist
             .filter((row) => row.section === sectionName)
             .forEach((row) => {
-              addField(row.question, row.answer || "N/A");
+              addChecklistItem(row.question, row.answer || "N/A");
               if (row.comments) addField("Comments/Actions", row.comments);
               if (row.actionOwner) addField("Action Owner", row.actionOwner);
               if (row.completed) addField("Completed", row.completed);
