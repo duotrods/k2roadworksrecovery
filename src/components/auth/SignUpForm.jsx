@@ -110,8 +110,8 @@ const SignUpForm = () => {
 
   return (
     <div className="w-full max-w-md p-6 sm:p-8 bg-white rounded-xl shadow-lg">
-      <h3>Create Account</h3>
-      <p className="mb-6 font-medium label label-text">
+      <h3 className="text-2xl font-bold text-gray-800">Create Account</h3>
+      <p className="mb-6 mt-1 text-sm font-medium text-gray-500">
         Let's create your account for LENSE.
       </p>
 
@@ -232,11 +232,9 @@ const SignUpForm = () => {
             className="input w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
             required
           />
-          <label className="label">
-            <span className="label-text-alt text-gray-500">
-              Enter the access code provided by your administrator
-            </span>
-          </label>
+          <p className="mt-1.5 text-xs text-gray-500">
+            Enter the access code provided by your administrator
+          </p>
         </div>
 
         {formData.role === USER_ROLES.CLIENT && (

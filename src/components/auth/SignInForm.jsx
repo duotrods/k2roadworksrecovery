@@ -96,8 +96,8 @@ const SignInForm = () => {
 
   return (
     <div className="w-full max-w-md p-6 sm:p-8 bg-white rounded-xl shadow-lg">
-      <h3>Sign In</h3>
-      <p className="mb-6 font-medium label label-text">Hello! Let's continue your work with K2 RECOVERY.</p>
+      <h3 className="text-2xl font-bold text-gray-800">Sign In</h3>
+      <p className="mb-6 mt-1 text-sm font-medium text-gray-500">Hello! Let's continue your work with K2 RECOVERY.</p>
 
       <form onSubmit={handleEmailSignIn} className="space-y-4">
         <div className="form-control">
