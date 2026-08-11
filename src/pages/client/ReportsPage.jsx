@@ -12,15 +12,16 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
+  MoreVertical,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { generateReportPDF } from "../../utils/pdfGenerator";
 import { SCHEMES } from "../../utils/schemes";
-import ReportStatsCards from "../../components/client/reports/ReportStatsCards";
 import ReportDetailModal from "../../components/client/reports/ReportDetailModal";
 import {
   getReportTypeIcon,
   getReportTypeBadge,
+  getReportTypeLabel,
   getReportDisplayDate,
   getReportDisplayTime,
 } from "../../utils/reportDisplay";
@@ -182,28 +183,6 @@ const ReportsPage = () => {
 
   const clearRestoreState = () => {
     _reportsRestore = null;
-  };
-
-  const handleCardClick = (type, sub = null) => {
-    clearRestoreState();
-    setSubFilter(sub);
-    setSearchTerm("");
-    setSearchResults([]);
-    setSearchPage(1);
-    setSearchHasMore(false);
-    setSearchLastDocs({});
-    searchPageCacheRef.current = {};
-    pageCacheRef.current = {};
-    setTypeCursor(null);
-    setCursors({});
-    setFilterType(type);
-    loadReports(true, type, null, null, false, sub, appliedDateFilter);
-    // Scroll table into view
-    setTimeout(() => {
-      document
-        .querySelector(".bg-white.rounded-lg.shadow.overflow-hidden")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 100);
   };
 
   const loadReports = async (
@@ -493,17 +472,6 @@ const ReportsPage = () => {
     }
   };
 
-  const reportStats = {
-    total: reportTypeCounts.total,
-    incident: reportTypeCounts.incident,
-    pureIncident: reportTypeCounts.pureIncident,
-    freeRecovery:
-      (reportTypeCounts.freeRecovery || 0) + (reportTypeCounts.driveOff || 0),
-    incursions: reportTypeCounts.incursions,
-    vehiclesDispatched: reportTypeCounts.vehiclesDispatched,
-    incidentAssetDamage: reportTypeCounts.incidentAssetDamage,
-  };
-
   // Get the active scheme name for display
   const getActiveSchemeName = () => {
     // If activeSchemeName is set, use it
@@ -557,18 +525,27 @@ const ReportsPage = () => {
     loadTotalCount(null);
   };
 
+  // LIVE pill — shown only for incidents still live (matches admin StaffReportsPage).
+  const renderStatusBadge = (report) => {
+    if (report.reportType !== "incident" || report.status !== "live") return null;
+    return (
+      <span className="badge bg-red-50 badge-sm gap-2 text-[11px] text-red-600">
+        <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
+        LIVE
+      </span>
+    );
+  };
+
   return (
     <ClientSidebarLayout>
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">Reports</h1>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Reports</h1>
           <p className="text-gray-600 mt-2">
             View and manage all reports for {getActiveSchemeName()}
           </p>
         </div>
-
-        <ReportStatsCards reportStats={reportStats} onCardClick={handleCardClick} />
 
         {/* Search and Filter */}
         <div className="bg-white rounded-lg shadow p-4 mb-6">
@@ -611,46 +588,51 @@ const ReportsPage = () => {
               />
             </div>
 
-            {/* Date Range Filter */}
-            <div className="flex flex-wrap items-center gap-2 flex-1">
-              <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
-              <input
-                type="date"
-                value={dateFilter.startDate}
-                onChange={(e) =>
-                  setDateFilter((prev) => ({
-                    ...prev,
-                    startDate: e.target.value,
-                  }))
-                }
-                className="input input-bordered bg-white border-gray-300 text-sm h-10 flex-1 min-w-0"
-              />
-              <span className="text-gray-400 text-sm shrink-0">to</span>
-              <input
-                type="date"
-                value={dateFilter.endDate}
-                onChange={(e) =>
-                  setDateFilter((prev) => ({
-                    ...prev,
-                    endDate: e.target.value,
-                  }))
-                }
-                className="input input-bordered bg-white border-gray-300 text-sm h-10 flex-1 min-w-0"
-              />
-              <button
-                onClick={handleApplyDateFilter}
-                className="btn btn-sm bg-brand-500 hover:bg-brand-600 text-white border-none shrink-0"
-              >
-                Apply
-              </button>
-              {appliedDateFilter && (
-                <button
-                  onClick={handleClearDateFilter}
-                  className="btn btn-sm btn-ghost text-gray-500 shrink-0"
-                >
-                  Clear
-                </button>
-              )}
+            {/* Date Range Filter — date inputs stack on mobile so the native
+                calendar icon never overlaps the yyyy, inline from sm: up */}
+            <div className="flex items-start gap-2 flex-1">
+              <Calendar className="w-4 h-4 text-gray-400 shrink-0 mt-3" />
+              <div className="flex flex-1 flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 min-w-0">
+                <input
+                  type="date"
+                  value={dateFilter.startDate}
+                  onChange={(e) =>
+                    setDateFilter((prev) => ({
+                      ...prev,
+                      startDate: e.target.value,
+                    }))
+                  }
+                  className="input input-bordered bg-white border-gray-300 text-sm h-10 w-full sm:flex-1 min-w-0"
+                />
+                <span className="text-gray-400 text-sm shrink-0">to</span>
+                <input
+                  type="date"
+                  value={dateFilter.endDate}
+                  onChange={(e) =>
+                    setDateFilter((prev) => ({
+                      ...prev,
+                      endDate: e.target.value,
+                    }))
+                  }
+                  className="input input-bordered bg-white border-gray-300 text-sm h-10 w-full sm:flex-1 min-w-0"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleApplyDateFilter}
+                    className="btn btn-sm bg-brand-500 hover:bg-brand-600 text-white border-none flex-1 sm:flex-none"
+                  >
+                    Apply
+                  </button>
+                  {appliedDateFilter && (
+                    <button
+                      onClick={handleClearDateFilter}
+                      className="btn btn-sm btn-ghost text-gray-500 flex-1 sm:flex-none"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Filter */}
@@ -691,26 +673,112 @@ const ReportsPage = () => {
         </div>
 
         {/* Reports Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white rounded-xl shadow-md sm:overflow-hidden">
           {loading || searchLoading ? (
             <div className="p-12 text-center">
               <span className="loading loading-spinner loading-lg text-brand-500"></span>
             </div>
           ) : currentReports.length > 0 ? (
             <>
-              <div className="overflow-x-auto">
+              {/* Mobile: one card per report, actions tucked into a kebab menu */}
+              <div className="sm:hidden p-3 space-y-3">
+                {currentReports.map((report, index) => (
+                  <div
+                    key={index}
+                    className="border border-gray-200 rounded-xl p-4 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between mb-2 gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <code className="text-xs font-mono text-white bg-brand-600 px-2 py-1 rounded">
+                          {report.referenceId}
+                        </code>
+                        <span
+                          className={`badge ${getReportTypeBadge(report.reportType)} badge-sm pl-2`}
+                        >
+                          {getReportTypeIcon(report.reportType)}
+                          {getReportTypeLabel(report.reportType)}
+                        </span>
+                        {renderStatusBadge(report)}
+                        {report.reportType === "incident" &&
+                          report.incursion === "YES" && (
+                            <span className="badge badge-error badge-xs">
+                              Incursion
+                            </span>
+                          )}
+                      </div>
+
+                      <div className="dropdown dropdown-end shrink-0">
+                        <button
+                          tabIndex={0}
+                          type="button"
+                          className="btn btn-ghost btn-sm btn-circle text-gray-500"
+                          title="Actions"
+                        >
+                          <MoreVertical className="w-5 h-5" />
+                        </button>
+                        <ul
+                          tabIndex={0}
+                          className="dropdown-content menu bg-white rounded-lg border border-gray-200 shadow-lg z-20 w-44 p-2"
+                        >
+                          <li>
+                            <button
+                              onClick={() => {
+                                document.activeElement?.blur();
+                                handleViewReport(report);
+                              }}
+                              className="text-blue-600"
+                            >
+                              <Eye className="w-4 h-4" />
+                              View
+                            </button>
+                          </li>
+                          <li>
+                            <button
+                              onClick={() => {
+                                document.activeElement?.blur();
+                                handleDownloadReport(report);
+                              }}
+                              className="text-purple-600"
+                            >
+                              <Download className="w-4 h-4" />
+                              Download PDF
+                            </button>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    <p className="font-semibold text-brand-500">
+                      {report.scheme || getActiveSchemeName() || "N/A"}
+                    </p>
+
+                    <div className="flex items-center justify-between mt-2 text-sm text-gray-600">
+                      <span>
+                        {getReportDisplayDate(report)} ·{" "}
+                        {getReportDisplayTime(report)}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-gray-400 mt-1">
+                      {report.submittedBy?.name ||
+                        (typeof report.submittedBy === "string"
+                          ? report.submittedBy
+                          : "Staff")}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop: full table */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="table w-full">
                   <thead className="bg-brand-500">
                     <tr>
                       <th className="text-left text-white">Type</th>
                       <th className="text-left text-white">Reference ID</th>
-                      <th className="text-left text-white">
-                        Title/Description
-                      </th>
-                      <th className="text-left text-white">Location</th>
-                      <th className="text-left text-white">Date & Time</th>
                       <th className="text-left text-white">Submitted By</th>
-                      {/* <th className="text-left text-white">Status</th> */}
+                      <th className="text-left text-white">Scheme</th>
+                      <th className="text-left text-white">Date & Time</th>
                       <th className="text-center text-white">Actions</th>
                     </tr>
                   </thead>
@@ -719,18 +787,17 @@ const ReportsPage = () => {
                       <tr key={index} className="hover:bg-gray-50">
                         <td>
                           <div className="flex items-center gap-2">
-                            {getReportTypeIcon(report.reportType)}
                             <span
-                              className={`badge ${getReportTypeBadge(report.reportType)} badge-sm`}
+                              className={`badge ${getReportTypeBadge(report.reportType)} badge-sm p-3`}
                             >
-                              {report.reportType
-                                .replace("-", " ")
-                                .toUpperCase()}
+                              {getReportTypeIcon(report.reportType)}
+                              {getReportTypeLabel(report.reportType)}
                             </span>
                           </div>
                         </td>
                         <td className="font-mono text-sm font-semibold">
                           <div>{report.referenceId}</div>
+                          {renderStatusBadge(report)}
                           {report.reportType === "incident" &&
                             report.incursion === "YES" && (
                               <span className="badge badge-error badge-xs mt-1">
@@ -738,33 +805,25 @@ const ReportsPage = () => {
                               </span>
                             )}
                         </td>
-                        <td className="max-w-xs truncate">
-                          {report.type || report.title || "N/A"}
-                        </td>
-                        <td className="max-w-xs truncate">
-                          {report.location || "N/A"}
-                        </td>
-                        <td>
-                          <div className="text-sm">
-                            <p className="font-medium">
-                              {getReportDisplayDate(report)}
-                            </p>
-                            <p className="text-gray-500">
-                              {getReportDisplayTime(report)}
-                            </p>
-                          </div>
-                        </td>
-                        <td className="text-sm">
+                        <td className="text-sm text-gray-800">
                           {report.submittedBy?.name ||
                             (typeof report.submittedBy === "string"
                               ? report.submittedBy
                               : "Staff")}
                         </td>
-                        {/* <td>
-                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusBadge(report.status)}`}>
-                            {report.status || 'Pending'}
-                          </span>
-                        </td> */}
+                        <td className="text-sm text-gray-600 max-w-xs truncate">
+                          {report.scheme || getActiveSchemeName() || "N/A"}
+                        </td>
+                        <td>
+                          <div className="text-sm">
+                            <p className="font-medium text-gray-800">
+                              {getReportDisplayDate(report)}
+                            </p>
+                            <p className="text-gray-400">
+                              {getReportDisplayTime(report)}
+                            </p>
+                          </div>
+                        </td>
                         <td>
                           <div className="flex items-center justify-center gap-2">
                             <button
@@ -776,7 +835,7 @@ const ReportsPage = () => {
                             </button>
                             <button
                               onClick={() => handleDownloadReport(report)}
-                              className="btn btn-sm btn-ghost text-green-600 hover:text-green-800"
+                              className="btn btn-sm btn-ghost text-purple-600 hover:text-purple-800"
                               title="Download Report"
                             >
                               <Download className="w-4 h-4" />

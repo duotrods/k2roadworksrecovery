@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, Radio } from "lucide-react";
+import { ChevronRight, ChevronDown, Radio } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { staffService } from "../../services/staffService";
 import { formatRelativeTime, liveJobStepLabel } from "../../utils/relativeTime";
@@ -14,6 +14,7 @@ const LiveJobsPanel = ({ basePath }) => {
   const { userProfile } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     if (!userProfile?.uid) return;
@@ -31,17 +32,34 @@ const LiveJobsPanel = ({ basePath }) => {
   const resume = (id) =>
     navigate(`${basePath}/forms/incident-report?edit=${id}`);
 
+  const hasJobs = jobs.length > 0;
+
   return (
     <div className="mb-8">
-      <h2 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+      {/* Toggle: reveals the live-jobs list on click (collapsed by default). */}
+      <button
+        type="button"
+        onClick={() => hasJobs && setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        disabled={!hasJobs}
+        className={`w-full text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2 rounded-lg -mx-1 px-1 py-1 transition-colors ${
+          hasJobs ? "hover:text-brand-600 cursor-pointer" : "cursor-default"
+        }`}
+      >
         <span className="w-2.5 h-2.5 rounded-full bg-red-500 ring-4 ring-red-500/15" />
         Your live jobs
-        {jobs.length > 0 && (
-          <span className="text-sm font-medium text-gray-400">
-            · {jobs.length}
+        {hasJobs && (
+          <span className="text-sm font-medium text-gray-400">· {jobs.length}</span>
+        )}
+        {hasJobs && (
+          <span className="ml-auto flex items-center gap-1.5 text-sm font-medium text-brand-600">
+            {expanded ? "Hide" : "Show"}
+            <ChevronDown
+              className={`w-4 h-4 transition-transform ${expanded ? "rotate-180" : ""}`}
+            />
           </span>
         )}
-      </h2>
+      </button>
 
       {loading ? (
         <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 flex justify-center">
@@ -53,7 +71,7 @@ const LiveJobsPanel = ({ basePath }) => {
             No live jobs right now. Start a new Job Sheet above.
           </p>
         </div>
-      ) : (
+      ) : expanded ? (
         <div className="space-y-3">
           {jobs.map((job) => (
             <div
@@ -99,6 +117,24 @@ const LiveJobsPanel = ({ basePath }) => {
             </div>
           ))}
         </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="w-full bg-white rounded-xl shadow-md p-4 sm:p-5 flex items-center justify-between gap-4 hover:shadow-lg transition-shadow text-left focus:outline-none focus:ring-2 focus:ring-brand-500"
+        >
+          <span className="text-sm text-gray-600">
+            You have{" "}
+            <span className="font-semibold text-gray-800">
+              {jobs.length} live {jobs.length === 1 ? "job" : "jobs"}
+            </span>{" "}
+            in progress
+          </span>
+          <span className="flex items-center gap-1 shrink-0 px-4 py-2 bg-brand-500 text-white rounded-lg font-semibold text-sm">
+            Show
+            <ChevronDown className="w-4 h-4" />
+          </span>
+        </button>
       )}
     </div>
   );

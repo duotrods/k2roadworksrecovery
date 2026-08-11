@@ -15,6 +15,7 @@
     Menu,
     Hash,
     CalendarDays,
+    Radio,
   } from "lucide-react";
   import headerLogo from "../../assets/k2logo.svg";
   import logomark from "../../assets/k2iconlogo.svg";
@@ -53,6 +54,11 @@
         path: "/dashboard/admin",
         icon: LayoutDashboard,
         exact: true,
+      },
+      {
+        name: "Live Incidents",
+        path: "/dashboard/admin/live-incidents",
+        icon: Radio,
       },
       {
         name: "Access Code",

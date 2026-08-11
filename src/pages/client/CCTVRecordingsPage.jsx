@@ -198,10 +198,10 @@ const CCTVRecordingsPage = () => {
 
   return (
     <ClientSidebarLayout>
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">CCTV Recordings</h1>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">CCTV Recordings</h1>
           <p className="text-gray-600 mt-2">
             Access and manage CCTV footage for {getActiveSchemeName()}
           </p>

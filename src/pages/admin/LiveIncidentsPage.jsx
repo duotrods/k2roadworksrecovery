@@ -1,42 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
 import { useLiveIncidents, usePaginatedCompletedIncidents } from '../../hooks/useLiveIncidents';
-import { Eye, Download, Radio, CheckCircle, ArrowLeft, ChevronLeft, ChevronRight, Loader2, ChevronRight as ArrowRight } from 'lucide-react';
+import { Eye, Download, Radio, CheckCircle, ChevronLeft, ChevronRight, Loader2, Filter, ChevronRight as ArrowRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { generateReportPDF } from '../../utils/pdfGenerator';
-import { SCHEMES } from "../../utils/schemes";
+import { SCHEMES } from '../../utils/schemes';
+import AdminSidebarLayout from '../../components/layout/AdminSidebarLayout';
 
-const LiveIncidentsPage = () => {
+const AdminLiveIncidentsPage = () => {
   const navigate = useNavigate();
-  const { userProfile } = useAuth();
-  const basePath = "/dashboard/client";
 
-  const schemeId = userProfile?.activeSchemeId || userProfile?.schemeId;
-  const getActiveSchemeName = () => {
-      // If activeSchemeName is set, use it
-      if (userProfile?.activeSchemeName) {
-        return userProfile.activeSchemeName;
-      }
-
-      // If we have an activeSchemeId but no activeSchemeName, look it up
-      if (userProfile?.activeSchemeId) {
-        const activeSchemeObj = SCHEMES.find(s => s.id === userProfile.activeSchemeId);
-        if (activeSchemeObj) {
-          return activeSchemeObj.fullName;
-        }
-      }
-
-      // Fall back to the default scheme name
-      return userProfile?.schemeName;
-    };
-
-  const schemeName = getActiveSchemeName();
+  // Admins aren't scoped to a single scheme — they pick which one to monitor.
+  const [schemeId, setSchemeId] = useState(SCHEMES[0]?.id || '');
+  const schemeName = SCHEMES.find((s) => s.id === schemeId)?.fullName || '';
 
   // Real-time subscription for LIVE incidents only (instant updates)
   const { liveIncidents, loading: liveLoading } = useLiveIncidents(schemeId);
 
-  // Server-side paginated completed incidents (only reads 10 docs per page!)
+  // Server-side paginated completed incidents (only reads 6 rows per page!)
   const {
     incidents: completedIncidents,
     loading: completedLoading,
@@ -68,10 +49,15 @@ const LiveIncidentsPage = () => {
   const [livePage, setLivePage] = useState(1);
   const liveTotalPages = Math.max(1, Math.ceil(liveIncidents.length / LIVE_PAGE_SIZE));
 
-  // Realtime churn can shrink the list under us — clamp back to a valid page.
+  // Realtime churn (or switching schemes) can shrink the list — clamp to a valid page.
   useEffect(() => {
     if (livePage > liveTotalPages) setLivePage(liveTotalPages);
   }, [livePage, liveTotalPages]);
+
+  // Reset to page 1 whenever the selected scheme changes.
+  useEffect(() => {
+    setLivePage(1);
+  }, [schemeId]);
 
   const pagedLiveIncidents = useMemo(
     () => liveIncidents.slice((livePage - 1) * LIVE_PAGE_SIZE, livePage * LIVE_PAGE_SIZE),
@@ -126,7 +112,7 @@ const LiveIncidentsPage = () => {
     incident.referenceId || `Incident #${incident.id.slice(0, 4)}`;
 
   const handleViewIncident = (incident) => {
-    navigate(`${basePath}/reports/incident/${incident.id}`);
+    navigate(`/dashboard/admin/staff-reports/incident/${incident.id}`);
   };
 
   const handleDownloadPDF = async (incident, e) => {
@@ -141,39 +127,39 @@ const LiveIncidentsPage = () => {
   };
 
   return (
-    <div>
-      {/* Header with Back Button */}
-      <div className="mb-8 bg-white rounded-xl p-6 shadow-sm">
-        <div className="flex items-center gap-4 mb-2">
-          <button
-            onClick={() => navigate(basePath)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-6 h-6 text-gray-600" />
-          </button>
-          <div>
-            <h4 className=" font-bold text-gray-800">
-               Go Back to <span className="font-semibold text-brand-400">Dashboard</span>
-            </h4>
+    <AdminSidebarLayout>
+      <div className="max-w-8xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="font-semibold text-gray-800 mb-2">Live Incidents</h1>
+          <p className="text-gray-500 text-[13px] sm:text-[14px]">
+            Monitor live and completed incidents in real time per scheme
+          </p>
+        </div>
 
+        {/* Scheme selector */}
+        <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+          <div className="relative w-full sm:w-auto max-w-md">
+            <Filter className="w-5 h-5 text-brand-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
+            <select
+              value={schemeId}
+              onChange={(e) => setSchemeId(e.target.value)}
+              className="select text-gray-600 pl-10 bg-white border-gray-200 rounded-lg w-full focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500"
+            >
+              {SCHEMES.map((scheme) => (
+                <option key={scheme.id} value={scheme.id}>
+                  {scheme.fullName}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
-      </div>
 
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <span className="loading loading-spinner loading-lg text-teal-500"></span>
-        </div>
-      ) : (
-          <>
-            <div className="mb-8 bg-white rounded-xl text-center p-6 shadow-sm">
-          <h4 className=" font-bold text-gray-800">
-               <span className="font-semibold text-brand-400">{schemeId} ({getActiveSchemeName()})</span> Live Incidents
-            </h4>
-          <p className="text-gray-500">You can monitor here your live incidents and completed incidents </p>
-
-      </div>
-          {/* Incident Management Hub */}
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <span className="loading loading-spinner loading-lg text-brand-500"></span>
+          </div>
+        ) : (
           <div className="bg-white rounded-xl p-6 shadow-sm">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Live Incidents Column */}
@@ -286,7 +272,7 @@ const LiveIncidentsPage = () => {
                 <div className="bg-gray-50 rounded-b-lg flex-1 overflow-hidden border border-t-0 border-gray-100">
                   {completedLoading ? (
                     <div className="p-6 flex justify-center">
-                      <Loader2 className="w-6 h-6 animate-spin text-teal-500" />
+                      <Loader2 className="w-6 h-6 animate-spin text-brand-500" />
                     </div>
                   ) : completedIncidents.length === 0 ? (
                     <div className="p-8 text-center">
@@ -380,10 +366,10 @@ const LiveIncidentsPage = () => {
               </div>
             </div>
           </div>
-        </>
-      )}
-    </div>
+        )}
+      </div>
+    </AdminSidebarLayout>
   );
 };
 
-export default LiveIncidentsPage;
+export default AdminLiveIncidentsPage;

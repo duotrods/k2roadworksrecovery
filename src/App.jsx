@@ -51,6 +51,7 @@
   const IncidentReportDetailPage = lazy(() => import("./pages/admin/IncidentReportDetailPage"));
   const CabinSafetyCheckDetailPage = lazy(() => import("./pages/admin/CabinSafetyCheckDetailPage"));
   const VehicleDailyCheckDetailPage = lazy(() => import("./pages/admin/VehicleDailyCheckDetailPage"));
+  const AdminLiveIncidentsPage = lazy(() => import("./pages/admin/LiveIncidentsPage"));
 
   // Live Incidents board (relocated under staff after role consolidation)
   const StaffSidebarLayout = lazy(() => import("./components/layout/StaffSidebarLayout"));
@@ -112,6 +113,15 @@
                   element={
                     <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
                       <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="/dashboard/admin/live-incidents"
+                  element={
+                    <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
+                      <AdminLiveIncidentsPage />
                     </ProtectedRoute>
                   }
                 />

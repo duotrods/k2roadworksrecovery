@@ -95,11 +95,11 @@ const AnalyticsPage = () => {
 
   return (
     <ClientSidebarLayout>
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 sm:mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800">Analytics Dashboard</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Analytics Dashboard</h1>
             <p className="text-gray-600 mt-2">
               {userProfile?.activeSchemeId || userProfile?.schemeId} - {userProfile?.schemeNames?.[userProfile?.activeSchemeId] || userProfile?.schemeName}
             </p>
@@ -123,18 +123,18 @@ const AnalyticsPage = () => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8">
           {statsCards.map((stat, index) => (
-            <div key={index} className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-              <div className="flex items-center justify-between mb-4">
-                <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
+            <div key={index} className="bg-white rounded-xl shadow-lg p-4 sm:p-6 hover:shadow-xl transition-shadow">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <div className={`p-2 sm:p-3 rounded-lg ${stat.bgColor}`}>
+                  <stat.icon className={`w-5 h-5 sm:w-6 sm:h-6 ${stat.color}`} />
                 </div>
-                <span className={`text-sm font-semibold ${stat.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
+                <span className={`text-xs sm:text-sm font-semibold ${stat.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
                   {stat.change}
                 </span>
               </div>
-              <h3 className="text-gray-500 text-sm font-medium mb-1">{stat.title}</h3>
+              <h3 className="text-gray-500 text-xs sm:text-sm font-medium mb-1">{stat.title}</h3>
               <p className="text-2xl font-bold text-gray-800 mb-1">{stat.value}</p>
               <p className="text-xs text-gray-400">{stat.description}</p>
             </div>

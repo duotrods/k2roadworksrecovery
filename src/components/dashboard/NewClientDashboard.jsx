@@ -49,6 +49,7 @@ const commonChartProps = {
   },
   legend: { wrapperStyle: { paddingTop: "20px" } },
   bar: { fill: "#0865ad", radius: [8, 8, 0, 0] },
+  chartMargin: { top: 10, right: 20, left: -35, bottom: 10 },
 };
 
 const ChartCard = memo(
@@ -575,18 +576,18 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
   return (
     <div className="max-w-[1600px] mx-auto px-4">
       {/* Header with Date Filter */}
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-6 sm:mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h3 className="text-3xl font-bold text-gray-800">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
             Welcome back, {userProfile?.displayName}!
-          </h3>
+          </h1>
           <p className="text-gray-600 mt-2">
             {getActiveSchemeId()} - {getActiveSchemeName()}
           </p>
         </div>
 
         {/* Date Range Filter and Export Button */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={handleExportPDF}
             disabled={isExporting || loading}
@@ -631,13 +632,17 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-6 mb-6">
         {statsCards.map((stat, index) => (
           <div
             key={index}
             role="button"
             tabIndex={0}
-            className="bg-white rounded-xl shadow-lg p-7 hover:shadow-xl transition-shadow cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500"
+            className={`bg-white rounded-xl shadow-lg p-4 sm:p-6 hover:shadow-xl transition-shadow cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500 ${
+              index === statsCards.length - 1 && statsCards.length % 2 === 1
+                ? "col-span-2 lg:col-span-1"
+                : ""
+            }`}
             onClick={() => {
               const filtered = stat.filter();
               if (filtered.length)
@@ -651,19 +656,19 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
                 openDrillDown({ title: stat.title, incidents: filtered });
             }}
           >
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
-                <stat.icon className="w-5 h-5 text-white" />
+            <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
+                <stat.icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
-              <h6 className="text-sm font-medium text-gray-600 leading-tight">
+              <h6 className="text-xs sm:text-sm font-medium text-gray-600 leading-tight">
                 {stat.title}
               </h6>
             </div>
             <div className="mt-2">
-              <span className="text-4xl font-bold text-gray-800">
+              <span className="text-3xl sm:text-4xl font-bold text-gray-800">
                 {stat.value}
               </span>
-              <p className="text-sm text-gray-400 mt-1">{periodLabel}</p>
+              <p className="text-xs sm:text-sm text-gray-400 mt-1">{periodLabel}</p>
             </div>
           </div>
         ))}
@@ -745,6 +750,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
             <ChartCard title="Time to Site (mins)">
               <BarChart
                 data={timeToSiteData}
+                margin={commonChartProps.chartMargin}
                 onClick={(d) =>
                   d?.activeLabel && handleBarClick("timeToSite", d.activeLabel)
                 }
@@ -762,6 +768,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
             <ChartCard title="Time to recover (mins)">
               <BarChart
                 data={timeToRecoverData}
+                margin={commonChartProps.chartMargin}
                 onClick={(d) =>
                   d?.activeLabel &&
                   handleBarClick("timeToRecover", d.activeLabel)
@@ -780,7 +787,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
             <ChartCard title="Fault Reported">
               <BarChart
                 data={faultData}
-                margin={{ top: 0, right: 0, left: -20, bottom: 10 }}
+                margin={commonChartProps.chartMargin}
                 onClick={(d) =>
                   d?.activeLabel &&
                   handleBarClick("faultReported", d.activeLabel)
@@ -808,7 +815,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
             <ChartCard title="Incident Type">
               <BarChart
                 data={incidentTypeData}
-                margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
+                margin={commonChartProps.chartMargin}
                 onClick={(d) =>
                   d?.activeLabel &&
                   handleBarClick("incidentType", d.activeLabel)
@@ -827,6 +834,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
             <ChartCard title="Vehicle Allocated">
               <BarChart
                 data={vehiclesDispatchedData}
+                margin={commonChartProps.chartMargin}
                 onClick={(d) =>
                   d?.activeLabel &&
                   handleBarClick("vehicleTypesDispatched", d.activeLabel)
@@ -845,6 +853,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
             <ChartCard title="Source of Call">
               <BarChart
                 data={spottedByData}
+                margin={commonChartProps.chartMargin}
                 onClick={(d) =>
                   d?.activeLabel && handleBarClick("jobSource", d.activeLabel)
                 }
@@ -862,6 +871,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
             <ChartCard title="Emergency Services Attended">
               <BarChart
                 data={emergencyServicesData}
+                margin={commonChartProps.chartMargin}
                 onClick={(d) =>
                   d?.activeLabel &&
                   handleBarClick("emergencyServices", d.activeLabel)
@@ -880,6 +890,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
             <ChartCard title="Vehicle Type">
               <BarChart
                 data={vehicleTypeData}
+                margin={commonChartProps.chartMargin}
                 onClick={(d) =>
                   d?.activeLabel &&
                   handleBarClick("vehicleTypes", d.activeLabel)
@@ -922,6 +933,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
                     ? timeSeriesData.map((d) => ({ ...d, Number: d.count }))
                     : [{ name: "No Data", Number: 0 }]
                 }
+                margin={commonChartProps.chartMargin}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#0865ad" />
                 <XAxis dataKey="name" tick={{ fontSize: 13 }} />

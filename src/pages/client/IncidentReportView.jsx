@@ -204,7 +204,7 @@ const IncidentReportView = () => {
     <ClientSidebarLayout>
       <div className="max-w-5xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate(-1)}
@@ -236,7 +236,7 @@ const IncidentReportView = () => {
           <div className="flex gap-2">
             <button
               onClick={handleDownloadPDF}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors w-full md:w-auto"
             >
               <Download className="w-4 h-4" />
               PDF
@@ -245,7 +245,7 @@ const IncidentReportView = () => {
         </div>
 
         {/* Report Content */}
-        <div className="bg-white rounded-xl shadow-md p-8 space-y-6">
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-8 space-y-6">
           {/* CONDITIONAL RENDER: Show different content based on status */}
           {report.status === "live" ? (
             // ============ LIVE INCIDENT - Show only Step 1 fields ============
