@@ -70,10 +70,12 @@ const InstallAppButton = () => {
   return (
     <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
       {showIosHelp && (
-        <div className="max-w-xs rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-700 shadow-lg">
-          <p className="font-semibold text-gray-900">Install on iPhone</p>
-          <p className="mt-1 flex items-center gap-1">
-            Tap <Share className="inline h-4 w-4 text-brand-500" /> Share, then
+        <div className="w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-gray-200 bg-white p-4 text-sm leading-relaxed text-gray-700 shadow-lg">
+          <p className="mb-1 font-semibold text-gray-900">Install on iPhone</p>
+          <p>
+            Tap the Share icon
+            <Share className="mx-1 inline h-4 w-4 align-text-bottom text-brand-500" />
+            in Safari&apos;s toolbar, then choose
             <span className="font-medium"> “Add to Home Screen.”</span>
           </p>
         </div>
