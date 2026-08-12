@@ -1,7 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
-import { ArrowLeft, Upload, X, ChevronRight } from "lucide-react";
+import {
+  ArrowLeft,
+  Upload,
+  X,
+  ChevronRight,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  RotateCw,
+} from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { getStaffBasePath } from "../../utils/constants";
 import { staffService } from "../../services/staffService";
@@ -90,12 +99,18 @@ const IncidentReportFormPage = () => {
   const [searchParams] = useSearchParams();
   const editId = searchParams.get("edit");
   const [loading, setLoading] = useState(false);
-  const [uploadingFiles, setUploadingFiles] = useState(false);
   // Step 2 (On Scene) and Step 3 (Drop-Off Sheet) each get their own staging
   // array so "Arrival Images" and "Unloaded Images" never bleed into each
-  // other's upload box.
+  // other's upload box. Each entry is uploaded eagerly the moment it's added,
+  // so by the time the operator hits "Next" the upload is usually already done.
+  // Entry shape: { id, file, status: 'uploading'|'done'|'error', result, error }
+  // where `result` is the persisted-file descriptor once the upload succeeds.
   const [arrivalFiles, setArrivalFiles] = useState([]);
   const [dropoffFiles, setDropoffFiles] = useState([]);
+  // Tracks the in-flight upload promise per staged-file id so Next/Save/Submit
+  // can await whatever is still uploading. Each promise resolves to the entry's
+  // outcome ({ id, status, result }) and never rejects.
+  const uploadPromisesRef = useRef({});
 
   // Step management: 1 = Start Job, 2 = On Scene, 3 = Drop-Off Sheet, 4 = Customer
   const [currentStep, setCurrentStep] = useState(1);
@@ -242,9 +257,71 @@ const IncidentReportFormPage = () => {
     else setDropoffFiles(updater);
   };
 
+  // Kicks off compress + upload for one staged entry in the background and
+  // records its promise so Next/Save/Submit can await it. Resolves (never
+  // rejects) with the outcome; the entry's status in state is updated too.
+  const startUpload = (stage, id, file) => {
+    const promise = (async () => {
+      try {
+        const compressedFile = await compressImage(file);
+        const { fileUrl, downloadUrl, fileType } = await uploadToR2(
+          compressedFile,
+          file.name,
+          file.type,
+        );
+        const result = {
+          fileName: file.name,
+          fileUrl,
+          downloadUrl,
+          fileSize: compressedFile.size,
+          fileType,
+          stage,
+        };
+        setFilesForStage(stage, (prev) =>
+          prev.map((e) => (e.id === id ? { ...e, status: "done", result } : e)),
+        );
+        return { id, status: "done", result };
+      } catch (error) {
+        console.error("Background upload failed:", error);
+        setFilesForStage(stage, (prev) =>
+          prev.map((e) =>
+            e.id === id ? { ...e, status: "error", error } : e,
+          ),
+        );
+        return { id, status: "error", error };
+      }
+    })();
+    uploadPromisesRef.current[id] = promise;
+    return promise;
+  };
+
+  // Stages freshly added files and starts uploading each one immediately.
+  const addFiles = (stage, files) => {
+    const entries = files.map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      status: "uploading",
+      result: null,
+      error: null,
+    }));
+    setFilesForStage(stage, (prev) => [...prev, ...entries]);
+    entries.forEach((entry) => startUpload(stage, entry.id, entry.file));
+  };
+
+  // Re-attempts a failed upload for a single staged entry.
+  const retryUpload = (stage, id) => {
+    const entry = filesForStage(stage).find((e) => e.id === id);
+    if (!entry) return;
+    setFilesForStage(stage, (prev) =>
+      prev.map((e) => (e.id === id ? { ...e, status: "uploading", error: null } : e)),
+    );
+    startUpload(stage, id, entry.file);
+  };
+
   const handleFileSelect = (e, stage) => {
-    const selectedFiles = Array.from(e.target.files);
-    setFilesForStage(stage, (prev) => [...prev, ...selectedFiles]);
+    addFiles(stage, Array.from(e.target.files));
+    // Reset the input so re-selecting the same file still fires onChange.
+    e.target.value = "";
   };
 
   const handleDragOver = (e) => {
@@ -278,11 +355,12 @@ const IncidentReportFormPage = () => {
       );
     }
 
-    setFilesForStage(stage, (prev) => [...prev, ...validFiles]);
+    addFiles(stage, validFiles);
   };
 
-  const removeFile = (stage, index) => {
-    setFilesForStage(stage, (prev) => prev.filter((_, i) => i !== index));
+  const removeFile = (stage, id) => {
+    setFilesForStage(stage, (prev) => prev.filter((e) => e.id !== id));
+    delete uploadPromisesRef.current[id];
   };
 
   const removeExistingFile = (index) => {
@@ -291,6 +369,14 @@ const IncidentReportFormPage = () => {
       files: (prev.files || []).filter((_, i) => i !== index),
     }));
   };
+
+  // Derived from the staged entries so the Next/Save/Submit buttons can reflect
+  // background upload state: block while anything is still uploading, and while
+  // any upload has failed (operator must retry or remove it first).
+  const stagedEntries = [...arrivalFiles, ...dropoffFiles];
+  const isUploading = stagedEntries.some((e) => e.status === "uploading");
+  const hasUploadErrors = stagedEntries.some((e) => e.status === "error");
+  const uploadsBusy = isUploading || hasUploadErrors;
 
   // Asks the server-side R2 upload proxy (api/upload.js) for a short-lived
   // presigned URL, then PUTs the file straight to R2 from the browser. The
@@ -337,44 +423,27 @@ const IncidentReportFormPage = () => {
     return { fileUrl, downloadUrl, fileType };
   };
 
-  // Uploads every staged file for one step, tagging each result with the
-  // step it belongs to so "Arrival Images" (Step 2) and "Unloaded Images"
-  // (Step 3) stay separate once merged into formData.files.
-  const uploadStageFiles = async (stage, stageFiles) =>
-    Promise.all(
-      stageFiles.map(async (file) => {
-        const compressedFile = await compressImage(file);
-        const { fileUrl, downloadUrl, fileType } = await uploadToR2(
-          compressedFile,
-          file.name,
-          file.type,
-        );
+  // Files upload eagerly as they're added (see startUpload), so by "Next" time
+  // most are already done. This just awaits whatever is still in flight and
+  // returns the finished descriptors, tagged with their step so "Arrival
+  // Images" (Step 2) and "Unloaded Images" (Step 3) stay separate once merged
+  // into formData.files. Throws if any staged upload failed, so the caller
+  // never advances/persists with a missing required image.
+  const collectStagedUploads = async () => {
+    const staged = [...arrivalFiles, ...dropoffFiles];
+    if (staged.length === 0) return [];
 
-        return {
-          fileName: file.name,
-          fileUrl,
-          downloadUrl,
-          fileSize: compressedFile.size,
-          fileType,
-          stage,
-        };
-      }),
+    const outcomes = await Promise.all(
+      staged.map((entry) => uploadPromisesRef.current[entry.id]).filter(Boolean),
     );
 
-  const uploadFiles = async () => {
-    if (arrivalFiles.length === 0 && dropoffFiles.length === 0) return [];
-
-    setUploadingFiles(true);
-    try {
-      const [arrivalResults, dropoffResults] = await Promise.all([
-        uploadStageFiles("arrival", arrivalFiles),
-        uploadStageFiles("dropoff", dropoffFiles),
-      ]);
-
-      return [...arrivalResults, ...dropoffResults];
-    } finally {
-      setUploadingFiles(false);
+    if (outcomes.some((o) => o.status === "error")) {
+      throw new Error("Some images failed to upload. Please retry them.");
     }
+
+    return outcomes
+      .filter((o) => o.status === "done")
+      .map((o) => o.result);
   };
 
   // Uploads a freshly-drawn signature to R2 and returns its URL. If nothing
@@ -402,7 +471,7 @@ const IncidentReportFormPage = () => {
     const incidentId = editId || liveIncidentId;
     if (!incidentId) return;
 
-    const uploadedFiles = await uploadFiles();
+    const uploadedFiles = await collectStagedUploads();
     const updateData = { ...formData, currentStep: nextStep };
 
     if (uploadedFiles.length > 0) {
@@ -424,6 +493,7 @@ const IncidentReportFormPage = () => {
       setFormData((prev) => ({ ...prev, files: updateData.files }));
       setArrivalFiles([]);
       setDropoffFiles([]);
+      uploadPromisesRef.current = {};
     }
   };
 
@@ -554,7 +624,7 @@ const IncidentReportFormPage = () => {
 
     setLoading(true);
     try {
-      const uploadedFiles = await uploadFiles();
+      const uploadedFiles = await collectStagedUploads();
       const signatureUrl = await uploadSignatureIfNeeded();
       const updateData = { ...formData, signatureUrl, currentStep };
 
@@ -639,7 +709,7 @@ const IncidentReportFormPage = () => {
     setLoading(true);
 
     try {
-      const uploadedFiles = await uploadFiles();
+      const uploadedFiles = await collectStagedUploads();
       const signatureUrl = await uploadSignatureIfNeeded();
       const trimmedData = {
         ...formData,
@@ -723,6 +793,7 @@ const IncidentReportFormPage = () => {
         setFormData(emptyFormData(userProfile));
         setArrivalFiles([]);
         setDropoffFiles([]);
+        uploadPromisesRef.current = {};
         setSourceOtherMode(false);
       }
     } catch (error) {
@@ -814,19 +885,42 @@ const IncidentReportFormPage = () => {
           {newForStage.length > 0 && (
             <div className="mt-4 space-y-2">
               {savedForStage.length > 0 && <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">New files</p>}
-              {newForStage.map((file, index) => (
+              {newForStage.map((entry) => (
                 <div
-                  key={index}
-                  className="flex items-center justify-between bg-gray-50 p-2 rounded"
+                  key={entry.id}
+                  className="flex items-center justify-between gap-2 bg-gray-50 p-2 rounded"
                 >
-                  <span className="text-sm text-gray-700">{file.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeFile(stage, index)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-2 min-w-0">
+                    {entry.status === "uploading" && (
+                      <Loader2 className="w-4 h-4 shrink-0 text-brand-500 animate-spin" />
+                    )}
+                    {entry.status === "done" && (
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
+                    )}
+                    {entry.status === "error" && (
+                      <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                    )}
+                    <span className="text-sm text-gray-700 truncate">{entry.file.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {entry.status === "error" && (
+                      <button
+                        type="button"
+                        onClick={() => retryUpload(stage, entry.id)}
+                        className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800"
+                      >
+                        <RotateCw className="w-3.5 h-3.5" />
+                        Retry
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeFile(stage, entry.id)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1043,7 +1137,7 @@ const IncidentReportFormPage = () => {
         <div className="flex gap-4">
           <button
             type="submit"
-            disabled={loading || uploadingFiles}
+            disabled={loading || uploadsBusy}
             className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors font-semibold flex items-center gap-2"
           >
             {loading ? (
@@ -1240,7 +1334,7 @@ const IncidentReportFormPage = () => {
                   <button
                     type="button"
                     onClick={handleSave}
-                    disabled={loading || uploadingFiles}
+                    disabled={loading || uploadsBusy}
                     className="px-6 py-3 border border-brand-500 text-brand-600 rounded-lg hover:bg-brand-50 disabled:opacity-50 transition-colors font-semibold"
                   >
                     {loading ? "Saving..." : "Save & Return"}
@@ -1248,10 +1342,10 @@ const IncidentReportFormPage = () => {
                 )}
                 <button
                   type="submit"
-                  disabled={loading || uploadingFiles}
+                  disabled={loading || uploadsBusy}
                   className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors font-semibold flex items-center gap-2"
                 >
-                  {loading ? "Saving..." : uploadingFiles ? "Uploading Files..." : (
+                  {loading ? "Saving..." : isUploading ? "Uploading images…" : (
                     <>
                       Next
                       <ChevronRight className="w-5 h-5" />
@@ -1584,7 +1678,7 @@ const IncidentReportFormPage = () => {
             <button
               type="button"
               onClick={handleSave}
-              disabled={loading || uploadingFiles}
+              disabled={loading || uploadsBusy}
               className="px-6 py-3 border border-brand-500 text-brand-600 rounded-lg hover:bg-brand-50 disabled:opacity-50 transition-colors font-semibold"
             >
               {loading ? "Saving..." : "Save & Return"}
@@ -1592,10 +1686,10 @@ const IncidentReportFormPage = () => {
           )}
           <button
             type="submit"
-            disabled={loading || uploadingFiles}
+            disabled={loading || uploadsBusy}
             className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors font-semibold flex items-center gap-2"
           >
-            {loading ? "Saving..." : uploadingFiles ? "Uploading Files..." : (
+            {loading ? "Saving..." : isUploading ? "Uploading images…" : (
               <>
                 Next
                 <ChevronRight className="w-5 h-5" />
@@ -1910,7 +2004,7 @@ const IncidentReportFormPage = () => {
             <button
               type="button"
               onClick={handleSave}
-              disabled={loading || uploadingFiles}
+              disabled={loading || uploadsBusy}
               className="px-6 py-3 border border-brand-500 text-brand-600 rounded-lg hover:bg-brand-50 disabled:opacity-50 transition-colors font-semibold"
             >
               {loading ? "Saving..." : "Save & Return"}
@@ -1918,15 +2012,15 @@ const IncidentReportFormPage = () => {
           )}
           <button
             type="submit"
-            disabled={loading || uploadingFiles}
+            disabled={loading || uploadsBusy}
             className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors font-semibold"
           >
             {loading
               ? editId
                 ? "Updating..."
                 : "Submitting..."
-              : uploadingFiles
-                ? "Uploading Files..."
+              : isUploading
+                ? "Uploading images…"
                 : isEditingLiveIncident
                   ? "Complete Job Sheet"
                   : editId
