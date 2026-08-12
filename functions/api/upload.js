@@ -44,6 +44,14 @@ export async function onRequestPost({ request, env }) {
       accessKeyId: env.R2_ACCESS_KEY_ID,
       secretAccessKey: env.R2_SECRET_ACCESS_KEY,
     },
+    // AWS SDK v3 (>=3.729) injects a default CRC32 integrity checksum into the
+    // *signed* URL, computed at presign time with no body (hence the bogus
+    // "AAAAAA==" value). The browser then PUTs the real file with only a
+    // Content-Type header, so R2 rejects the mismatch and the upload silently
+    // fails. R2 doesn't need these SDK checksums, so only add them when the
+    // operation actually requires it — keeping the presigned URL clean.
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
   });
 
   const key = `${folder}/${userId}/${Date.now()}_${sanitizeFileName(fileName)}`;
