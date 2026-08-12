@@ -1,12 +1,42 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    VitePWA({
+      // Auto-update the service worker on the next visit after a new deploy,
+      // so users always get the latest build without a manual "refresh" prompt.
+      registerType: 'autoUpdate',
+      includeAssets: ['apple-touch-icon.png'],
+      manifest: {
+        name: 'K2 Roadworks Recovery',
+        short_name: 'K2 Recovery',
+        description: 'Incident reporting and monitoring for K2 Vehicle Recovery schemes.',
+        theme_color: '#0865ad',
+        background_color: '#ffffff',
+        display: 'standalone',
+        start_url: '/',
+        scope: '/',
+        icons: [
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        // Precache the app shell (build output) so the UI opens offline.
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        // Offline navigations fall back to the SPA entry, but never for the
+        // API — those must always hit the network (no stale data).
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//],
+      },
+    }),
   ],
   optimizeDeps: {
     entries: ['./index.html'],

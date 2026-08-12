@@ -5,8 +5,7 @@
   import { AuthProvider } from "./context/AuthContext";
   import ErrorBoundary from "./components/common/ErrorBoundary";
   import ProtectedRoute from "./components/auth/ProtectedRoute";
-  import { Analytics } from "@vercel/analytics/react";
-  import { SpeedInsights } from "@vercel/speed-insights/react";
+  import InstallAppButton from "./components/common/InstallAppButton";
 
   // Create a client
   const queryClient = new QueryClient({
@@ -86,8 +85,7 @@
           <BrowserRouter>
             <AuthProvider>
               <Toaster position="top-right" />
-              <Analytics />
-              <SpeedInsights />
+              <InstallAppButton />
 
               <Suspense fallback={<PageLoader />}>
               <Routes>
