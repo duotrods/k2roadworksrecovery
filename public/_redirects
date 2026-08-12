@@ -1,0 +1,4 @@
+# SPA fallback: any path that isn't a real file or an /api/* function returns
+# index.html so React Router can handle client-side routing. (Functions in
+# functions/api/* are matched BEFORE this rule, so /api/* still hits them.)
+/*    /index.html   200

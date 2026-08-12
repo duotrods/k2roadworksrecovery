@@ -1,0 +1,7 @@
+name = "k2roadworksrecovery"
+# Recent date so the Workers runtime enables modern behavior + nodejs_compat v2.
+compatibility_date = "2024-11-01"
+# Lets the AWS SDK (used in functions/api/upload.js) and Buffer work on Workers.
+compatibility_flags = ["nodejs_compat"]
+# Where `npm run build` (Vite) writes the static site Cloudflare Pages serves.
+pages_build_output_dir = "dist"
