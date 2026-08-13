@@ -41,11 +41,12 @@ export default defineConfig({
   optimizeDeps: {
     entries: ['./index.html'],
   },
-  // `vercel dev` proxying the whole app (frontend + /api) breaks Vite's own
-  // module transform for index.html/HMR requests. So for local dev, Vite
-  // serves the frontend as normal and only /api/* is forwarded to a
-  // `vercel dev` process running separately just for the serverless
-  // functions (see README/dev instructions for the two-terminal setup).
+  // `wrangler pages dev` proxying the whole app (frontend + /api) breaks
+  // Vite's own module transform for index.html/HMR requests. So for local
+  // dev, Vite serves the frontend as normal and only /api/* is forwarded to
+  // a `wrangler pages dev --port 3000` process running separately just for
+  // the Cloudflare Pages Functions (two-terminal setup: `npm run dev` here,
+  // `wrangler pages dev` for functions/api/*, secrets in .dev.vars).
   server: {
     proxy: {
       '/api': 'http://localhost:3000',
