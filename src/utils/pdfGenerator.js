@@ -325,7 +325,7 @@ export const generateReportPDF = async (report, reportType, options) => {
           `Other${report.otherOnSceneDetails ? ` (${report.otherOnSceneDetails})` : ""}`,
       ].filter(Boolean);
       addField("On Scene", onScene.length > 0 ? onScene.join(", ") : "None");
-      if (report.firstName) addField("Operator", report.firstName);
+      if (report.driverName) addField("Driver Name", report.driverName);
       if (report.jobSource) addField("Job Source/Customer", report.jobSource);
       if (report.customerLogNo)
         addField("Customer Log No.", report.customerLogNo);

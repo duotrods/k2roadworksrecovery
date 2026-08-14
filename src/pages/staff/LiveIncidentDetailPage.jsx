@@ -300,7 +300,7 @@ const LiveIncidentDetailPage = () => {
                       <p className="text-gray-800">{report.recoveryRequested.heavy || 0}</p>
                     </div>
                     <div>
-                      <label className="text-sm font-semibold text-gray-600">IPV</label>
+                      <label className="text-sm font-semibold text-gray-600">RIPV</label>
                       <p className="text-gray-800">{report.recoveryRequested.ipv || 0}</p>
                     </div>
                     <div>

@@ -1105,7 +1105,7 @@ class StaffService {
     const [dispatchedThisWeek, ipv, lightRecovery, heavyRecovery, policeOnScene] =
       await Promise.all([
         countFn((q) => q),
-        countFn((q) => q.eq("vehicle_allocated", "IPV")),
+        countFn((q) => q.eq("vehicle_allocated", "RIPV")),
         countFn((q) => q.eq("vehicle_allocated", "Light Recovery")),
         countFn((q) => q.eq("vehicle_allocated", "Heavy Recovery")),
         countFn((q) => q.eq("police_on_scene", true)),

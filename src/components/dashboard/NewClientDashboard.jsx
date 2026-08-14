@@ -329,12 +329,12 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
       filter: () => incidents.filter((i) => i.vehicleAllocated),
     },
     {
-      title: "IPV Recovery",
+      title: "RIPV Recovery",
       value: loading
         ? "..."
-        : (Number(stats?.vehicleTypesDispatched?.["IPV"]) || 0).toString(),
+        : (Number(stats?.vehicleTypesDispatched?.["RIPV"]) || 0).toString(),
       icon: Truck,
-      filter: () => incidents.filter((i) => i.vehicleAllocated === "IPV"),
+      filter: () => incidents.filter((i) => i.vehicleAllocated === "RIPV"),
     },
     {
       title: "Police On Scene",

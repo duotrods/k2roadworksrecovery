@@ -56,7 +56,7 @@ const NewStaffDashboard = () => {
       icon: AlertTriangle,
     },
     {
-      title: "IPV Recovery",
+      title: "RIPV Recovery",
       count: stats?.ipvRecoveryTotal || 0,
       icon: Truck,
     },

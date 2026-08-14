@@ -93,7 +93,7 @@ export const SOURCE_OF_CALL_OPTIONS = [
 export const VEHICLE_ALLOCATED_OPTIONS = [
   "Light Recovery",
   "Heavy Recovery",
-  "IPV",
+  "RIPV",
   "Motorbike",
 ];
 

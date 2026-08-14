@@ -611,9 +611,9 @@ const ClientChartsPage = () => {
       incidents: dispatchedIncidents,
     },
     {
-      title: 'IPV Recovery',
+      title: 'RIPV Recovery',
       icon: Truck,
-      incidents: dispatchedIncidents.filter((r) => r.vehicleAllocated === 'IPV'),
+      incidents: dispatchedIncidents.filter((r) => r.vehicleAllocated === 'RIPV'),
     },
     {
       title: 'Light Recovery',

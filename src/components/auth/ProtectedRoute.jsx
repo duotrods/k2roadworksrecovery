@@ -5,10 +5,14 @@ import EmailVerification from './EmailVerification';
 import SecurityWarningModal from './SecurityWarningModal';
 
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
-  const { currentUser, userProfile, loading, isEmailVerified, role } = useAuth();
+  const { currentUser, userProfile, initializing, isEmailVerified, role } = useAuth();
   const location = useLocation();
 
-  if (loading) {
+  // Gate on `initializing` (true only until the first auth resolution), NOT on
+  // `loading`. A background auth refresh on tab focus flips `loading`, and
+  // swapping children for a spinner there would remount the routed page and
+  // reset any in-progress form (e.g. a new job sheet jumping back to Step 1).
+  if (initializing) {
     return <LoadingSpinner />;
   }
 

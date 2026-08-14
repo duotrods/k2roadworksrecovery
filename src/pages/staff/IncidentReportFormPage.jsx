@@ -42,9 +42,15 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // "just took this call" state, later-step fields default empty.
 const emptyFormData = (userProfile) => ({
   // Step 1 — Start Job
+  // `firstName` = the operator (the signed-in user). The Operator field was
+  // removed from the form, but this is still recorded so the "Operator" shown
+  // in the PDF and report lists keeps working.
   firstName: userProfile?.displayName || "",
   scheme: "",
-  driverName: "",
+  // Driver Name defaults to the signed-in user; stays editable if the actual
+  // driver differs. Editing an existing report keeps its saved value instead
+  // (see loadFormData).
+  driverName: userProfile?.displayName || "",
   vehicleAllocated: "",
   jobSource: "",
   customerLogNo: "",
@@ -502,7 +508,7 @@ const IncidentReportFormPage = () => {
   const handleStep1Submit = async (e) => {
     e.preventDefault();
 
-    if (!formData.scheme || !formData.date || !formData.firstName) {
+    if (!formData.scheme || !formData.date) {
       toast.error("Please fill in all required fields for Start Job");
       return;
     }
@@ -701,7 +707,7 @@ const IncidentReportFormPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.scheme || !formData.date || !formData.firstName) {
+    if (!formData.scheme || !formData.date) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -946,25 +952,8 @@ const IncidentReportFormPage = () => {
         </p>
       </div>
 
-      {/* Operator and Scheme */}
+      {/* Scheme and Driver Name */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="label">
-            <span className="label-text font-semibold mb-2">
-              Operator <span className="text-red-500">*</span>
-            </span>
-          </label>
-          <input
-            type="text"
-            name="firstName"
-            value={formData.firstName}
-            onChange={handleChange}
-            className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-            maxLength={100}
-            required
-          />
-        </div>
-
         <div>
           <label className="label">
             <span className="label-text font-semibold mb-2">
@@ -986,10 +975,7 @@ const IncidentReportFormPage = () => {
             ))}
           </select>
         </div>
-      </div>
 
-      {/* Driver Name and Vehicle Allocated */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="label">
             <span className="label-text font-semibold mb-2">
@@ -1006,7 +992,10 @@ const IncidentReportFormPage = () => {
             required
           />
         </div>
+      </div>
 
+      {/* Vehicle Allocated */}
+      <div>
         <div>
           <label className="label">
             <span className="label-text font-semibold mb-2">
