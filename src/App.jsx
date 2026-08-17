@@ -32,7 +32,6 @@
   const Dashboard = lazy(() => import("./pages/shared/Dashboard"));
   const FormsSelectionPage = lazy(() => import("./pages/staff/FormsSelectionPage"));
   const IncidentReportFormPage = lazy(() => import("./pages/staff/IncidentReportFormPage"));
-  const StaffReportsListPage = lazy(() => import("./pages/staff/StaffReportsListPage"));
   const CabinSafetyCheckFormPage = lazy(() => import("./pages/staff/CabinSafetyCheckFormPage"));
   const VehicleDailyCheckFormPage = lazy(() => import("./pages/staff/VehicleDailyCheckFormPage"));
   const IncidentReportView = lazy(() => import("./pages/staff/IncidentReportView"));
@@ -51,11 +50,6 @@
   const CabinSafetyCheckDetailPage = lazy(() => import("./pages/admin/CabinSafetyCheckDetailPage"));
   const VehicleDailyCheckDetailPage = lazy(() => import("./pages/admin/VehicleDailyCheckDetailPage"));
   const AdminLiveIncidentsPage = lazy(() => import("./pages/admin/LiveIncidentsPage"));
-
-  // Live Incidents board (relocated under staff after role consolidation)
-  const StaffSidebarLayout = lazy(() => import("./components/layout/StaffSidebarLayout"));
-  const LiveOperatorDashboard = lazy(() => import("./components/dashboard/LiveOperatorDashboard"));
-  const LiveIncidentDetailPage = lazy(() => import("./pages/staff/LiveIncidentDetailPage"));
 
   // Client pages
   const AnalyticsPage = lazy(() => import("./pages/client/AnalyticsPage"));
@@ -294,16 +288,9 @@
                   }
                 />
 
-                {/* Staff Reports and Uploads Routes */}
-                <Route
-                  path="/dashboard/staff/reports"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
-                      <StaffReportsListPage />
-                    </ProtectedRoute>
-                  }
-                />
-
+                {/* Staff Reports and Uploads Routes — the list page itself was removed;
+                    Reports now lives embedded in the dashboard (see ReportsList /
+                    NewStaffDashboard). Detail routes below are still used from there. */}
                 <Route
                   path="/dashboard/staff/reports/incident/:id"
                   element={
@@ -336,27 +323,6 @@
                   element={
                     <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
                       <VehicleDailyCheckView />
-                    </ProtectedRoute>
-                  }
-                />
-
-                {/* Staff Live Incidents Board (formerly the standalone Live Operator role) */}
-                <Route
-                  path="/dashboard/staff/live-incidents"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
-                      <StaffSidebarLayout>
-                        <LiveOperatorDashboard />
-                      </StaffSidebarLayout>
-                    </ProtectedRoute>
-                  }
-                />
-
-                <Route
-                  path="/dashboard/staff/live-incidents/incident/:id"
-                  element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
-                      <LiveIncidentDetailPage />
                     </ProtectedRoute>
                   }
                 />

@@ -68,10 +68,9 @@ const ChartCard = memo(
   ),
 );
 
-// The confirmed/final fault classification for an incident — actualFault is
-// set once the job's inspected, faultReported is the initial call-time
-// guess. Mirrors clientDataService.incidentClassification.
-const incidentClassification = (i) => i.actualFault || i.faultReported || "";
+// The confirmed fault classification for an incident — set once the job's
+// fully inspected (Step 3's Fault). Mirrors clientDataService.incidentClassification.
+const incidentClassification = (i) => i.actualFault || "";
 
 const transformDataForChart = (dataObj, filterUnknown = true) => {
   if (!dataObj) return [];
@@ -239,7 +238,6 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
   const incidents = useMemo(() => stats?.incidents || [], [stats]);
 
   const {
-    faultData,
     incidentTypeData,
     vehiclesDispatchedData,
     spottedByData,
@@ -250,7 +248,6 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
     incursionsData,
   } = useMemo(
     () => ({
-      faultData: transformDataForChart(stats?.faultTypes),
       incidentTypeData: transformDataForChart(stats?.incidentsByType),
       vehiclesDispatchedData: transformDataForChart(
         stats?.vehicleTypesDispatched,
@@ -278,8 +275,6 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
 
       if (chartType === "incidentType")
         filtered = incidents.filter((i) => incidentClassification(i) === label);
-      else if (chartType === "faultReported")
-        filtered = incidents.filter((i) => i.faultReported === label);
       else if (chartType === "jobSource")
         filtered = incidents.filter((i) => i.jobSource === label);
       else if (chartType === "emergencyServices") {
@@ -525,7 +520,6 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
       const charts = [
         { data: timeToSiteData, title: "Time to Site (mins)" },
         { data: timeToRecoverData, title: "Time to Recover (mins)" },
-        { data: faultData, title: "Fault Reported" },
         { data: incidentTypeData, title: "Incident Type" },
         { data: vehiclesDispatchedData, title: "Vehicle Allocated" },
         { data: spottedByData, title: "Source of Call" },
@@ -777,34 +771,6 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
               >
                 <CartesianGrid {...commonChartProps.cartesianGrid} />
                 <XAxis dataKey="name" {...commonChartProps.xAxis} />
-                <YAxis {...commonChartProps.yAxis} />
-                <Tooltip {...commonChartProps.tooltip} />
-                <Legend {...commonChartProps.legend} />
-                <Bar dataKey="Number" {...commonChartProps.bar} />
-              </BarChart>
-            </ChartCard>
-
-            <ChartCard title="Fault Reported">
-              <BarChart
-                data={faultData}
-                margin={commonChartProps.chartMargin}
-                onClick={(d) =>
-                  d?.activeLabel &&
-                  handleBarClick("faultReported", d.activeLabel)
-                }
-                style={{ cursor: "pointer" }}
-              >
-                <CartesianGrid {...commonChartProps.cartesianGrid} />
-                <XAxis
-                  dataKey="name"
-                  {...commonChartProps.xAxis}
-                  {...(faultData.length >= 7 && {
-                    angle: -45,
-                    textAnchor: "end",
-                    interval: 0,
-                    height: 60,
-                  })}
-                />
                 <YAxis {...commonChartProps.yAxis} />
                 <Tooltip {...commonChartProps.tooltip} />
                 <Legend {...commonChartProps.legend} />

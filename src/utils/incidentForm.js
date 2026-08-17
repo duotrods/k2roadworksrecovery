@@ -78,6 +78,7 @@ export const CHECK_ITEMS = [
   { key: "propOrHalfShaftsRemoved", label: "Prop/Half Shaft(s) Removed" },
   { key: "rearLift", label: "Rear Lift" },
   { key: "keys", label: "Keys" },
+  { key: "keysWithDriver", label: "Keys with Driver" },
   { key: "brakesWoundOff", label: "Brakes Wound Off" },
   { key: "brakesWoundBackIn", label: "Brakes Wound Back In" },
 ];
@@ -100,6 +101,19 @@ export const VEHICLE_ALLOCATED_OPTIONS = [
 export const VEHICLE_TRANSMISSION_OPTIONS = [
   "Manual",
   "Automatic",
+];
+
+// The recovered vehicle's own type (Step 2 On Scene, and shared into Step 3
+// Vehicle Details — same field, same value in both places). Drives whether
+// the Checks section (Step 3) is enabled — only for HGV/Coach-Bus.
+export const VEHICLE_TYPE_OPTIONS = [
+  "Car",
+  "Car+ Trailer",
+  "Van",
+  "HGV",
+  "Motorbike",
+  "Coach/Bus",
+  "None",
 ];
 
 export const INCIDENT_TYPE_OPTIONS = [
@@ -126,10 +140,7 @@ export const ACTUAL_TYPE_OPTIONS = [
 
 export const createEmptyVehicleCondition = () =>
   Object.fromEntries(
-    VEHICLE_CONDITION_SECTIONS.map(({ key }) => [
-      key,
-      { damage: key === "N/A", note: "" },
-    ]),
+    VEHICLE_CONDITION_SECTIONS.map(({ key }) => [key, { damage: false, note: "" }]),
   );
 
 export const createEmptyChecks = () =>

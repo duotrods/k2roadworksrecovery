@@ -6,7 +6,6 @@ import { authService } from "../../services/authService";
 import { staffService } from "../../services/staffService";
 import {
   LayoutDashboard,
-  FileText,
   LogOut,
   HelpCircle,
   ChevronDown,
@@ -14,7 +13,6 @@ import {
   PanelLeftOpen,
   Menu,
   FolderOpen,
-  Radio,
 } from "lucide-react";
 import headerLogo from "../../assets/headerlogo.svg";
 import k2logo from "../../assets/k2logo.svg";
@@ -66,16 +64,10 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
       icon: LayoutDashboard,
       exact: true,
     },
-    {
-      name: "Reports",
-      path: `${basePath}/reports`,
-      icon: FileText,
-    },
-    // {
-    //   name: "Live Incidents",
-    //   path: `${basePath}/live-incidents`,
-    //   icon: Radio,
-    // },
+    // Reports moved into the dashboard itself (see NewStaffDashboard/
+    // ReportsList) — the standalone /reports list page/route was removed.
+    // The old "Live Incidents" board (LiveOperatorDashboard) was removed
+    // entirely — it had no nav link and was reachable only by direct URL.
   ];
 
   return (

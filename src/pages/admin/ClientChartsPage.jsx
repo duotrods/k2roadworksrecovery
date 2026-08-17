@@ -219,24 +219,13 @@ const ClientChartsPage = () => {
   };
 
   // Chart data extraction functions
-  const getFaultData = () => {
-    const incidents = getIncidentReports();
-    const faultCounts = {};
-    incidents.forEach(report => {
-      if (report.faultReported) {
-        faultCounts[report.faultReported] = (faultCounts[report.faultReported] || 0) + 1;
-      }
-    });
-    return Object.entries(faultCounts).map(([name, Number]) => ({ name, Number }));
-  };
-
   const getIncidentTypeData = () => {
     const incidents = getIncidentReports();
     const typeCounts = {};
     incidents.forEach(report => {
-      // Confirmed/final classification once inspected, falling back to the
-      // initial call-time guess — mirrors clientDataService.incidentClassification.
-      const type = report.actualFault || report.faultReported;
+      // Confirmed classification, set once the job's fully inspected (Step
+      // 3's Fault) — mirrors clientDataService.incidentClassification.
+      const type = report.actualFault;
       if (type) {
         typeCounts[type] = (typeCounts[type] || 0) + 1;
       }
@@ -359,8 +348,7 @@ const ClientChartsPage = () => {
     };
     let filtered = [];
 
-    if (chartType === 'fault') filtered = incidents.filter((r) => r.faultReported === label);
-    else if (chartType === 'incidentType') filtered = incidents.filter((r) => (r.actualFault || r.faultReported) === label);
+    if (chartType === 'incidentType') filtered = incidents.filter((r) => r.actualFault === label);
     else if (chartType === 'vehiclesDispatched') filtered = incidents.filter((r) => r.vehicleAllocated === label);
     else if (chartType === 'spottedBy') filtered = incidents.filter((r) => r.jobSource === label);
     else if (chartType === 'emergencyServices') {
@@ -551,7 +539,6 @@ const ClientChartsPage = () => {
       const charts = [
         { data: timeToSiteData, title: 'Time to Site (mins)' },
         { data: timeToRecoverData, title: 'Time to Recover (mins)' },
-        { data: faultData, title: 'Fault Reported' },
         { data: incidentTypeData, title: 'Incident Type' },
         { data: vehiclesDispatchedData, title: 'Vehicle Allocated' },
         { data: spottedByData, title: 'Source of Call' },
@@ -628,7 +615,6 @@ const ClientChartsPage = () => {
   ];
 
   // Extract chart data
-  const faultData = getFaultData();
   const incidentTypeData = getIncidentTypeData();
   const vehiclesDispatchedData = getVehiclesDispatchedData();
   const spottedByData = getSpottedByData();
@@ -772,23 +758,6 @@ const ClientChartsPage = () => {
                   data={timeToRecoverData.length > 0 ? timeToRecoverData : [{ name: "No Data", Number: 0 }]}
                   margin={commonChartProps.chartMargin}
                   onClick={(d) => d?.activeLabel && handleBarClick('timeToRecover', d.activeLabel)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <CartesianGrid {...commonChartProps.cartesianGrid} />
-                  <XAxis dataKey="name" {...commonChartProps.xAxis} />
-                  <YAxis {...commonChartProps.yAxis} />
-                  <Tooltip {...commonChartProps.tooltip} />
-                  <Legend {...commonChartProps.legend} />
-                  <Bar dataKey="Number" {...commonChartProps.bar} />
-                </BarChart>
-              </ChartCard>
-
-              {/* Chart 1: Fault */}
-              <ChartCard title="Fault Reported">
-                <BarChart
-                  data={faultData.length > 0 ? faultData : [{ name: "No Data", Number: 0 }]}
-                  margin={commonChartProps.chartMargin}
-                  onClick={(d) => d?.activeLabel && handleBarClick('fault', d.activeLabel)}
                   style={{ cursor: 'pointer' }}
                 >
                   <CartesianGrid {...commonChartProps.cartesianGrid} />

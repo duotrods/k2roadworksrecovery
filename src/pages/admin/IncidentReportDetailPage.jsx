@@ -175,16 +175,16 @@ const IncidentReportDetailPage = () => {
             <h4 className="text-lg font-bold text-gray-800 mb-4">Vehicle Details</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Vehicle Type</label>
+                <p className="text-base text-gray-800 mt-1">{report.vehicleType || 'N/A'}</p>
+              </div>
+              <div>
                 <label className="text-sm font-semibold text-gray-500 uppercase">Reg. No.</label>
                 <p className="text-base text-gray-800 mt-1">{report.vehicleRegNo || 'N/A'}</p>
               </div>
               <div>
                 <label className="text-sm font-semibold text-gray-500 uppercase">Make / Model</label>
                 <p className="text-base text-gray-800 mt-1">{report.vehicleMakeModel || 'N/A'}</p>
-              </div>
-              <div>
-                <label className="text-sm font-semibold text-gray-500 uppercase">Colour</label>
-                <p className="text-base text-gray-800 mt-1">{report.vehicleColour || 'N/A'}</p>
               </div>
               <div>
                 <label className="text-sm font-semibold text-gray-500 uppercase">Petrol / Diesel</label>
@@ -210,12 +210,6 @@ const IncidentReportDetailPage = () => {
                 <label className="text-sm font-semibold text-gray-500 uppercase">Motorcycle Solo / Combo</label>
                 <p className="text-base text-gray-800 mt-1">{report.motorcycleType || 'N/A'}</p>
               </div>
-              {report.hasCaravanTrailer && (
-                <div>
-                  <label className="text-sm font-semibold text-gray-500 uppercase">Trailer Number</label>
-                  <p className="text-base text-gray-800 mt-1">{report.trailerNumber || 'N/A'}</p>
-                </div>
-              )}
             </div>
           </div>
 
@@ -224,16 +218,16 @@ const IncidentReportDetailPage = () => {
             <h4 className="text-lg font-bold text-gray-800 mb-4">Fault & Location</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="text-sm font-semibold text-gray-500 uppercase">Fault Reported</label>
-                <p className="text-base text-gray-800 mt-1">{report.faultReported || 'N/A'}</p>
-              </div>
-              <div>
-                <label className="text-sm font-semibold text-gray-500 uppercase">Actual Fault</label>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Fault</label>
                 <p className="text-base text-gray-800 mt-1">{report.actualFault || 'N/A'}</p>
               </div>
               <div>
                 <label className="text-sm font-semibold text-gray-500 uppercase">Marker Post</label>
                 <p className="text-base text-gray-800 mt-1">{report.markerPost || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Location</label>
+                <p className="text-base text-gray-800 mt-1">{report.location || 'N/A'}</p>
               </div>
             </div>
           </div>
@@ -274,6 +268,10 @@ const IncidentReportDetailPage = () => {
                 <p className="text-base text-gray-800 mt-1">{report.recoveryDestination || 'N/A'}</p>
               </div>
               <div>
+                <label className="text-sm font-semibold text-gray-500 uppercase">Vehicle in Storage</label>
+                <p className="text-base text-gray-800 mt-1">{report.vehicleInStorage || 'N/A'}</p>
+              </div>
+              <div>
                 <label className="text-sm font-semibold text-gray-500 uppercase">Property Removed</label>
                 <p className="text-base text-gray-800 mt-1">{report.propertyRemoved || 'N/A'}</p>
               </div>
@@ -281,22 +279,6 @@ const IncidentReportDetailPage = () => {
                 <label className="text-sm font-semibold text-gray-500 uppercase">Vehicle Outcome</label>
                 <p className="text-base text-gray-800 mt-1">{report.vehicleOutcome || 'N/A'}</p>
               </div>
-              {(report.storageName || report.storageAddress || report.storageContactNo) && (
-                <>
-                  <div>
-                    <label className="text-sm font-semibold text-gray-500 uppercase">Storage Name</label>
-                    <p className="text-base text-gray-800 mt-1">{report.storageName || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-gray-500 uppercase">Storage Address</label>
-                    <p className="text-base text-gray-800 mt-1">{report.storageAddress || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-gray-500 uppercase">Storage Contact No.</label>
-                    <p className="text-base text-gray-800 mt-1">{report.storageContactNo || 'N/A'}</p>
-                  </div>
-                </>
-              )}
             </div>
           </div>
 

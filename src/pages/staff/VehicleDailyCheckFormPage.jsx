@@ -192,6 +192,13 @@ const VehicleDailyCheckFormPage = () => {
     }));
   };
 
+  // Any defect for the selected day requires a written explanation — can't
+  // submit a "✗" with nothing said about it. Drives both the Driver's
+  // Report validation below and its required-field styling in the JSX.
+  const hasDefect = formData.checks.some(
+    (row) => row.status[formData.day] === "defect",
+  );
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -202,6 +209,11 @@ const VehicleDailyCheckFormPage = () => {
       !formData.driversName
     ) {
       toast.error("Please fill in all required fields");
+      return;
+    }
+
+    if (hasDefect && !formData.driversReport.trim()) {
+      toast.error("Please explain the defect(s) in Driver's Report");
       return;
     }
 
@@ -458,14 +470,21 @@ const VehicleDailyCheckFormPage = () => {
             <label className="label">
               <span className="label-text font-semibold mb-2">
                 Driver's Report (detail any problems)
+                {hasDefect && <span className="text-red-500"> *</span>}
               </span>
             </label>
+            {hasDefect && (
+              <p className="text-xs text-red-500 mb-2">
+                Required — please explain the defect(s) marked above.
+              </p>
+            )}
             <textarea
               value={formData.driversReport}
               onChange={(e) =>
                 setFormData({ ...formData, driversReport: e.target.value })
               }
               rows={3}
+              required={hasDefect}
               className="textarea w-full textarea-accent bg-white border-gray-300 rounded-lg hover:bg-gray-100"
               maxLength={2000}
             />

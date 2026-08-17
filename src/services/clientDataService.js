@@ -191,10 +191,9 @@ class ClientDataService {
           const c = this.incidentClassification(i);
           return c !== "Free Recovery" && c !== "Drive Off" && c !== "Incursion";
         }).length,
-        incidentsByType: this.groupByField(incidents, "actualFault", "faultReported"),
+        incidentsByType: this.groupByField(incidents, "actualFault"),
         vehiclesDispatched: incidents.filter((i) => i.vehicleAllocated).length,
         spottedBy: this.groupByField(incidents, "jobSource"),
-        faultTypes: this.groupByField(incidents, "faultReported"),
         vehicleTypes: this.groupByField(incidents, "vehicleType"),
         vehicleTypesDispatched: this.groupByField(incidents, "vehicleAllocated"),
         emergencyServices: this.groupByBooleanFlags(incidents, {
@@ -233,12 +232,12 @@ class ClientDataService {
     }
   }
 
-  // The confirmed/final classification for an incident — actualFault is set
-  // once the job's inspected, faultReported is the initial call-time guess.
-  // Used wherever we need one authoritative category (totals, Incursions,
-  // Asset Damage), as opposed to charting the two separately.
+  // The confirmed classification for an incident — set once the job's fully
+  // inspected (Step 3's Fault). Blank for live/in-progress incidents that
+  // haven't reached that step yet. Used wherever we need one authoritative
+  // category (totals, Incursions, Asset Damage).
   incidentClassification(incident) {
-    return incident.actualFault || incident.faultReported || "";
+    return incident.actualFault || "";
   }
 
   // Helper function to calculate time difference between two time fields and group by ranges
@@ -409,8 +408,7 @@ class ClientDataService {
   }
 
   // Helper function to group data by field. fallbackField lets a chart read
-  // a secondary field when the primary one is blank (e.g. actualFault isn't
-  // filled in until the job's inspected, so faultReported covers the gap).
+  // a secondary field when the primary one is blank.
   groupByField(data, field, fallbackField = null) {
     const grouped = {};
     data.forEach((item) => {
@@ -513,10 +511,9 @@ class ClientDataService {
           const c = this.incidentClassification(i);
           return c !== "Free Recovery" && c !== "Drive Off" && c !== "Incursion";
         }).length,
-        incidentsByType: this.groupByField(incidents, "actualFault", "faultReported"),
+        incidentsByType: this.groupByField(incidents, "actualFault"),
         vehiclesDispatched: incidents.filter((i) => i.vehicleAllocated).length,
         spottedBy: this.groupByField(incidents, "jobSource"),
-        faultTypes: this.groupByField(incidents, "faultReported"),
         vehicleTypes: this.groupByField(incidents, "vehicleType"),
         vehicleTypesDispatched: this.groupByField(incidents, "vehicleAllocated"),
         emergencyServices: this.groupByBooleanFlags(incidents, {

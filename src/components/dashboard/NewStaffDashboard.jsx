@@ -3,9 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { staffService } from "../../services/staffService";
 import NoticeBoard from "../staff/NoticeBoard";
-import LiveJobsPanel from "./LiveJobsPanel";
-import TeamActivityFeed from "./TeamActivityFeed";
-import { AlertTriangle, Truck, Car, FilePlus, ChevronRight, ShieldCheck } from "lucide-react";
+import ReportsList from "../../pages/staff/ReportsList";
+import TeamActivityFeed from "../staff/TeamActivityFeed";
+import { Car, FilePlus, ChevronRight, ShieldCheck } from "lucide-react";
 import { getViewerSchemeScope } from "../../utils/schemes";
 import { getStaffBasePath } from "../../utils/constants";
 
@@ -47,33 +47,26 @@ const NewStaffDashboard = () => {
     }
   };
 
-  // All cards share one brand color now (icon + label carry the distinction) —
-  // color is kept free for status/alert states instead of decoration.
   const statCards = [
     {
       title: "Total Vehicle Dispatched",
       count: stats?.dispatchedThisWeekTotal || 0,
-      icon: AlertTriangle,
     },
     {
       title: "RIPV Recovery",
       count: stats?.ipvRecoveryTotal || 0,
-      icon: Truck,
     },
     {
       title: "Light Recovery",
       count: stats?.lightRecoveryTotal || 0,
-      icon: Car,
     },
     {
       title: "Heavy Recovery",
       count: stats?.heavyRecoveryTotal || 0,
-      icon: Truck,
     },
-     {
+    {
       title: "Police On Scene",
       count: stats?.policeOnSceneTotal || 0,
-      icon: Truck,
     },
   ];
 
@@ -120,9 +113,6 @@ const NewStaffDashboard = () => {
           </div>
         ) : (
           <>
-            <h2 className="text-lg font-semibold text-gray-800 mb-3">
-              This week
-            </h2>
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-6 mb-6 sm:mb-8">
               {statCards.map((card, index) => (
                 <div
@@ -133,10 +123,7 @@ const NewStaffDashboard = () => {
                       : ""
                   }`}
                 >
-                  <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
-                      <card.icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                    </div>
+                  <div className="mb-3 sm:mb-4">
                     <h5 className="text-xs sm:text-sm font-medium text-gray-600 leading-tight">
                       {card.title}
                     </h5>
@@ -262,7 +249,7 @@ const NewStaffDashboard = () => {
             </div>
 
             <div className="mt-8">
-              <LiveJobsPanel basePath={basePath} />
+              <ReportsList />
               <TeamActivityFeed />
             </div>
           </>

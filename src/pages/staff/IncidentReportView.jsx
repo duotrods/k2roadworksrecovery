@@ -244,6 +244,12 @@ const IncidentReportView = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-semibold text-gray-600">
+                  Vehicle Type
+                </label>
+                <p className="text-gray-800">{report.vehicleType || "N/A"}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-600">
                   Reg. No.
                 </label>
                 <p className="text-gray-800">{report.vehicleRegNo || "N/A"}</p>
@@ -253,12 +259,6 @@ const IncidentReportView = () => {
                   Make / Model
                 </label>
                 <p className="text-gray-800">{report.vehicleMakeModel || "N/A"}</p>
-              </div>
-              <div>
-                <label className="text-sm font-semibold text-gray-600">
-                  Colour
-                </label>
-                <p className="text-gray-800">{report.vehicleColour || "N/A"}</p>
               </div>
               <div>
                 <label className="text-sm font-semibold text-gray-600">
@@ -296,14 +296,6 @@ const IncidentReportView = () => {
                 </label>
                 <p className="text-gray-800">{report.motorcycleType || "N/A"}</p>
               </div>
-              {report.hasCaravanTrailer && (
-                <div>
-                  <label className="text-sm font-semibold text-gray-600">
-                    Trailer Number
-                  </label>
-                  <p className="text-gray-800">{report.trailerNumber || "N/A"}</p>
-                </div>
-              )}
             </div>
           </div>
 
@@ -315,13 +307,7 @@ const IncidentReportView = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-semibold text-gray-600">
-                  Fault Reported
-                </label>
-                <p className="text-gray-800">{report.faultReported || "N/A"}</p>
-              </div>
-              <div>
-                <label className="text-sm font-semibold text-gray-600">
-                  Actual Fault
+                  Fault
                 </label>
                 <p className="text-gray-800">{report.actualFault || "N/A"}</p>
               </div>
@@ -330,6 +316,12 @@ const IncidentReportView = () => {
                   Marker Post
                 </label>
                 <p className="text-gray-800">{report.markerPost || "N/A"}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-600">
+                  Location
+                </label>
+                <p className="text-gray-800">{report.location || "N/A"}</p>
               </div>
             </div>
           </div>
@@ -385,6 +377,12 @@ const IncidentReportView = () => {
               </div>
               <div>
                 <label className="text-sm font-semibold text-gray-600">
+                  Vehicle in Storage
+                </label>
+                <p className="text-gray-800">{report.vehicleInStorage || "N/A"}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-600">
                   Property Removed
                 </label>
                 <p className="text-gray-800">{report.propertyRemoved || "N/A"}</p>
@@ -395,28 +393,6 @@ const IncidentReportView = () => {
                 </label>
                 <p className="text-gray-800">{report.vehicleOutcome || "N/A"}</p>
               </div>
-              {(report.storageName || report.storageAddress || report.storageContactNo) && (
-                <>
-                  <div>
-                    <label className="text-sm font-semibold text-gray-600">
-                      Storage Name
-                    </label>
-                    <p className="text-gray-800">{report.storageName || "N/A"}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-gray-600">
-                      Storage Address
-                    </label>
-                    <p className="text-gray-800">{report.storageAddress || "N/A"}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-gray-600">
-                      Storage Contact No.
-                    </label>
-                    <p className="text-gray-800">{report.storageContactNo || "N/A"}</p>
-                  </div>
-                </>
-              )}
             </div>
           </div>
 

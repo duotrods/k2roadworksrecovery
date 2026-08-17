@@ -336,32 +336,25 @@ export const generateReportPDF = async (report, reportType, options) => {
       // Vehicle Details
       yPosition += 3;
       addSectionHeader("VEHICLE DETAILS");
+      if (report.vehicleType) addField("Vehicle Type", report.vehicleType);
       if (report.vehicleRegNo) addField("Reg. No.", report.vehicleRegNo, true);
       if (report.vehicleMakeModel)
         addField("Make / Model", report.vehicleMakeModel);
-      if (report.vehicleColour) addField("Colour", report.vehicleColour);
       if (report.fuelType) addField("Petrol / Diesel", report.fuelType);
       if (report.manualOrAuto) addField("Manual / Auto", report.manualOrAuto);
       if (report.transmission) addField("Transmission", report.transmission);
       if (report.noOfPassengers)
         addField("No. Passengers", report.noOfPassengers);
       if (report.speedo) addField("Speedo", report.speedo);
-      if (report.hasCaravanTrailer)
-        addField(
-          "Caravan / Trailer",
-          report.trailerNumber
-            ? `Yes — Trailer No. ${report.trailerNumber}`
-            : "Yes",
-        );
       if (report.motorcycleType)
         addField("Motorcycle Solo / Combo", report.motorcycleType);
 
       // Fault & Location
       yPosition += 3;
       addSectionHeader("FAULT & LOCATION");
-      if (report.faultReported) addField("Fault Reported", report.faultReported);
-      if (report.actualFault) addField("Actual Fault", report.actualFault);
+      if (report.actualFault) addField("Fault", report.actualFault);
       if (report.markerPost) addField("Marker Post", report.markerPost);
+      if (report.location) addField("Location", report.location);
       if (report.notes) addField("Notes", report.notes);
 
       // Time Information
@@ -381,13 +374,8 @@ export const generateReportPDF = async (report, reportType, options) => {
       addSectionHeader("COMPLETION DETAILS");
       if (report.recoveryDestination)
         addField("Recovery Destination", report.recoveryDestination);
-      if (report.storageName || report.storageAddress || report.storageContactNo) {
-        if (report.storageName) addField("Storage Name", report.storageName);
-        if (report.storageAddress)
-          addField("Storage Address", report.storageAddress);
-        if (report.storageContactNo)
-          addField("Storage Contact No.", report.storageContactNo);
-      }
+      if (report.vehicleInStorage)
+        addField("Vehicle in Storage", report.vehicleInStorage);
       if (report.propertyRemoved)
         addField("Property Removed", report.propertyRemoved);
       if (report.vehicleOutcome)
