@@ -12,10 +12,11 @@ import {
   RotateCw,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
-import { getStaffBasePath } from "../../utils/constants";
+import { getStaffBasePath, USER_ROLES } from "../../utils/constants";
 import { staffService } from "../../services/staffService";
 import { supabase } from "../../config/supabase";
 import StaffSidebarLayout from "../../components/layout/StaffSidebarLayout";
+import AdminSidebarLayout from "../../components/layout/AdminSidebarLayout";
 import StepIndicator from "../../components/staff/incident/StepIndicator";
 import SignaturePad from "../../components/staff/incident/SignaturePad";
 import StandDownConfirmModal from "../../components/staff/incident/StandDownConfirmModal";
@@ -100,6 +101,12 @@ const IncidentReportFormPage = () => {
   const navigate = useNavigate();
   const { userProfile, role } = useAuth();
   const basePath = getStaffBasePath(role);
+  // Admin can also reach this page (to edit a staff-submitted report) —
+  // keep their own sidebar, and land back on Staff Reports (not the generic
+  // admin dashboard) after save/cancel, instead of wherever `basePath` points.
+  const isAdmin = role === USER_ROLES.ADMIN;
+  const Layout = isAdmin ? AdminSidebarLayout : StaffSidebarLayout;
+  const postActionPath = isAdmin ? "/dashboard/admin/staff-reports" : basePath;
   const [searchParams] = useSearchParams();
   const editId = searchParams.get("edit");
   const [loading, setLoading] = useState(false);
@@ -209,7 +216,7 @@ const IncidentReportFormPage = () => {
         }
       } else {
         toast.error("Form not found");
-        navigate(basePath);
+        navigate(postActionPath);
       }
     } catch (error) {
       console.error("Failed to load form:", error);
@@ -687,7 +694,7 @@ const IncidentReportFormPage = () => {
       );
 
       toast.success("Progress saved! Job Sheet is still live.");
-      navigate(basePath);
+      navigate(postActionPath);
     } catch (error) {
       console.error("Error saving progress:", error);
       toast.error("Failed to save progress. Please try again.");
@@ -809,7 +816,7 @@ const IncidentReportFormPage = () => {
         } else {
           toast.success("Job Sheet updated successfully!");
         }
-        navigate(basePath);
+        navigate(postActionPath);
       } else {
         // Submit new form (regular flow - not using the staged workflow)
         const { id: newIncidentId, referenceId: newReferenceId } =
@@ -1206,7 +1213,7 @@ const IncidentReportFormPage = () => {
         userProfile.displayName,
       );
       toast.success("Recovery stood down. Job sheet deleted.");
-      navigate(basePath);
+      navigate(postActionPath);
     } catch (error) {
       console.error("Error standing down recovery:", error);
       toast.error("Failed to stand down. Please try again.");
@@ -2132,7 +2139,7 @@ const IncidentReportFormPage = () => {
   };
 
   return (
-    <StaffSidebarLayout basePath={basePath}>
+    <Layout basePath={basePath}>
       <div>
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
@@ -2159,7 +2166,7 @@ const IncidentReportFormPage = () => {
           renderCurrentStep()
         )}
       </div>
-    </StaffSidebarLayout>
+    </Layout>
   );
 };
 

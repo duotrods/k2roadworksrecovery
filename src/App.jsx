@@ -264,7 +264,7 @@
                 <Route
                   path="/dashboard/staff/forms/cabin-safety-check"
                   element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
+                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF, USER_ROLES.ADMIN]}>
                       <CabinSafetyCheckFormPage />
                     </ProtectedRoute>
                   }
@@ -273,7 +273,7 @@
                 <Route
                   path="/dashboard/staff/forms/vehicle-daily-check"
                   element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
+                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF, USER_ROLES.ADMIN]}>
                       <VehicleDailyCheckFormPage />
                     </ProtectedRoute>
                   }
@@ -282,7 +282,7 @@
                 <Route
                   path="/dashboard/staff/forms/incident-report"
                   element={
-                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF]}>
+                    <ProtectedRoute allowedRoles={[USER_ROLES.STAFF, USER_ROLES.ADMIN]}>
                       <IncidentReportFormPage />
                     </ProtectedRoute>
                   }

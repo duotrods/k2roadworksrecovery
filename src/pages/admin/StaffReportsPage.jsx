@@ -6,6 +6,8 @@ import { SCHEMES, DEMO_SCHEME_ID } from "../../utils/schemes";
 import {
   FileText,
   Eye,
+  Edit,
+  FilePlus2,
   Download,
   Filter,
   Search,
@@ -347,6 +349,22 @@ const StaffReportsPage = () => {
     }
   };
 
+  // Admin edits reuse the same staff create/edit form pages staff use for
+  // their own reports (create vs edit is just the ?edit= query param) — see
+  // ReportsList.jsx's handleEditForm for the staff-side equivalent. Those
+  // routes now also allow the admin role and pick admin's own sidebar chrome
+  // when the signed-in user is an admin.
+  const handleEditForm = (report) => {
+    _staffReportsRestore = { page: currentPage, filter: filterType, scheme: filterScheme, reports, hasMore, cursors, typeCursor, typeCount, totalCount, pageCache: { ...pageCacheRef.current } };
+    if (report.type === "Incident Report") {
+      navigate(`/dashboard/staff/forms/incident-report?edit=${report.id}`);
+    } else if (report.type === "Cabin H&S Check") {
+      navigate(`/dashboard/staff/forms/cabin-safety-check?edit=${report.id}`);
+    } else if (report.type === "Vehicle Daily Check") {
+      navigate(`/dashboard/staff/forms/vehicle-daily-check?edit=${report.id}`);
+    }
+  };
+
   const handleDownloadPDF = async (report) => {
     try {
       // Map display type to PDF generator type
@@ -673,6 +691,23 @@ const StaffReportsPage = () => {
                         </td>
                         <td>
                           <div className="flex items-center justify-center gap-2">
+                            {report.type === "Incident Report" && report.status === "live" ? (
+                              <button
+                                onClick={() => handleEditForm(report)}
+                                className="btn btn-sm btn-ghost text-red-500 hover:text-red-800"
+                                title="Edit"
+                              >
+                                <FilePlus2 className="w-4 h-4" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleEditForm(report)}
+                                className="btn btn-sm btn-ghost text-green-600 hover:text-green-800"
+                                title="Edit"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            )}
                             <button
                               onClick={() => handleViewReport(report)}
                               className="btn btn-sm btn-ghost text-blue-600 hover:text-blue-800"
@@ -740,6 +775,26 @@ const StaffReportsPage = () => {
                           tabIndex={0}
                           className="dropdown-content menu bg-white rounded-lg border border-gray-200 shadow-lg z-20 w-44 p-2"
                         >
+                          <li>
+                            <button
+                              onClick={() => {
+                                document.activeElement?.blur();
+                                handleEditForm(report);
+                              }}
+                              className={
+                                report.type === "Incident Report" && report.status === "live"
+                                  ? "text-red-500"
+                                  : "text-green-600"
+                              }
+                            >
+                              {report.type === "Incident Report" && report.status === "live" ? (
+                                <FilePlus2 className="w-4 h-4" />
+                              ) : (
+                                <Edit className="w-4 h-4" />
+                              )}
+                              Edit
+                            </button>
+                          </li>
                           <li>
                             <button
                               onClick={() => {

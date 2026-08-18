@@ -5,8 +5,9 @@ import { ArrowLeft } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { staffService } from "../../services/staffService";
 import StaffSidebarLayout from "../../components/layout/StaffSidebarLayout";
+import AdminSidebarLayout from "../../components/layout/AdminSidebarLayout";
 import { getSchemesForUser } from "../../utils/schemes";
-import { getStaffBasePath } from "../../utils/constants";
+import { getStaffBasePath, USER_ROLES } from "../../utils/constants";
 
 // Fixed 22-question checklist, grouped into 6 sections — matches the paper
 // "Cabin Health and Safety Monthly Inspection Checklist" template exactly.
@@ -55,6 +56,12 @@ const CabinSafetyCheckFormPage = () => {
   const navigate = useNavigate();
   const { userProfile, role } = useAuth();
   const basePath = getStaffBasePath(role);
+  // Admin can also reach this page (to edit a staff-submitted report) —
+  // keep their own sidebar, and land back on Staff Reports (not the generic
+  // admin dashboard) after save/cancel, instead of wherever `basePath` points.
+  const isAdmin = role === USER_ROLES.ADMIN;
+  const Layout = isAdmin ? AdminSidebarLayout : StaffSidebarLayout;
+  const postActionPath = isAdmin ? "/dashboard/admin/staff-reports" : basePath;
   const [searchParams] = useSearchParams();
   const editId = searchParams.get("edit");
   const [loading, setLoading] = useState(false);
@@ -99,7 +106,7 @@ const CabinSafetyCheckFormPage = () => {
         });
       } else {
         toast.error("Form not found");
-        navigate(basePath);
+        navigate(postActionPath);
       }
     } catch (error) {
       console.error("Failed to load form:", error);
@@ -141,7 +148,7 @@ const CabinSafetyCheckFormPage = () => {
           userProfile.displayName,
         );
         toast.success("Cabin Health & Safety Check updated successfully!");
-        navigate(basePath);
+        navigate(postActionPath);
       } else {
         await staffService.submitCabinHealthSafetyCheck(
           formData,
@@ -168,7 +175,7 @@ const CabinSafetyCheckFormPage = () => {
   };
 
   return (
-    <StaffSidebarLayout basePath={basePath}>
+    <Layout basePath={basePath}>
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
@@ -506,7 +513,7 @@ const CabinSafetyCheckFormPage = () => {
           </div>
         </form>
       </div>
-    </StaffSidebarLayout>
+    </Layout>
   );
 };
 

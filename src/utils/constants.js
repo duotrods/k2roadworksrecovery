@@ -16,9 +16,11 @@ export const DASHBOARD_ROUTES = {
   client: "/dashboard/client",
 };
 
-// Returns the base path for staff-dashboard-equivalent roles.
-// Kept as a helper so callers don't hardcode '/dashboard/staff'.
-export const getStaffBasePath = () => "/dashboard/staff";
+// Returns the base path for staff-dashboard-equivalent roles. Admin also
+// reaches the staff create/edit form routes (to edit staff-submitted
+// reports), so this branches by role instead of hardcoding '/dashboard/staff'.
+export const getStaffBasePath = (role) =>
+  role === USER_ROLES.ADMIN ? DASHBOARD_ROUTES.admin : DASHBOARD_ROUTES.staff;
 
 
 export const AUTH_ERRORS = {
