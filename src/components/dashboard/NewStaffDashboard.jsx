@@ -4,7 +4,6 @@ import { useAuth } from "../../hooks/useAuth";
 import { staffService } from "../../services/staffService";
 import NoticeBoard from "../staff/NoticeBoard";
 import ReportsList from "../../pages/staff/ReportsList";
-import TeamActivityFeed from "../staff/TeamActivityFeed";
 import { Car, FilePlus, ChevronRight, ShieldCheck } from "lucide-react";
 import { getViewerSchemeScope } from "../../utils/schemes";
 import { getStaffBasePath } from "../../utils/constants";
@@ -284,7 +283,6 @@ const NewStaffDashboard = () => {
 
             <div className="mt-8">
               <ReportsList />
-              <TeamActivityFeed />
             </div>
           </>
         )}
