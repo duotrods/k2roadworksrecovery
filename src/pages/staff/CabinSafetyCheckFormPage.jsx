@@ -62,9 +62,21 @@ const CabinSafetyCheckFormPage = () => {
   const isAdmin = role === USER_ROLES.ADMIN;
   const Layout = isAdmin ? AdminSidebarLayout : StaffSidebarLayout;
   const postActionPath = isAdmin ? "/dashboard/admin/staff-reports" : basePath;
+  // Admin-revocable permission (Admin → Assignments & Access → Cabin Check
+  // Access) — admin is never subject to it, even when editing a staff
+  // member's report whose own permission is currently revoked.
+  const canSubmit = isAdmin || userProfile?.canSubmitCabinHsChecks !== false;
   const [searchParams] = useSearchParams();
   const editId = searchParams.get("edit");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (userProfile && !canSubmit) {
+      toast.error("You don't have permission to submit Cabin H&S Checks. Ask your admin for access.");
+      navigate(postActionPath);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userProfile, canSubmit]);
 
   const formatDateToBritish = (date) => {
     const d = new Date(date);
@@ -173,6 +185,10 @@ const CabinSafetyCheckFormPage = () => {
       setLoading(false);
     }
   };
+
+  // Hard block — don't render the form while the redirect above is in
+  // flight, or a moment of unauthorized form access could flash on screen.
+  if (userProfile && !canSubmit) return null;
 
   return (
     <Layout basePath={basePath}>

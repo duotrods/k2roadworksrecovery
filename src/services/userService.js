@@ -22,6 +22,7 @@ const mapUserRow = (row) => {
     lastLogoutAt: row.last_logout_at,
     isActive: row.is_active,
     canCreateAdmins: row.can_create_admins,
+    canSubmitCabinHsChecks: row.can_submit_cabin_hs_checks,
     schemeId: row.scheme_id,
     schemeName: row.scheme_name,
     schemeNames: row.scheme_names,

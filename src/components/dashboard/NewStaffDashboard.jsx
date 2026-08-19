@@ -21,6 +21,9 @@ const NewStaffDashboard = () => {
   const navigate = useNavigate();
   const { userProfile, role } = useAuth();
   const basePath = getStaffBasePath(role);
+  // Admin-revocable permission — undefined while userProfile is still
+  // loading is treated as allowed, so the card doesn't flash disabled.
+  const canSubmitCabinChecks = userProfile?.canSubmitCabinHsChecks !== false;
   // Scheme scope for this viewer: TP staff → their company schemes; real staff →
   // all internal (non-demo, non-TP) schemes; demo → demo scheme.
   const schemeScope = getViewerSchemeScope(userProfile);
@@ -178,17 +181,36 @@ const NewStaffDashboard = () => {
               </div>
             </div>
 
-            {/* New Cabin H&S Check CTA */}
+            {/* New Cabin H&S Check CTA — greyed out when the admin has
+                revoked this staff member's Cabin H&S Check permission
+                (Admin → Assignments & Access → Cabin Check Access). */}
             <div
               role="button"
-              tabIndex={0}
-              onClick={() => goTo(`${basePath}/forms/cabin-safety-check`)}
-              onKeyDown={(e) => handleCardKeyDown(e, `${basePath}/forms/cabin-safety-check`)}
-              className="bg-white rounded-xl shadow-md p-5 hover:shadow-lg transition-shadow cursor-pointer mt-4 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              tabIndex={canSubmitCabinChecks ? 0 : -1}
+              aria-disabled={!canSubmitCabinChecks}
+              onClick={
+                canSubmitCabinChecks
+                  ? () => goTo(`${basePath}/forms/cabin-safety-check`)
+                  : undefined
+              }
+              onKeyDown={
+                canSubmitCabinChecks
+                  ? (e) => handleCardKeyDown(e, `${basePath}/forms/cabin-safety-check`)
+                  : undefined
+              }
+              className={`rounded-xl shadow-md p-5 transition-shadow mt-4 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
+                canSubmitCabinChecks
+                  ? "bg-white hover:shadow-lg cursor-pointer"
+                  : "bg-gray-100 cursor-not-allowed opacity-60"
+              }`}
             >
               <div className="flex flex-col md:flex-row md:items-center items-start justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-11 h-11 rounded-lg bg-green-500 flex items-center justify-center shrink-0">
+                  <div
+                    className={`w-11 h-11 rounded-lg flex items-center justify-center shrink-0 ${
+                      canSubmitCabinChecks ? "bg-green-500" : "bg-gray-400"
+                    }`}
+                  >
                     <ShieldCheck className="w-5 h-5 text-white" />
                   </div>
                   <div>
@@ -198,14 +220,26 @@ const NewStaffDashboard = () => {
                     <p className="text-sm text-gray-500">
                       Complete the monthly cabin health & safety inspection checklist.
                     </p>
+                    {!canSubmitCabinChecks && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        Ask your admin for access.
+                      </p>
+                    )}
                   </div>
                 </div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate(`${basePath}/forms/cabin-safety-check`);
+                    if (canSubmitCabinChecks) {
+                      navigate(`${basePath}/forms/cabin-safety-check`);
+                    }
                   }}
-                  className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-semibold flex items-center justify-center gap-2 shrink-0 w-full md:w-auto"
+                  disabled={!canSubmitCabinChecks}
+                  className={`px-6 py-3 rounded-lg transition-colors font-semibold flex items-center justify-center gap-2 shrink-0 w-full md:w-auto ${
+                    canSubmitCabinChecks
+                      ? "bg-green-500 text-white hover:bg-green-600"
+                      : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  }`}
                 >
                   + New Cabin H&S Check
                   <ChevronRight className="w-5 h-5" />

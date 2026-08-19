@@ -16,6 +16,7 @@ import {
   LayoutGrid,
   Users,
   MoreVertical,
+  ShieldCheck,
 } from "lucide-react";
 
 const SchemeAssignment = () => {
@@ -37,6 +38,15 @@ const SchemeAssignment = () => {
   // --- Scheme Overview tab state ---
   const [overviewUsers, setOverviewUsers] = useState([]);
   const [overviewLoading, setOverviewLoading] = useState(false);
+
+  // --- Cabin Check Access tab state ---
+  const [cabinAccessUsers, setCabinAccessUsers] = useState([]);
+  const [cabinAccessLoading, setCabinAccessLoading] = useState(false);
+  const [cabinAccessPage, setCabinAccessPage] = useState(1);
+  const [cabinAccessHasMore, setCabinAccessHasMore] = useState(false);
+  const [cabinAccessTotal, setCabinAccessTotal] = useState(0);
+  const [togglingUid, setTogglingUid] = useState(null);
+  const cabinAccessPerPage = 10;
 
   useEffect(() => {
     loadUsers(1, roleFilter);
@@ -76,10 +86,65 @@ const SchemeAssignment = () => {
     }
   };
 
+  const loadCabinAccess = async (page = 1) => {
+    setCabinAccessLoading(true);
+    try {
+      // "active" only — archived staff can't log in anyway, no need to show
+      // a togglable row for them.
+      const result = await userAdminService.getUsersByRolePaginated(
+        "staff",
+        page,
+        cabinAccessPerPage,
+        "active",
+      );
+      setCabinAccessUsers(result.users);
+      setCabinAccessHasMore(result.hasMore);
+      setCabinAccessTotal(result.total);
+      setCabinAccessPage(page);
+    } catch (error) {
+      console.error("Failed to load staff for Cabin Check Access:", error);
+      toast.error("Failed to load staff");
+    } finally {
+      setCabinAccessLoading(false);
+    }
+  };
+
+  const handleToggleCabinAccess = async (user) => {
+    const nextAllowed = !user.canSubmitCabinHsChecks;
+    setTogglingUid(user.uid);
+    // Optimistic update — revert on failure.
+    setCabinAccessUsers((prev) =>
+      prev.map((u) =>
+        u.uid === user.uid ? { ...u, canSubmitCabinHsChecks: nextAllowed } : u,
+      ),
+    );
+    try {
+      await userAdminService.setCabinCheckPermission(user.uid, nextAllowed, userProfile.uid);
+      toast.success(
+        `${user.displayName} ${nextAllowed ? "can now" : "can no longer"} submit Cabin H&S Checks`,
+      );
+    } catch (error) {
+      console.error("Failed to update cabin check permission:", error);
+      toast.error(error.message || "Failed to update permission");
+      setCabinAccessUsers((prev) =>
+        prev.map((u) =>
+          u.uid === user.uid ? { ...u, canSubmitCabinHsChecks: !nextAllowed } : u,
+        ),
+      );
+    } finally {
+      setTogglingUid(null);
+    }
+  };
+
+  const cabinAccessTotalPages = Math.ceil(cabinAccessTotal / cabinAccessPerPage);
+
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab === "overview" && overviewUsers.length === 0) {
       loadOverview();
+    }
+    if (tab === "cabinAccess" && cabinAccessUsers.length === 0) {
+      loadCabinAccess(1);
     }
     if (tab === "assignments") {
       handleRoleFilterChange("client");
@@ -217,11 +282,19 @@ const SchemeAssignment = () => {
           <p className="text-gray-500 text-[13px] sm:text-[14px]">Manage scheme access for users</p>
         </div>
         <button
-          onClick={activeTab === "assignments" ? () => loadUsers(currentPage) : loadOverview}
-          disabled={loading || overviewLoading}
+          onClick={
+            activeTab === "assignments"
+              ? () => loadUsers(currentPage)
+              : activeTab === "overview"
+                ? loadOverview
+                : () => loadCabinAccess(cabinAccessPage)
+          }
+          disabled={loading || overviewLoading || cabinAccessLoading}
           className="btn gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
         >
-          <RefreshCw className={`w-4 h-4 ${loading || overviewLoading ? "animate-spin" : ""}`} />
+          <RefreshCw
+            className={`w-4 h-4 ${loading || overviewLoading || cabinAccessLoading ? "animate-spin" : ""}`}
+          />
           Refresh
         </button>
       </div>
@@ -249,6 +322,17 @@ const SchemeAssignment = () => {
         >
           <LayoutGrid className="w-4 h-4" />
           Scheme Overview
+        </button>
+        <button
+          onClick={() => handleTabChange("cabinAccess")}
+          className={`flex items-center gap-2 px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+            activeTab === "cabinAccess"
+              ? "border-brand-500 text-brand-600"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4" />
+          Cabin Check Access
         </button>
       </div>
 
@@ -624,6 +708,92 @@ const SchemeAssignment = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── CABIN CHECK ACCESS TAB ── */}
+      {activeTab === "cabinAccess" && (
+        <div className="bg-white rounded-lg shadow sm:overflow-hidden">
+          <div className="px-6 py-4 border-b bg-gray-50">
+            <p className="text-sm text-gray-500">
+              Control which staff members are allowed to submit Cabin H&amp;S Checks. Revoked staff
+              can't start, edit, or view the form until access is granted again.
+            </p>
+          </div>
+          {cabinAccessLoading && cabinAccessUsers.length === 0 ? (
+            <div className="px-6 py-12 text-center">
+              <div className="flex flex-col items-center justify-center">
+                <RefreshCw className="w-8 h-8 text-gray-400 animate-spin mb-2" />
+                <p className="text-gray-500">Loading staff...</p>
+              </div>
+            </div>
+          ) : cabinAccessUsers.length === 0 ? (
+            <div className="px-6 py-12 text-center">
+              <div className="flex flex-col items-center justify-center">
+                <User className="w-12 h-12 text-gray-300 mb-2" />
+                <p className="text-gray-500">No staff found</p>
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-brand-500 border-b">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Staff</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-white uppercase tracking-wider">Cabin H&amp;S Check Access</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {cabinAccessUsers.map((user) => (
+                    <tr key={user.uid} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <p className="font-medium text-gray-800">{user.displayName}</p>
+                        <p className="text-sm text-gray-500">{user.email}</p>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <input
+                          type="checkbox"
+                          className="toggle toggle-success"
+                          checked={!!user.canSubmitCabinHsChecks}
+                          disabled={togglingUid === user.uid}
+                          onChange={() => handleToggleCabinAccess(user)}
+                          aria-label={`Toggle Cabin H&S Check access for ${user.displayName}`}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {cabinAccessTotalPages > 1 && (
+            <div className="flex items-center justify-between p-4 border-t">
+              <p className="text-sm text-gray-600">
+                Showing page {cabinAccessPage} of {cabinAccessTotalPages} ({cabinAccessTotal} total staff)
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => cabinAccessPage > 1 && loadCabinAccess(cabinAccessPage - 1)}
+                  disabled={cabinAccessPage === 1}
+                  className="btn btn-sm btn-outline"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-sm font-medium">
+                  Page {cabinAccessPage} of {cabinAccessTotalPages}
+                </span>
+                <button
+                  onClick={() => cabinAccessHasMore && loadCabinAccess(cabinAccessPage + 1)}
+                  disabled={!cabinAccessHasMore || cabinAccessPage === cabinAccessTotalPages}
+                  className="btn btn-sm btn-outline"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )}
         </div>

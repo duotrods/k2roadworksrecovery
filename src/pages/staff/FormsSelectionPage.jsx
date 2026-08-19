@@ -24,7 +24,9 @@ const FormsSelectionPage = () => {
       icon: ShieldCheck,
       color: 'from-green-400 to-green-500',
       bgColor: 'bg-green-50',
-      path: `${basePath}/forms/cabin-safety-check`
+      path: `${basePath}/forms/cabin-safety-check`,
+      // Admin-revocable — Admin → Assignments & Access → Cabin Check Access.
+      disabled: role === 'staff' && userProfile?.canSubmitCabinHsChecks === false,
     },
     {
       title: 'Vehicle Daily Check Sheet',
@@ -54,21 +56,36 @@ const FormsSelectionPage = () => {
           {formCards.map((form, index) => (
             <button
               key={index}
-              onClick={() => navigate(form.path)}
-              className="group relative bg-white rounded-2xl p-8 shadow-md hover:shadow-2xl transition-all duration-300 text-left overflow-hidden"
+              onClick={() => !form.disabled && navigate(form.path)}
+              disabled={form.disabled}
+              className={`group relative rounded-2xl p-8 shadow-md transition-all duration-300 text-left overflow-hidden ${
+                form.disabled
+                  ? "bg-gray-100 cursor-not-allowed opacity-60"
+                  : "bg-white hover:shadow-2xl"
+              }`}
             >
               {/* Background Gradient Effect */}
-              <div className={`absolute inset-0 bg-linear-to-br ${form.color} opacity-0 group-hover:opacity-5 transition-opacity`}></div>
+              {!form.disabled && (
+                <div className={`absolute inset-0 bg-linear-to-br ${form.color} opacity-0 group-hover:opacity-5 transition-opacity`}></div>
+              )}
 
               {/* Content */}
               <div className="relative">
                 {/* Icon */}
-                <div className={`w-16 h-16 ${form.bgColor} rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
-                  <form.icon className="w-8 h-8 text-teal-600" />
+                <div
+                  className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 transition-transform ${
+                    form.disabled ? "bg-gray-200" : `${form.bgColor} group-hover:scale-110`
+                  }`}
+                >
+                  <form.icon className={`w-8 h-8 ${form.disabled ? "text-gray-400" : "text-teal-600"}`} />
                 </div>
 
                 {/* Title */}
-                <h3 className="text-xl font-bold text-gray-800 mb-3 group-hover:text-teal-600 transition-colors">
+                <h3
+                  className={`text-xl font-bold mb-3 transition-colors ${
+                    form.disabled ? "text-gray-500" : "text-gray-800 group-hover:text-teal-600"
+                  }`}
+                >
                   {form.title}
                 </h3>
 
@@ -77,18 +94,22 @@ const FormsSelectionPage = () => {
                   {form.description}
                 </p>
 
-                {/* Arrow Icon (appears on hover) */}
-                <div className="mt-4 flex items-center text-teal-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="text-sm font-semibold">Get Started</span>
-                  <svg
-                    className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                  </svg>
-                </div>
+                {form.disabled ? (
+                  <p className="text-xs text-gray-400 mt-4">Ask your admin for access.</p>
+                ) : (
+                  /* Arrow Icon (appears on hover) */
+                  <div className="mt-4 flex items-center text-teal-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-sm font-semibold">Get Started</span>
+                    <svg
+                      className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                    </svg>
+                  </div>
+                )}
               </div>
             </button>
           ))}

@@ -66,7 +66,7 @@
         icon: KeyRound,
       },
       {
-        name: "Assign Schemes",
+        name: "Assignments & Access",
         path: "/dashboard/admin/scheme-assignment",
         icon: FolderKanban,
       },

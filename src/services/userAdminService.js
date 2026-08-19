@@ -25,6 +25,7 @@ const mapUserRow = (row) => {
     activeSchemeId: row.active_scheme_id,
     isArchived: row.is_archived,
     archivedAt: row.archived_at,
+    canSubmitCabinHsChecks: row.can_submit_cabin_hs_checks,
   };
 };
 
@@ -353,6 +354,42 @@ class UserAdminService {
       return { success: true };
     } catch (error) {
       throw new AppError('Failed to unarchive user', 'supabase/update-error', error);
+    }
+  }
+
+  // Grants/revokes a staff member's ability to submit Cabin H&S Checks —
+  // see supabase/migrations/0021_add_can_submit_cabin_hs_checks.sql.
+  async setCabinCheckPermission(targetUid, allowed, adminUid) {
+    try {
+      const { data: targetRow, error: fetchError } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', targetUid)
+        .maybeSingle();
+      if (fetchError) throw fetchError;
+      if (!targetRow) throw new AppError('User not found', 'supabase/not-found');
+      if (targetRow.role !== USER_ROLES.STAFF) {
+        throw new AppError(
+          'Cabin check permission only applies to staff users',
+          'supabase/permission-denied',
+        );
+      }
+
+      const { error } = await supabase
+        .from('users')
+        .update({ can_submit_cabin_hs_checks: allowed })
+        .eq('id', targetUid);
+      if (error) throw error;
+
+      logAudit('cabin_check_permission_changed', adminUid, targetUid, { allowed });
+      return { success: true };
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      throw new AppError(
+        'Failed to update cabin check permission',
+        'supabase/update-error',
+        error,
+      );
     }
   }
 }
