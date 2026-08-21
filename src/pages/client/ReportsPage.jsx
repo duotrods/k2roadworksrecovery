@@ -666,7 +666,7 @@ const ReportsPage = () => {
                 className="select  select-bordered bg-white border-gray-300"
               >
                 <option value="all">All Types</option>
-                <option value="incident">Incident Reports</option>
+                <option value="incident">Recovery Job Sheets</option>
               </select>
             </div>
           </div>

@@ -324,7 +324,7 @@ const ReportsList = () => {
 
   const getFormTypeIcon = (type) => {
     switch (type) {
-      case "Incident Report":
+      case "Recovery Job Sheet":
         return (
           <FontAwesomeIcon icon={faCarBurst} className="text-brand-600 text-[14px]" />
         );
@@ -343,7 +343,7 @@ const ReportsList = () => {
 
   const getFormTypeBadge = (type) => {
     const badges = {
-      "Incident Report": "bg-brand-100 text-brand-600 font-semibold",
+      "Recovery Job Sheet": "bg-brand-100 text-brand-600 font-semibold",
       "Cabin H&S Check": "bg-emerald-100 text-emerald-600 font-semibold",
       "Vehicle Daily Check": "bg-amber-100 text-amber-600 font-semibold",
     };
@@ -370,8 +370,8 @@ const ReportsList = () => {
 
   // Get the appropriate time from form
   const getFormTime = (form) => {
-    // For Incident Reports (Job Sheets) - use time of arrival
-    if (form.type === "Incident Report" && form.timeOfArrival) {
+    // For Recovery Job Sheets (Job Sheets) - use time of arrival
+    if (form.type === "Recovery Job Sheet" && form.timeOfArrival) {
       return form.timeOfArrival;
     }
     // For other forms - use form.time if available, otherwise createdAt time
@@ -396,7 +396,7 @@ const ReportsList = () => {
   // Type filter is handled server-side; text search uses Firestore query
   const filteredForms = latestForms.filter((form) => {
     const formTypeMap = {
-      "Incident Report": "incident",
+      "Recovery Job Sheet": "incident",
       "Cabin H&S Check": "cabin-safety",
       "Vehicle Daily Check": "vehicle-check",
     };
@@ -440,7 +440,7 @@ const ReportsList = () => {
       totalCount,
       pageCache: { ...pageCacheRef.current },
     };
-    if (form.type === "Incident Report") {
+    if (form.type === "Recovery Job Sheet") {
       navigate(`${basePath}/reports/incident/${form.id}`);
     } else if (form.type === "Cabin H&S Check") {
       navigate(`${basePath}/reports/cabin-safety-check/${form.id}`);
@@ -461,7 +461,7 @@ const ReportsList = () => {
       totalCount,
       pageCache: { ...pageCacheRef.current },
     };
-    if (form.type === "Incident Report") {
+    if (form.type === "Recovery Job Sheet") {
       navigate(`${basePath}/forms/incident-report?edit=${form.id}`);
     } else if (form.type === "Cabin H&S Check") {
       navigate(`${basePath}/forms/cabin-safety-check?edit=${form.id}`);
@@ -473,7 +473,7 @@ const ReportsList = () => {
   const handleDownloadForm = async (form) => {
     try {
       let reportType;
-      if (form.type === "Incident Report") {
+      if (form.type === "Recovery Job Sheet") {
         reportType = "incident";
       } else if (form.type === "Cabin H&S Check") {
         reportType = "cabin-safety";
@@ -545,7 +545,7 @@ const ReportsList = () => {
                   className="select select-bordered bg-white border-gray-300"
                 >
                   <option value="all">All Types</option>
-                  <option value="incident">Job Sheets</option>
+                  <option value="incident">Recovery Job Sheets</option>
                   <option value="cabin-safety">Cabin H&S Checks</option>
                   <option value="vehicle-check">Vehicle Daily Checks</option>
                 </select>
@@ -635,14 +635,14 @@ const ReportsList = () => {
                           </td>
                           <td>
                             <div className="flex items-center justify-center gap-2 font-semibold">
-                              {form.type === "Incident Report" &&
+                              {form.type === "Recovery Job Sheet" &&
                                 form.status === "live" && (
                                   <div className="badge badge-error badge-soft">
                                     <Radio className="w-4 h-4 text-red-500" />
                                     Live
                                   </div>
                                 )}
-                              {form.type === "Incident Report" &&
+                              {form.type === "Recovery Job Sheet" &&
                                 form.status === "completed" && (
                                   <div className="badge badge-success badge-soft">
                                     <CheckCircle className="w-4 h-4 text-green-400" />
@@ -653,7 +653,7 @@ const ReportsList = () => {
                           </td>
                           <td>
                             <div className="flex items-center justify-center gap-2">
-                              {form.type === "Incident Report" &&
+                              {form.type === "Recovery Job Sheet" &&
                               form.status === "live" ? (
                                 <button
                                   onClick={() => handleEditForm(form)}
@@ -698,7 +698,7 @@ const ReportsList = () => {
                 <div className="sm:hidden p-3 space-y-3">
                   {currentForms.map((form) => {
                     const isLive =
-                      form.type === "Incident Report" &&
+                      form.type === "Recovery Job Sheet" &&
                       form.status === "live";
                     return (
                       <div
@@ -722,7 +722,7 @@ const ReportsList = () => {
                                 Live
                               </div>
                             )}
-                            {form.type === "Incident Report" &&
+                            {form.type === "Recovery Job Sheet" &&
                               form.status === "completed" && (
                                 <div className="badge badge-success badge-soft badge-sm gap-1">
                                   <CheckCircle className="w-3 h-3 text-green-500" />

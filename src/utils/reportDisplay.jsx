@@ -82,10 +82,10 @@ export const getReportTypeBadge = (type) => {
   return badges[type] || "badge-ghost";
 };
 
-// Human label for a report type, e.g. "incident" → "INCIDENT REPORT".
+// Human label for a report type, e.g. "incident" → "RECOVERY JOB SHEET".
 export const getReportTypeLabel = (type) => {
   const labels = {
-    incident: "Incident Report",
+    incident: "Recovery Job Sheet",
   };
   return (labels[type] || type || "").toUpperCase();
 };

@@ -6,7 +6,7 @@ import { Hash, RotateCcw, Pencil, CheckCircle2, AlertTriangle } from "lucide-rea
 import { toast } from "react-hot-toast";
 
 const FORM_TYPES = [
-  { type: "incident",        label: "Incident Report",           prefix: "IN" },
+  { type: "incident",        label: "Recovery Job Sheet",        prefix: "IN" },
   { type: "cabinSafety",     label: "Cabin H&S Check",           prefix: "CH" },
   { type: "vehicleCheck",    label: "Vehicle Daily Check",        prefix: "VC" },
   { type: "dailyAllocation", label: "Daily Allocations",          prefix: "DA" },

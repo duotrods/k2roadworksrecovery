@@ -69,9 +69,12 @@ export async function onRequestPost({ request, env }) {
     "cabin-safety": "CABIN_HS_CHECK_EMAIL_",
   };
   const schemeEmailEnvPrefix = SCHEME_EMAIL_ENV_PREFIX[reportType];
-  const recipientEmail = schemeEmailEnvPrefix
-    ? env[`${schemeEmailEnvPrefix}${schemeId}`]
-    : customerEmail;
+  const recipientEmails = schemeEmailEnvPrefix
+    ? (env[`${schemeEmailEnvPrefix}${schemeId}`] || "")
+        .split(",")
+        .map((e) => e.trim())
+        .filter(Boolean)
+    : [customerEmail].filter(Boolean);
 
   const TABLE_BY_TYPE = {
     "vehicle-check": "vehicle_daily_checks",
@@ -86,7 +89,7 @@ export async function onRequestPost({ request, env }) {
   const table = TABLE_BY_TYPE[reportType];
   const reportTypeTag = REPORT_TYPE_TAG[reportType];
 
-  if (schemeEmailEnvPrefix && !recipientEmail) {
+  if (schemeEmailEnvPrefix && recipientEmails.length === 0) {
     console.error(`No ${schemeEmailEnvPrefix}${schemeId} configured`);
     await supabaseAdmin.from("email_logs").insert({
       report_type: `${reportTypeTag}-failed`,
@@ -141,7 +144,7 @@ export async function onRequestPost({ request, env }) {
 
     const { error: sendError } = await resend.emails.send({
       from: "K2 Vehicle Recovery <reports@k2recoveryapp.co.uk>",
-      to: recipientEmail,
+      to: recipientEmails,
       subject,
       text,
       attachments: [{ filename, content: pdfBuffer }],
@@ -154,7 +157,7 @@ export async function onRequestPost({ request, env }) {
       report_id: reportId,
       reference_id: referenceId || null,
       scheme: schemeId || null,
-      recipients: [recipientEmail],
+      recipients: recipientEmails,
       sent_by: callerId,
     });
 
@@ -168,7 +171,7 @@ export async function onRequestPost({ request, env }) {
         report_id: reportId,
         reference_id: referenceId || null,
         scheme: schemeId || null,
-        recipients: recipientEmail ? [recipientEmail] : [],
+        recipients: recipientEmails,
         sent_by: callerId,
       })
       .then(({ error: logError }) => {

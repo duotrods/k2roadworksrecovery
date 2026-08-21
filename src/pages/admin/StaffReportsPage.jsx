@@ -58,7 +58,7 @@ const StaffReportsPage = () => {
 
   // Maps admin display filter values → staffService type keys
   const adminTypeToServiceType = {
-    'Incident Report': 'incident',
+    'Recovery Job Sheet': 'incident',
     'Cabin H&S Check': 'cabin-safety',
     'Vehicle Daily Check': 'vehicle-check',
   };
@@ -99,15 +99,15 @@ const StaffReportsPage = () => {
   const clearRestoreState = () => { _staffReportsRestore = null; };
 
   const typeToCollectionKey = {
-    'Incident Report': ['incident'],
+    'Recovery Job Sheet': ['incident'],
     'Cabin H&S Check': ['cabinSafety'],
     'Vehicle Daily Check': ['vehicleCheck'],
   };
 
   const mapSearchResults = (results) => {
     const typeMap = {
-      'Incident Report': { type: 'Incident Report', icon: FileText, color: 'bg-teal-100 text-teal-600' },
-      'Cabin H&S Check': { type: 'Cabin H&S Check', icon: ShieldCheck, color: 'bg-green-100 text-green-600' },
+      'Recovery Job Sheet': { type: 'Recovery Job Sheet', icon: FileText, color: 'bg-brand-100 text-brand-600' },
+      'Cabin H&S Check': { type: 'Cabin H&S Check', icon: ShieldCheck, color: 'bg-emerald-100 text-emerald-600' },
       'Vehicle Daily Check': { type: 'Vehicle Daily Check', icon: Car, color: 'bg-amber-100 text-amber-600' },
     };
     return results.map(f => ({ ...f, ...(typeMap[f.type] || {}) }));
@@ -195,7 +195,10 @@ const StaffReportsPage = () => {
 
       const activeFilter = overrideFilter !== null ? overrideFilter : filterType;
       const activeScheme = overrideScheme !== null ? overrideScheme : filterScheme;
-      const schemeId = activeScheme !== 'all' ? activeScheme : null;
+      // staffService's Supabase queries filter with .overlaps("scheme_ids", schemeIds),
+      // which requires an array — a bare string produces a malformed array literal
+      // and the query silently returns zero rows.
+      const schemeId = activeScheme !== 'all' ? [activeScheme] : null;
       let rawForms;
       let newCursors = {};
       let newTypeCursor = null;
@@ -233,14 +236,14 @@ const StaffReportsPage = () => {
       const mappedReports = rawForms.map(f => {
         let type, icon, color;
 
-        if (f.type === 'Incident Report') {
-          type = "Incident Report";
+        if (f.type === 'Recovery Job Sheet') {
+          type = "Recovery Job Sheet";
           icon = FileText;
-          color = "bg-teal-100 text-teal-600";
+          color = "bg-brand-100 text-brand-600";
         } else if (f.type === 'Cabin H&S Check') {
           type = "Cabin H&S Check";
           icon = ShieldCheck;
-          color = "bg-green-100 text-green-600";
+          color = "bg-emerald-100 text-emerald-600";
         } else if (f.type === 'Vehicle Daily Check') {
           type = "Vehicle Daily Check";
           icon = Car;
@@ -340,7 +343,7 @@ const StaffReportsPage = () => {
   const handleViewReport = (report) => {
     _staffReportsRestore = { page: currentPage, filter: filterType, scheme: filterScheme, reports, hasMore, cursors, typeCursor, typeCount, totalCount, pageCache: { ...pageCacheRef.current } };
     // Navigate to appropriate view page based on report type
-    if (report.type === "Incident Report") {
+    if (report.type === "Recovery Job Sheet") {
       navigate(`/dashboard/admin/staff-reports/incident/${report.id}`);
     } else if (report.type === "Cabin H&S Check") {
       navigate(`/dashboard/admin/staff-reports/cabin-safety/${report.id}`);
@@ -356,7 +359,7 @@ const StaffReportsPage = () => {
   // when the signed-in user is an admin.
   const handleEditForm = (report) => {
     _staffReportsRestore = { page: currentPage, filter: filterType, scheme: filterScheme, reports, hasMore, cursors, typeCursor, typeCount, totalCount, pageCache: { ...pageCacheRef.current } };
-    if (report.type === "Incident Report") {
+    if (report.type === "Recovery Job Sheet") {
       navigate(`/dashboard/staff/forms/incident-report?edit=${report.id}`);
     } else if (report.type === "Cabin H&S Check") {
       navigate(`/dashboard/staff/forms/cabin-safety-check?edit=${report.id}`);
@@ -369,7 +372,7 @@ const StaffReportsPage = () => {
     try {
       // Map display type to PDF generator type
       const typeMap = {
-        "Incident Report": "incident",
+        "Recovery Job Sheet": "incident",
         "Cabin H&S Check": "cabin-safety",
         "Vehicle Daily Check": "vehicle-check",
       };
@@ -428,9 +431,9 @@ const StaffReportsPage = () => {
 
   const getFormTypeIcon = (type) => {
     switch (type) {
-      case "Incident Report":
+      case "Recovery Job Sheet":
         return (
-          <FontAwesomeIcon icon={faCarBurst} className="text-amber-600 text-[14px]" />
+          <FontAwesomeIcon icon={faCarBurst} className="text-brand-600 text-[14px]" />
         );
       case "Cabin H&S Check":
         return (
@@ -438,7 +441,7 @@ const StaffReportsPage = () => {
         );
       case "Vehicle Daily Check":
         return (
-          <FontAwesomeIcon icon={faCar} className="text-rose-500 text-[14px]" />
+          <FontAwesomeIcon icon={faCar} className="text-amber-500 text-[14px]" />
         );
       default:
         return <FileText className="w-5 h-5 text-gray-500 text-[10px]" />;
@@ -447,16 +450,16 @@ const StaffReportsPage = () => {
 
     const getFormTypeBadge = (type) => {
       const badges = {
-        "Incident Report": "bg-amber-100 text-amber-600 font-semibold",
+        "Recovery Job Sheet": "bg-brand-100 text-brand-600 font-semibold",
         "Cabin H&S Check": "bg-emerald-100 text-emerald-600 font-semibold",
-        "Vehicle Daily Check": "bg-rose-100 text-rose-600 font-semibold",
+        "Vehicle Daily Check": "bg-amber-100 text-amber-600 font-semibold",
       };
       return badges[type] || "badge-ghost";
     };
 
   // Live pill — shown only for incidents still live; completed/others get nothing.
   const renderStatusBadge = (report) => {
-    if (report.type !== "Incident Report" || report.status !== "live") return null;
+    if (report.type !== "Recovery Job Sheet" || report.status !== "live") return null;
     return (
       <span className="badge bg-red-50 badge-sm gap-2 text-[11px] text-red-600">
         <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
@@ -485,8 +488,8 @@ const StaffReportsPage = () => {
 
   // Get the appropriate time from form
   const getFormTime = (report) => {
-    // For Incident Reports - always use timeSpotted
-    if (report.type === "Incident Report" && report.timeSpotted) {
+    // For Recovery Job Sheets - always use timeSpotted
+    if (report.type === "Recovery Job Sheet" && report.timeSpotted) {
       return report.timeSpotted;
     }
     // For other forms - use form.time if available, otherwise createdAt time
@@ -514,7 +517,7 @@ const StaffReportsPage = () => {
     try {
       // Map report type to collection name
       const collectionMap = {
-        "Incident Report": "incidentReports",
+        "Recovery Job Sheet": "incidentReports",
         "Cabin H&S Check": "cabinHealthSafetyChecks",
         "Vehicle Daily Check": "vehicleDailyChecks",
       };
@@ -590,7 +593,7 @@ const StaffReportsPage = () => {
               className="select bg-white border-gray-300 rounded-lg w-full"
             >
               <option value="all">All Types</option>
-              <option value="Incident Report">Incident Report</option>
+              <option value="Recovery Job Sheet">Recovery Job Sheet</option>
               <option value="Cabin H&S Check">Cabin H&S Check</option>
               <option value="Vehicle Daily Check">Vehicle Daily Check</option>
             </select>
@@ -624,7 +627,7 @@ const StaffReportsPage = () => {
         <div className="bg-white rounded-xl shadow-md sm:overflow-hidden">
           {loading || searchLoading ? (
             <div className="flex justify-center items-center h-64">
-              <div className="loading loading-spinner loading-lg text-teal-500"></div>
+              <div className="loading loading-spinner loading-lg text-brand-500"></div>
             </div>
           ) : currentReports.length === 0 ? (
             <div className="text-center py-12">
@@ -661,7 +664,7 @@ const StaffReportsPage = () => {
                         <td className="font-mono text-sm font-semibold">
                           <div>{report.referenceId || report.id.slice(0, 12)}</div>
                           {renderStatusBadge(report)}
-                          {report.type === "Incident Report" && report.incursion === "YES" && (
+                          {report.type === "Recovery Job Sheet" && report.incursion === "YES" && (
                             <span className="badge badge-error badge-xs mt-1">Incursion</span>
                           )}
                           {report.type === "Vehicle Daily Check" && report.day && (
@@ -691,7 +694,7 @@ const StaffReportsPage = () => {
                         </td>
                         <td>
                           <div className="flex items-center justify-center gap-2">
-                            {report.type === "Incident Report" && report.status === "live" ? (
+                            {report.type === "Recovery Job Sheet" && report.status === "live" ? (
                               <button
                                 onClick={() => handleEditForm(report)}
                                 className="btn btn-sm btn-ghost text-red-500 hover:text-red-800"
@@ -754,7 +757,7 @@ const StaffReportsPage = () => {
                           {(report.type || "").toUpperCase()}
                         </span>
                         {renderStatusBadge(report)}
-                        {report.type === "Incident Report" &&
+                        {report.type === "Recovery Job Sheet" &&
                           report.incursion === "YES" && (
                             <span className="badge badge-error badge-xs">
                               Incursion
@@ -782,12 +785,12 @@ const StaffReportsPage = () => {
                                 handleEditForm(report);
                               }}
                               className={
-                                report.type === "Incident Report" && report.status === "live"
+                                report.type === "Recovery Job Sheet" && report.status === "live"
                                   ? "text-red-500"
                                   : "text-green-600"
                               }
                             >
-                              {report.type === "Incident Report" && report.status === "live" ? (
+                              {report.type === "Recovery Job Sheet" && report.status === "live" ? (
                                 <FilePlus2 className="w-4 h-4" />
                               ) : (
                                 <Edit className="w-4 h-4" />

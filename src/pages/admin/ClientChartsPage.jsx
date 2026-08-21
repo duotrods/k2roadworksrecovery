@@ -165,7 +165,7 @@ const ClientChartsPage = () => {
         startDate,
         endDate: end,
       });
-      const reportsWithType = incidentReports.map((f) => ({ ...f, type: "Incident Report" }));
+      const reportsWithType = incidentReports.map((f) => ({ ...f, type: "Recovery Job Sheet" }));
       setReports(reportsWithType);
     } catch (error) {
       console.error("Failed to load data:", error);
@@ -215,7 +215,7 @@ const ClientChartsPage = () => {
 
   // Get incident reports only
   const getIncidentReports = () => {
-    return getFilteredReports().filter(r => r.type === "Incident Report");
+    return getFilteredReports().filter(r => r.type === "Recovery Job Sheet");
   };
 
   // Chart data extraction functions

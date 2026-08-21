@@ -161,7 +161,7 @@ class StaffService {
         type: "form_submitted",
         staffId: userId,
         staffName: userName,
-        description: `${userName} submitted Incident Report ${referenceId}`,
+        description: `${userName} submitted Recovery Job Sheet ${referenceId}`,
         relatedFormId: data.id,
         staffGroup: "internal",
       });
@@ -290,7 +290,7 @@ class StaffService {
         type: "form_edited",
         staffId: userId,
         staffName: userName,
-        description: `${userName} edited Incident Report ${currentData.referenceId}`,
+        description: `${userName} edited Recovery Job Sheet ${currentData.referenceId}`,
         relatedFormId: reportId,
       });
 
@@ -331,7 +331,7 @@ class StaffService {
         type: "form_deleted",
         staffId: userId,
         staffName: userName,
-        description: `${userName} deleted Incident Report ${currentData.referenceId}`,
+        description: `${userName} deleted Recovery Job Sheet ${currentData.referenceId}`,
         relatedFormId: reportId,
       });
 
@@ -898,7 +898,7 @@ class StaffService {
       const allForms = [
         ...incidentReports.docs.map((f) => ({
           ...f,
-          type: "Incident Report",
+          type: "Recovery Job Sheet",
           _source: "incident",
         })),
         ...cabinSafetyChecks.docs.map((f) => ({
@@ -957,7 +957,7 @@ class StaffService {
     schemeId = null,
   ) {
     const configMap = {
-      incident: { collection: "incidentReports", label: "Incident Report" },
+      incident: { collection: "incidentReports", label: "Recovery Job Sheet" },
       "cabin-safety": {
         collection: "cabinHealthSafetyChecks",
         label: "Cabin H&S Check",
@@ -1223,7 +1223,7 @@ class StaffService {
     };
 
     const ALL_TYPES = [
-      { key: "incident", table: "incident_reports", fromRow: fromIncidentRow, type: "Incident Report" },
+      { key: "incident", table: "incident_reports", fromRow: fromIncidentRow, type: "Recovery Job Sheet" },
       { key: "cabinSafety", table: "cabin_health_safety_checks", fromRow: fromCabinSafetyRow, type: "Cabin H&S Check" },
       { key: "vehicleCheck", table: "vehicle_daily_checks", fromRow: fromVehicleCheckRow, type: "Vehicle Daily Check" },
     ];
