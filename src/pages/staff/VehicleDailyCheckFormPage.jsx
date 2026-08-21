@@ -4,11 +4,13 @@ import { toast } from "react-hot-toast";
 import { ArrowLeft } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { staffService } from "../../services/staffService";
+import { supabase } from "../../config/supabase";
 import StaffSidebarLayout from "../../components/layout/StaffSidebarLayout";
 import AdminSidebarLayout from "../../components/layout/AdminSidebarLayout";
-import { getSchemesForUser } from "../../utils/schemes";
+import { getSchemesForUser, extractSchemeId, isDemoScheme } from "../../utils/schemes";
 import { getStaffBasePath, USER_ROLES } from "../../utils/constants";
 import { VEHICLE_CHECK_ITEMS } from "../../utils/vehicleCheckStats";
+import { generateReportPDF, blobToBase64 } from "../../utils/pdfGenerator";
 
 import chellanlogo from "../../assets/chellanpng.png";
 
@@ -206,6 +208,44 @@ const VehicleDailyCheckFormPage = () => {
     (row) => row.status[formData.day] === "defect",
   );
 
+  // Emails the scheme's contact a PDF copy of a newly submitted check sheet.
+  // Best-effort: the report is already saved by the time this runs, so any
+  // failure here only shows a toast warning — it must never undo the save.
+  // The API route resolves the recipient itself from the scheme (never a
+  // demo scheme) and is idempotent, so this is safe to call every time.
+  const sendReportCopyEmail = async (data, checkId, referenceId) => {
+    const schemeId = extractSchemeId(data.scheme);
+    if (!schemeId || isDemoScheme(schemeId)) return;
+
+    try {
+      const pdfBlob = await generateReportPDF(data, "vehicle-check", { asBlob: true });
+      const pdfBase64 = await blobToBase64(pdfBlob);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const response = await fetch("/api/send-report-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          reportType: "vehicle-check",
+          reportId: checkId,
+          referenceId,
+          schemeId,
+          pdfBase64,
+        }),
+      });
+
+      if (!response.ok) throw new Error("send-report-email request failed");
+    } catch (error) {
+      console.error("Failed to email report copy:", error);
+      toast.error("Saved, but we couldn't email a copy to the scheme contact.");
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -243,12 +283,13 @@ const VehicleDailyCheckFormPage = () => {
         toast.success("Vehicle Daily Check updated successfully!");
         navigate(postActionPath);
       } else {
-        await staffService.submitVehicleDailyCheck(
+        const { id: checkId, referenceId } = await staffService.submitVehicleDailyCheck(
           trimmedData,
           userProfile.uid,
           userProfile.displayName,
         );
         toast.success("Vehicle Daily Check submitted successfully!");
+        await sendReportCopyEmail(trimmedData, checkId, referenceId);
 
         const weekCommencing = formatDateToBritish(getMostRecentMonday());
         setFormData({
@@ -274,7 +315,7 @@ const VehicleDailyCheckFormPage = () => {
 
   return (
     <Layout basePath={basePath}>
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
           <button
@@ -312,7 +353,7 @@ const VehicleDailyCheckFormPage = () => {
                 onChange={(e) =>
                   setFormData({ ...formData, day: e.target.value })
                 }
-                className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+                className="select select-primary bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full focus:ring-[#0865ad]"
                 required
               >
                 {DAYS_OF_WEEK.map((day) => {
@@ -338,7 +379,7 @@ const VehicleDailyCheckFormPage = () => {
                 onChange={(e) =>
                   setFormData({ ...formData, driversName: e.target.value })
                 }
-                className="input input-accent w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
+                className="input input-primary w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-[#0865ad]"
                 maxLength={100}
                 required
               />
@@ -354,7 +395,7 @@ const VehicleDailyCheckFormPage = () => {
                 onChange={(e) =>
                   setFormData({ ...formData, scheme: e.target.value })
                 }
-                className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+                className="select select-primary bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full focus:ring-[#0865ad]"
                 required
               >
                 <option value="">Please Select</option>
@@ -379,7 +420,7 @@ const VehicleDailyCheckFormPage = () => {
                 }
                 placeholder="DD/MM/YYYY"
                 pattern="\d{2}/\d{2}/\d{4}"
-                className="input input-accent w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
+                className="input input-primary w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-[#0865ad]"
               />
             </div>
             <div>
@@ -394,7 +435,7 @@ const VehicleDailyCheckFormPage = () => {
                 onChange={(e) =>
                   setFormData({ ...formData, vehicleTypeReg: e.target.value })
                 }
-                className="input input-accent w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
+                className="input input-primary w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-[#0865ad]"
                 maxLength={100}
               />
             </div>
@@ -411,7 +452,7 @@ const VehicleDailyCheckFormPage = () => {
                 onChange={(e) =>
                   setFormData({ ...formData, mileage: e.target.value })
                 }
-                className="input input-accent w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
+                className="input input-primary w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-[#0865ad]"
                 maxLength={20}
               />
             </div>
@@ -492,7 +533,7 @@ const VehicleDailyCheckFormPage = () => {
               }
               rows={3}
               required={hasDefect}
-              className="textarea w-full textarea-accent bg-white border-gray-300 rounded-lg hover:bg-gray-100"
+              className="textarea w-full textarea-primary bg-white border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-[#0865ad]"
               maxLength={2000}
             />
           </div>
@@ -509,7 +550,7 @@ const VehicleDailyCheckFormPage = () => {
                 setFormData({ ...formData, actionTaken: e.target.value })
               }
               rows={3}
-              className="textarea w-full textarea-accent bg-white border-gray-300 rounded-lg hover:bg-gray-100"
+              className="textarea w-full textarea-primary bg-white border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-[#0865ad]"
               maxLength={2000}
             />
           </div>

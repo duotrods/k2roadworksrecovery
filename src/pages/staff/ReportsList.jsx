@@ -326,7 +326,7 @@ const ReportsList = () => {
     switch (type) {
       case "Incident Report":
         return (
-          <FontAwesomeIcon icon={faCarBurst} className="text-amber-600 text-[14px]" />
+          <FontAwesomeIcon icon={faCarBurst} className="text-brand-600 text-[14px]" />
         );
       case "Cabin H&S Check":
         return (
@@ -334,7 +334,7 @@ const ReportsList = () => {
         );
       case "Vehicle Daily Check":
         return (
-          <FontAwesomeIcon icon={faCar} className="text-rose-500 text-[14px]" />
+          <FontAwesomeIcon icon={faCar} className="text-amber-500 text-[14px]" />
         );
       default:
         return <FileText className="w-5 h-5 text-gray-500 text-[10px]" />;
@@ -343,9 +343,9 @@ const ReportsList = () => {
 
   const getFormTypeBadge = (type) => {
     const badges = {
-      "Incident Report": "bg-amber-100 text-amber-600 font-semibold",
+      "Incident Report": "bg-brand-100 text-brand-600 font-semibold",
       "Cabin H&S Check": "bg-emerald-100 text-emerald-600 font-semibold",
-      "Vehicle Daily Check": "bg-rose-100 text-rose-600 font-semibold",
+      "Vehicle Daily Check": "bg-amber-100 text-amber-600 font-semibold",
     };
     return badges[type] || "badge-ghost";
   };

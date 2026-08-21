@@ -29,12 +29,25 @@ export async function onRequestPost({ request, env }) {
   }
   const callerId = callerData.user.id;
 
-  const { reportId, referenceId, customerEmail, customerName, pdfBase64 } =
-    await request.json().catch(() => ({}));
+  const {
+    reportType = "incident",
+    reportId,
+    referenceId,
+    customerEmail,
+    customerName,
+    schemeId,
+    pdfBase64,
+  } = await request.json().catch(() => ({}));
 
+  if (!["incident", "vehicle-check", "cabin-safety"].includes(reportType)) {
+    return json({ error: "Invalid reportType" }, 400);
+  }
   if (!reportId) return json({ error: "reportId is required" }, 400);
-  if (!customerEmail || !EMAIL_RE.test(customerEmail)) {
+  if (reportType === "incident" && (!customerEmail || !EMAIL_RE.test(customerEmail))) {
     return json({ error: "A valid customerEmail is required" }, 400);
+  }
+  if ((reportType === "vehicle-check" || reportType === "cabin-safety") && !schemeId) {
+    return json({ error: "schemeId is required" }, 400);
   }
   if (!pdfBase64) return json({ error: "pdfBase64 is required" }, 400);
 
@@ -48,10 +61,48 @@ export async function onRequestPost({ request, env }) {
     return json({ error: "PDF attachment is missing or too large" }, 400);
   }
 
+  // Recipient for a vehicle-check/cabin-safety copy is never client-supplied
+  // — it's resolved server-side from a per-scheme secret so the sender can't
+  // be spoofed by the request body.
+  const SCHEME_EMAIL_ENV_PREFIX = {
+    "vehicle-check": "VEHICLE_CHECK_EMAIL_",
+    "cabin-safety": "CABIN_HS_CHECK_EMAIL_",
+  };
+  const schemeEmailEnvPrefix = SCHEME_EMAIL_ENV_PREFIX[reportType];
+  const recipientEmail = schemeEmailEnvPrefix
+    ? env[`${schemeEmailEnvPrefix}${schemeId}`]
+    : customerEmail;
+
+  const TABLE_BY_TYPE = {
+    "vehicle-check": "vehicle_daily_checks",
+    "cabin-safety": "cabin_health_safety_checks",
+    incident: "incident_reports",
+  };
+  const REPORT_TYPE_TAG = {
+    "vehicle-check": "vehicle-check-copy",
+    "cabin-safety": "cabin-safety-copy",
+    incident: "incident-copy",
+  };
+  const table = TABLE_BY_TYPE[reportType];
+  const reportTypeTag = REPORT_TYPE_TAG[reportType];
+
+  if (schemeEmailEnvPrefix && !recipientEmail) {
+    console.error(`No ${schemeEmailEnvPrefix}${schemeId} configured`);
+    await supabaseAdmin.from("email_logs").insert({
+      report_type: `${reportTypeTag}-failed`,
+      report_id: reportId,
+      reference_id: referenceId || null,
+      scheme: schemeId,
+      recipients: [],
+      sent_by: callerId,
+    });
+    return json({ error: "No recipient configured for this scheme" }, 500);
+  }
+
   try {
-    // Scoped to the caller's own JWT so the incident_reports RLS policy
-    // (verified staff/admin only) authorizes this. The "report_copy_sent_at is
-    // null" guard makes it idempotent: a retry can never send the email twice.
+    // Scoped to the caller's own JWT so the table's RLS policy (verified
+    // staff/admin only) authorizes this. The "report_copy_sent_at is null"
+    // guard makes it idempotent: a retry can never send the email twice.
     const callerScopedClient = createClient(
       env.VITE_SUPABASE_URL,
       env.VITE_SUPABASE_ANON_KEY,
@@ -59,7 +110,7 @@ export async function onRequestPost({ request, env }) {
     );
 
     const { data: claimed, error: claimError } = await callerScopedClient
-      .from("incident_reports")
+      .from(table)
       .update({ report_copy_sent_at: new Date().toISOString() })
       .eq("id", reportId)
       .is("report_copy_sent_at", null)
@@ -69,22 +120,41 @@ export async function onRequestPost({ request, env }) {
     if (claimError) throw claimError;
     if (!claimed) return json({ skipped: true }, 200);
 
-    const filename = `IncidentReport_${referenceId || reportId}.pdf`;
+    const EMAIL_CONTENT_BY_TYPE = {
+      "vehicle-check": {
+        filename: `VehicleDailyCheck_${referenceId || reportId}.pdf`,
+        subject: `Vehicle Daily Check Copy — ${referenceId || reportId}`,
+        text: `Attached is a copy of Vehicle Daily Check ${referenceId || reportId}.\n\nThank you,\nK2 Vehicle Recovery`,
+      },
+      "cabin-safety": {
+        filename: `CabinSafetyCheck_${referenceId || reportId}.pdf`,
+        subject: `Cabin Health & Safety Check Copy — ${referenceId || reportId}`,
+        text: `Attached is a copy of Cabin Health & Safety Check ${referenceId || reportId}.\n\nThank you,\nK2 Vehicle Recovery`,
+      },
+      incident: {
+        filename: `IncidentReport_${referenceId || reportId}.pdf`,
+        subject: `Your K2 Vehicle Recovery Job Sheet Copy — ${referenceId || reportId}`,
+        text: `Hi ${customerName || "there"},\n\nAttached is a copy of your Job Sheet (${referenceId || reportId}) for your records.\n\nThank you,\nK2 Vehicle Recovery`,
+      },
+    };
+    const { filename, subject, text } = EMAIL_CONTENT_BY_TYPE[reportType];
+
     const { error: sendError } = await resend.emails.send({
-      from: "K2 Vehicle Recovery <reports@lense.live>",
-      to: customerEmail,
-      subject: `Your K2 Vehicle Recovery Job Sheet Copy — ${referenceId || reportId}`,
-      text: `Hi ${customerName || "there"},\n\nAttached is a copy of your Job Sheet (${referenceId || reportId}) for your records.\n\nThank you,\nK2 Vehicle Recovery`,
+      from: "K2 Vehicle Recovery <reports@k2recoveryapp.co.uk>",
+      to: recipientEmail,
+      subject,
+      text,
       attachments: [{ filename, content: pdfBuffer }],
     });
 
     if (sendError) throw sendError;
 
     await supabaseAdmin.from("email_logs").insert({
-      report_type: "incident-copy",
+      report_type: reportTypeTag,
       report_id: reportId,
       reference_id: referenceId || null,
-      recipients: [customerEmail],
+      scheme: schemeId || null,
+      recipients: [recipientEmail],
       sent_by: callerId,
     });
 
@@ -94,10 +164,11 @@ export async function onRequestPost({ request, env }) {
     await supabaseAdmin
       .from("email_logs")
       .insert({
-        report_type: "incident-copy-failed",
+        report_type: `${reportTypeTag}-failed`,
         report_id: reportId,
         reference_id: referenceId || null,
-        recipients: [customerEmail],
+        scheme: schemeId || null,
+        recipients: recipientEmail ? [recipientEmail] : [],
         sent_by: callerId,
       })
       .then(({ error: logError }) => {

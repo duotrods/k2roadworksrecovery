@@ -8,7 +8,7 @@ import { json, getBearerToken } from "./_utils.js";
 // so the file bytes go browser -> R2 directly (never through this function).
 // The @aws-sdk packages require the `nodejs_compat` flag (see wrangler.toml).
 
-const ALLOWED_FOLDERS = new Set(["incident-reports"]);
+const ALLOWED_FOLDERS = new Set(["incident-reports", "cabin-safety-checks"]);
 const ALLOWED_CONTENT_TYPE_PREFIXES = ["image/", "video/", "application/pdf"];
 const PRESIGN_EXPIRES_SECONDS = 300;
 

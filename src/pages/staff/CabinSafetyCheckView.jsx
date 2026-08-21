@@ -299,6 +299,32 @@ const CabinSafetyCheckView = () => {
             </div>
           ))}
 
+          {/* Photos */}
+          {form.images?.length > 0 && (
+            <div>
+              <h4 className="text-lg font-semibold text-gray-800 mb-3 border-b pb-2">
+                Photos
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {form.images.map((image, index) => (
+                  <a
+                    key={index}
+                    href={image.downloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block rounded-lg overflow-hidden border border-gray-200 hover:opacity-90 transition-opacity"
+                  >
+                    <img
+                      src={image.downloadUrl}
+                      alt={image.fileName || `Photo ${index + 1}`}
+                      className="w-full h-32 object-cover"
+                    />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Metadata */}
           <div className="border-t pt-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-500">

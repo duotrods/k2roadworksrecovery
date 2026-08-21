@@ -6,7 +6,7 @@ export const fromCabinSafetyRow = (row) => {
   if (!row) return null;
   const {
     id, cabin_or_plot_no, inspection_completed_by, site_location,
-    inspection_date, scheme, checklist, scheme_id, scheme_ids,
+    inspection_date, scheme, checklist, images, scheme_id, scheme_ids,
     reference_id, submitted_by_user_id, submitted_by_name, status,
     created_at, updated_at, edit_history, last_edited_by_user_id,
     last_edited_by_name,
@@ -16,7 +16,8 @@ export const fromCabinSafetyRow = (row) => {
     id, cabinOrPlotNo: cabin_or_plot_no,
     inspectionCompletedBy: inspection_completed_by,
     siteLocation: site_location, inspectionDate: inspection_date,
-    scheme, checklist, schemeId: scheme_id, schemeIds: scheme_ids,
+    scheme, checklist, images: images || [],
+    schemeId: scheme_id, schemeIds: scheme_ids,
     referenceId: reference_id,
     submittedBy: submitted_by_user_id || submitted_by_name
       ? { userId: submitted_by_user_id, name: submitted_by_name }
@@ -36,7 +37,7 @@ export const toCabinSafetyRow = (formData) => {
     cabinOrPlotNo: "cabin_or_plot_no",
     inspectionCompletedBy: "inspection_completed_by",
     siteLocation: "site_location", inspectionDate: "inspection_date",
-    scheme: "scheme", checklist: "checklist",
+    scheme: "scheme", checklist: "checklist", images: "images",
   };
 
   const row = {};

@@ -1,13 +1,26 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
-import { ArrowLeft } from "lucide-react";
+import {
+  ArrowLeft,
+  Upload,
+  X,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  RotateCw,
+} from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { staffService } from "../../services/staffService";
+import { supabase } from "../../config/supabase";
 import StaffSidebarLayout from "../../components/layout/StaffSidebarLayout";
 import AdminSidebarLayout from "../../components/layout/AdminSidebarLayout";
-import { getSchemesForUser } from "../../utils/schemes";
+import { getSchemesForUser, extractSchemeId, isDemoScheme } from "../../utils/schemes";
 import { getStaffBasePath, USER_ROLES } from "../../utils/constants";
+import { compressImage } from "../../utils/imageCompression";
+import { generateReportPDF, blobToBase64 } from "../../utils/pdfGenerator";
+
+const MAX_IMAGES = 10;
 
 // Fixed 22-question checklist, grouped into 6 sections — matches the paper
 // "Cabin Health and Safety Monthly Inspection Checklist" template exactly.
@@ -93,7 +106,14 @@ const CabinSafetyCheckFormPage = () => {
     inspectionDate: formatDateToBritish(new Date()),
     scheme: "",
     checklist: seedChecklist(),
+    images: [],
   });
+
+  // Staged photo uploads — mirrors IncidentReportFormPage.jsx's eager
+  // background-upload pattern: each entry uploads to R2 the moment it's
+  // added, so submit only has to await whatever's still in flight.
+  const [stagedImages, setStagedImages] = useState([]);
+  const uploadPromisesRef = useRef({});
 
   useEffect(() => {
     if (editId) {
@@ -115,6 +135,7 @@ const CabinSafetyCheckFormPage = () => {
           inspectionDate: form.inspectionDate || "",
           scheme: form.scheme || "",
           checklist: form.checklist || seedChecklist(),
+          images: form.images || [],
         });
       } else {
         toast.error("Form not found");
@@ -137,6 +158,213 @@ const CabinSafetyCheckFormPage = () => {
     }));
   };
 
+  // Any "No" answer requires a written explanation before submit — same
+  // principle as VehicleDailyCheckFormPage's "defect requires Driver's
+  // Report" rule. Drives both the submit-block below and the required
+  // styling on each row's Comments field.
+  const hasMissingRequiredComment = formData.checklist.some(
+    (row) => row.answer === "No" && !row.comments.trim(),
+  );
+
+  // Asks the server-side R2 upload proxy (api/upload.js) for a short-lived
+  // presigned URL, then PUTs the file straight to R2 from the browser —
+  // same flow as IncidentReportFormPage's uploadToR2.
+  const uploadToR2 = async (blob, fileName, contentType) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    const presignResponse = await fetch("/api/upload", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session?.access_token}`,
+      },
+      body: JSON.stringify({
+        fileName,
+        contentType,
+        folder: "cabin-safety-checks",
+      }),
+    });
+
+    if (!presignResponse.ok) {
+      const { error } = await presignResponse.json().catch(() => ({}));
+      throw new Error(error || "Upload failed");
+    }
+
+    const { uploadUrl, fileUrl, downloadUrl, fileType } =
+      await presignResponse.json();
+
+    const putResponse = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      body: blob,
+    });
+
+    if (!putResponse.ok) {
+      throw new Error("Upload to storage failed");
+    }
+
+    return { fileUrl, downloadUrl, fileType };
+  };
+
+  // Kicks off compress + upload for one staged entry in the background and
+  // records its promise so submit can await it.
+  const startUpload = (id, file) => {
+    const promise = (async () => {
+      try {
+        const compressedFile = await compressImage(file);
+        const { fileUrl, downloadUrl, fileType } = await uploadToR2(
+          compressedFile,
+          file.name,
+          file.type,
+        );
+        const result = {
+          fileName: file.name,
+          fileUrl,
+          downloadUrl,
+          fileSize: compressedFile.size,
+          fileType,
+        };
+        setStagedImages((prev) =>
+          prev.map((e) => (e.id === id ? { ...e, status: "done", result } : e)),
+        );
+        return { id, status: "done", result };
+      } catch (error) {
+        console.error("Background upload failed:", error);
+        setStagedImages((prev) =>
+          prev.map((e) => (e.id === id ? { ...e, status: "error", error } : e)),
+        );
+        return { id, status: "error", error };
+      }
+    })();
+    uploadPromisesRef.current[id] = promise;
+    return promise;
+  };
+
+  const addFiles = (files) => {
+    const roomLeft = MAX_IMAGES - (formData.images.length + stagedImages.length);
+    if (roomLeft <= 0) {
+      toast.error(`You can upload up to ${MAX_IMAGES} photos`);
+      return;
+    }
+    const accepted = files.slice(0, roomLeft);
+    if (accepted.length < files.length) {
+      toast.error(`Only ${roomLeft} more photo(s) can be added (max ${MAX_IMAGES})`);
+    }
+    const entries = accepted.map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      status: "uploading",
+      result: null,
+      error: null,
+    }));
+    setStagedImages((prev) => [...prev, ...entries]);
+    entries.forEach((entry) => startUpload(entry.id, entry.file));
+  };
+
+  const retryUpload = (id) => {
+    const entry = stagedImages.find((e) => e.id === id);
+    if (!entry) return;
+    setStagedImages((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, status: "uploading", error: null } : e)),
+    );
+    startUpload(id, entry.file);
+  };
+
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files).filter((f) => f.type.startsWith("image/"));
+    if (files.length !== e.target.files.length) {
+      toast.error("Only images are allowed");
+    }
+    addFiles(files);
+    e.target.value = "";
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
+    if (files.length !== e.dataTransfer.files.length) {
+      toast.error("Only images are allowed");
+    }
+    addFiles(files);
+  };
+
+  const removeStagedImage = (id) => {
+    setStagedImages((prev) => prev.filter((e) => e.id !== id));
+    delete uploadPromisesRef.current[id];
+  };
+
+  const removeExistingImage = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index),
+    }));
+  };
+
+  const isUploadingImages = stagedImages.some((e) => e.status === "uploading");
+  const hasUploadErrors = stagedImages.some((e) => e.status === "error");
+  const uploadsBusy = isUploadingImages || hasUploadErrors;
+
+  // Staged photos upload eagerly as they're added, so this just awaits
+  // whatever's still in flight — throws if any staged upload failed, so the
+  // caller never submits with a missing image.
+  const collectStagedImages = async () => {
+    if (stagedImages.length === 0) return [];
+    const results = await Promise.all(
+      stagedImages.map((entry) => uploadPromisesRef.current[entry.id]).filter(Boolean),
+    );
+    if (results.some((r) => r.status === "error")) {
+      throw new Error("Some photos failed to upload. Please retry them.");
+    }
+    return results.map((r) => r.result);
+  };
+
+  // Emails the scheme's contact a PDF copy of a newly submitted check.
+  // Best-effort: the report is already saved by the time this runs, so any
+  // failure here only shows a toast warning — it must never undo the save.
+  // The API route resolves the recipient itself from the scheme (never a
+  // demo scheme) and is idempotent, so this is safe to call every time.
+  // Mirrors VehicleDailyCheckFormPage.jsx's sendReportCopyEmail.
+  const sendReportCopyEmail = async (data, checkId, referenceId) => {
+    const schemeId = extractSchemeId(data.scheme);
+    if (!schemeId || isDemoScheme(schemeId)) return;
+
+    try {
+      const pdfBlob = await generateReportPDF(data, "cabin-safety", { asBlob: true });
+      const pdfBase64 = await blobToBase64(pdfBlob);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const response = await fetch("/api/send-report-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          reportType: "cabin-safety",
+          reportId: checkId,
+          referenceId,
+          schemeId,
+          pdfBase64,
+        }),
+      });
+
+      if (!response.ok) throw new Error("send-report-email request failed");
+    } catch (error) {
+      console.error("Failed to email report copy:", error);
+      toast.error("Saved, but we couldn't email a copy to the scheme contact.");
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -149,25 +377,54 @@ const CabinSafetyCheckFormPage = () => {
       return;
     }
 
+    if (hasMissingRequiredComment) {
+      toast.error("Please add a comment for every question answered \"No\"");
+      return;
+    }
+
+    if (uploadsBusy) {
+      toast.error(
+        isUploadingImages
+          ? "Please wait for photos to finish uploading"
+          : "Some photos failed to upload. Please retry or remove them.",
+      );
+      return;
+    }
+
     setLoading(true);
+
+    let submitData;
+    try {
+      const newImages = await collectStagedImages();
+      submitData = {
+        ...formData,
+        images: [...formData.images, ...newImages],
+      };
+    } catch (error) {
+      console.error("Error collecting uploaded photos:", error);
+      toast.error(error.message || "Some photos failed to upload. Please retry them.");
+      setLoading(false);
+      return;
+    }
 
     try {
       if (editId) {
         await staffService.updateCabinHealthSafetyCheck(
           editId,
-          formData,
+          submitData,
           userProfile.uid,
           userProfile.displayName,
         );
         toast.success("Cabin Health & Safety Check updated successfully!");
         navigate(postActionPath);
       } else {
-        await staffService.submitCabinHealthSafetyCheck(
-          formData,
+        const { id: checkId, referenceId } = await staffService.submitCabinHealthSafetyCheck(
+          submitData,
           userProfile.uid,
           userProfile.displayName,
         );
         toast.success("Cabin Health & Safety Check submitted successfully!");
+        await sendReportCopyEmail(submitData, checkId, referenceId);
 
         setFormData({
           cabinOrPlotNo: "",
@@ -176,7 +433,10 @@ const CabinSafetyCheckFormPage = () => {
           inspectionDate: formatDateToBritish(new Date()),
           scheme: "",
           checklist: seedChecklist(),
+          images: [],
         });
+        setStagedImages([]);
+        uploadPromisesRef.current = {};
       }
     } catch (error) {
       console.error("Error submitting form:", error);
@@ -362,6 +622,9 @@ const CabinSafetyCheckFormPage = () => {
                       <div>
                         <label className="text-xs font-medium text-gray-500">
                           Comments / Actions
+                          {row.answer === "No" && (
+                            <span className="text-red-500"> * required</span>
+                          )}
                         </label>
                         <input
                           type="text"
@@ -369,7 +632,12 @@ const CabinSafetyCheckFormPage = () => {
                           onChange={(e) =>
                             updateChecklistField(idx, "comments", e.target.value)
                           }
-                          className="input input-sm w-full bg-white border-gray-300 rounded-lg mt-1"
+                          required={row.answer === "No"}
+                          className={`input input-sm w-full bg-white rounded-lg mt-1 ${
+                            row.answer === "No" && !row.comments.trim()
+                              ? "border-red-400"
+                              : "border-gray-300"
+                          }`}
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
@@ -419,7 +687,12 @@ const CabinSafetyCheckFormPage = () => {
                     <tr>
                       <th className="text-left">Question</th>
                       <th className="text-center w-40">Yes / No / N/A</th>
-                      <th className="text-left">Comments / Actions</th>
+                      <th className="text-left">
+                        Comments / Actions{" "}
+                        <span className="text-red-500 font-normal text-xs">
+                          (required if No)
+                        </span>
+                      </th>
                       <th className="text-left">Action Owner</th>
                       <th className="text-left">Completed</th>
                     </tr>
@@ -465,7 +738,13 @@ const CabinSafetyCheckFormPage = () => {
                                   e.target.value,
                                 )
                               }
-                              className="input input-sm w-full bg-white border-gray-300 rounded-lg"
+                              required={row.answer === "No"}
+                              placeholder={row.answer === "No" ? "Required" : ""}
+                              className={`input input-sm w-full bg-white rounded-lg ${
+                                row.answer === "No" && !row.comments.trim()
+                                  ? "border-red-400"
+                                  : "border-gray-300"
+                              }`}
                             />
                           </td>
                           <td className="align-top py-2">
@@ -504,6 +783,115 @@ const CabinSafetyCheckFormPage = () => {
             </div>
           ))}
 
+          {/* Photos */}
+          <div className="mb-6">
+            <label className="label">
+              <span className="label-text font-semibold">
+                Photos ({formData.images.length + stagedImages.length}/{MAX_IMAGES})
+              </span>
+            </label>
+            <div
+              className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-brand-400 transition-colors"
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="cabin-safety-photo-upload"
+                disabled={formData.images.length + stagedImages.length >= MAX_IMAGES}
+              />
+              <label
+                htmlFor="cabin-safety-photo-upload"
+                className="cursor-pointer"
+              >
+                <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-brand-600 font-semibold mb-1">Browse Photos</p>
+                <p className="text-gray-500 text-sm">
+                  Drag and drop images here — up to {MAX_IMAGES} total
+                </p>
+              </label>
+
+              {formData.images.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">
+                    Saved photos
+                  </p>
+                  {formData.images.map((image, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between bg-blue-50 p-2 rounded"
+                    >
+                      <span className="text-sm text-gray-700 truncate">
+                        {image.fileName}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeExistingImage(index)}
+                        className="text-red-500 hover:text-red-700 shrink-0 ml-2"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {stagedImages.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {formData.images.length > 0 && (
+                    <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">
+                      New photos
+                    </p>
+                  )}
+                  {stagedImages.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="flex items-center justify-between gap-2 bg-gray-50 p-2 rounded"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {entry.status === "uploading" && (
+                          <Loader2 className="w-4 h-4 shrink-0 text-brand-500 animate-spin" />
+                        )}
+                        {entry.status === "done" && (
+                          <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
+                        )}
+                        {entry.status === "error" && (
+                          <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                        )}
+                        <span className="text-sm text-gray-700 truncate">
+                          {entry.file.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {entry.status === "error" && (
+                          <button
+                            type="button"
+                            onClick={() => retryUpload(entry.id)}
+                            className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800"
+                          >
+                            <RotateCw className="w-3.5 h-3.5" />
+                            Retry
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeStagedImage(entry.id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Submit Buttons */}
           <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-300">
             <button
@@ -515,16 +903,18 @@ const CabinSafetyCheckFormPage = () => {
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || uploadsBusy}
               className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-600 disabled:opacity-50 transition-colors font-semibold"
             >
               {loading
                 ? editId
                   ? "Updating..."
                   : "Submitting..."
-                : editId
-                  ? "Update"
-                  : "Submit"}
+                : isUploadingImages
+                  ? "Uploading photos…"
+                  : editId
+                    ? "Update"
+                    : "Submit"}
             </button>
           </div>
         </form>

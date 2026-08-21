@@ -209,6 +209,30 @@ const CabinSafetyCheckDetailPage = () => {
             </div>
           ))}
 
+          {/* Photos */}
+          {report.images?.length > 0 && (
+            <div className="mb-8 pb-8 border-b">
+              <h4 className="text-lg font-bold text-gray-800 mb-4">Photos</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {report.images.map((image, index) => (
+                  <a
+                    key={index}
+                    href={image.downloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block rounded-lg overflow-hidden border border-gray-200 hover:opacity-90 transition-opacity"
+                  >
+                    <img
+                      src={image.downloadUrl}
+                      alt={image.fileName || `Photo ${index + 1}`}
+                      className="w-full h-32 object-cover"
+                    />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Submission Information */}
           <div className="bg-gray-50 rounded-lg p-6">
             <h4 className="text-sm font-semibold text-gray-500 uppercase mb-4">

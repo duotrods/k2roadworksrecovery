@@ -459,7 +459,7 @@ class StaffService {
         staffGroup: "internal",
       });
 
-      return data.id;
+      return { id: data.id, referenceId };
     } catch (error) {
       console.error("Failed to submit cabin health & safety check:", error);
       throw error;
@@ -605,7 +605,7 @@ class StaffService {
         staffGroup: "internal",
       });
 
-      return data.id;
+      return { id: data.id, referenceId };
     } catch (error) {
       console.error("Failed to submit vehicle daily check:", error);
       throw error;
