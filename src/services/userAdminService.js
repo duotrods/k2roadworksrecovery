@@ -48,7 +48,7 @@ class UserAdminService {
       const to = from + pageSize - 1;
       let query = supabase
         .from('users')
-        .select('*, user_schemes(scheme_id, scheme_name)', { count: 'exact' })
+        .select('id, email, display_name, role, company, email_verified, is_archived, archived_at, scheme_id, scheme_name, scheme_names, active_scheme_id, can_submit_cabin_hs_checks, user_schemes(scheme_id, scheme_name)', { count: 'exact' })
         .order('created_at', { ascending: false });
       if (archiveStatus === 'active') query = query.eq('is_archived', false);
       else if (archiveStatus === 'archived') query = query.eq('is_archived', true);
@@ -139,7 +139,7 @@ class UserAdminService {
       const to = from + pageSize - 1;
       const { data, error, count } = await supabase
         .from('login_logs')
-        .select('*', { count: 'exact' })
+        .select('id, display_name, email, role, login_at, expire_at', { count: 'exact' })
         .order('login_at', { ascending: false })
         .range(from, to);
       if (error) throw error;
@@ -179,7 +179,7 @@ class UserAdminService {
       const to = from + pageSize - 1;
       let query = supabase
         .from('users')
-        .select('*, user_schemes(scheme_id, scheme_name)', { count: 'exact' })
+        .select('id, email, display_name, role, company, email_verified, is_archived, archived_at, scheme_id, scheme_name, scheme_names, active_scheme_id, can_submit_cabin_hs_checks, user_schemes(scheme_id, scheme_name)', { count: 'exact' })
         .eq('role', role)
         .order('created_at', { ascending: false });
       if (archiveStatus === 'active') query = query.eq('is_archived', false);
@@ -222,7 +222,7 @@ class UserAdminService {
     try {
       const { data: targetRow, error: fetchError } = await supabase
         .from('users')
-        .select('*, user_schemes(scheme_id, scheme_name)')
+        .select('role, scheme_names, active_scheme_id, user_schemes(scheme_id, scheme_name)')
         .eq('id', userId)
         .maybeSingle();
       if (fetchError) throw fetchError;
@@ -266,7 +266,7 @@ class UserAdminService {
     try {
       const { data: targetRow, error: fetchError } = await supabase
         .from('users')
-        .select('*, user_schemes(scheme_id, scheme_name)')
+        .select('role, scheme_names, active_scheme_id, user_schemes(scheme_id, scheme_name)')
         .eq('id', userId)
         .maybeSingle();
       if (fetchError) throw fetchError;

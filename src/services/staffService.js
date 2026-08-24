@@ -15,10 +15,29 @@ import { fromActivityRow, toActivityRow } from "../utils/activityRowMapper";
 // legacy Firestore collection name so existing call sites (which still pass
 // that name around as a de-facto "form type" key) can look up the Postgres
 // table + row mapper without a wider rename.
+// listColumns = the columns StaffReportsPage.jsx (admin) and ReportsList.jsx
+// (staff) actually render for the merged, paginated reports table/cards —
+// both pages share this fetch path, so this list is the union of every
+// field either one reads off a row (display columns, scheme_id/scheme_ids
+// for demo-scheme filtering, edit/submit metadata). Full rows are only
+// fetched on demand (view/edit/PDF-download) via the per-type getById calls
+// below, which stay select("*").
 const SUPABASE_BACKED_TABLES = {
-  incidentReports: { table: "incident_reports", fromRow: fromIncidentRow },
-  cabinHealthSafetyChecks: { table: "cabin_health_safety_checks", fromRow: fromCabinSafetyRow },
-  vehicleDailyChecks: { table: "vehicle_daily_checks", fromRow: fromVehicleCheckRow },
+  incidentReports: {
+    table: "incident_reports",
+    fromRow: fromIncidentRow,
+    listColumns: "id, reference_id, scheme, scheme_id, scheme_ids, first_name, date, time, time_of_arrival, submitted_by_user_id, submitted_by_name, last_edited_by_user_id, last_edited_by_name, status, created_at",
+  },
+  cabinHealthSafetyChecks: {
+    table: "cabin_health_safety_checks",
+    fromRow: fromCabinSafetyRow,
+    listColumns: "id, reference_id, scheme, scheme_id, scheme_ids, submitted_by_user_id, submitted_by_name, last_edited_by_user_id, last_edited_by_name, status, created_at",
+  },
+  vehicleDailyChecks: {
+    table: "vehicle_daily_checks",
+    fromRow: fromVehicleCheckRow,
+    listColumns: "id, reference_id, scheme, scheme_id, scheme_ids, date, day, submitted_by_user_id, submitted_by_name, last_edited_by_user_id, last_edited_by_name, status, created_at",
+  },
   dailyAllocations: { table: "daily_allocations", fromRow: fromDailyAllocationRow },
 };
 
@@ -56,7 +75,7 @@ class StaffService {
           : lastLogoutTime;
       const { data, error } = await supabase
         .from("activities")
-        .select("*")
+        .select("id, type, staff_id, staff_name, description, staff_group, created_at")
         .gt("created_at", since)
         .order("created_at", { ascending: false })
         .limit(25);
@@ -173,9 +192,9 @@ class StaffService {
     }
   }
 
-  async getIncidentReports(userId = null, limitCount = null, dateRange = null) {
+  async getIncidentReports(userId = null, limitCount = null, dateRange = null, columns = "*") {
     try {
-      let q = supabase.from("incident_reports").select("*");
+      let q = supabase.from("incident_reports").select(columns);
       if (userId) q = q.eq("submitted_by_user_id", userId);
       if (dateRange?.startDate) {
         q = q.gte("created_at", dateRange.startDate.toISOString());
@@ -222,7 +241,7 @@ class StaffService {
     try {
       const { data: currentRow, error: fetchError } = await supabase
         .from("incident_reports")
-        .select("*")
+        .select("edit_history, submitted_by_user_id, submitted_by_name, scheme_id, scheme, reference_id, files")
         .eq("id", reportId)
         .maybeSingle();
       if (fetchError) throw fetchError;
@@ -305,7 +324,7 @@ class StaffService {
     try {
       const { data: currentRow, error: fetchError } = await supabase
         .from("incident_reports")
-        .select("*")
+        .select("reference_id")
         .eq("id", reportId)
         .maybeSingle();
       if (fetchError) throw fetchError;
@@ -485,7 +504,7 @@ class StaffService {
     try {
       const { data: currentRow, error: fetchError } = await supabase
         .from("cabin_health_safety_checks")
-        .select("*")
+        .select("edit_history, submitted_by_user_id, submitted_by_name, scheme_id, reference_id")
         .eq("id", reportId)
         .maybeSingle();
       if (fetchError) throw fetchError;
@@ -537,7 +556,7 @@ class StaffService {
     try {
       const { data: currentRow, error: fetchError } = await supabase
         .from("cabin_health_safety_checks")
-        .select("*")
+        .select("reference_id")
         .eq("id", formId)
         .maybeSingle();
       if (fetchError) throw fetchError;
@@ -661,7 +680,7 @@ class StaffService {
     try {
       const { data: currentRow, error: fetchError } = await supabase
         .from("vehicle_daily_checks")
-        .select("*")
+        .select("edit_history, submitted_by_user_id, submitted_by_name, scheme_id, reference_id")
         .eq("id", reportId)
         .maybeSingle();
       if (fetchError) throw fetchError;
@@ -713,7 +732,7 @@ class StaffService {
     try {
       const { data: currentRow, error: fetchError } = await supabase
         .from("vehicle_daily_checks")
-        .select("*")
+        .select("reference_id")
         .eq("id", formId)
         .maybeSingle();
       if (fetchError) throw fetchError;
@@ -780,7 +799,7 @@ class StaffService {
     try {
       const { data: currentRow, error: fetchError } = await supabase
         .from("daily_allocations")
-        .select("*")
+        .select("edit_history, submitted_by_user_id, submitted_by_name")
         .eq("id", allocationId)
         .maybeSingle();
       if (fetchError) throw fetchError;
@@ -1002,16 +1021,17 @@ class StaffService {
       cursor,
       schemeIds,
       supabaseTable.fromRow,
+      supabaseTable.listColumns || "*",
     );
   }
 
   // Keyset pagination (created_at cursor) for a Supabase-backed table —
   // Supabase equivalent of fetchPaginatedForms below.
-  async fetchPaginatedSupabaseTable(tableName, limitCount, cursor, schemeIds, fromRow) {
+  async fetchPaginatedSupabaseTable(tableName, limitCount, cursor, schemeIds, fromRow, columns = "*") {
     try {
       let q = supabase
         .from(tableName)
-        .select("*")
+        .select(columns)
         .order("created_at", { ascending: false })
         .limit(limitCount);
       if (schemeIds && schemeIds.length > 0) {
@@ -1223,9 +1243,9 @@ class StaffService {
     };
 
     const ALL_TYPES = [
-      { key: "incident", table: "incident_reports", fromRow: fromIncidentRow, type: "Recovery Job Sheet" },
-      { key: "cabinSafety", table: "cabin_health_safety_checks", fromRow: fromCabinSafetyRow, type: "Cabin H&S Check" },
-      { key: "vehicleCheck", table: "vehicle_daily_checks", fromRow: fromVehicleCheckRow, type: "Vehicle Daily Check" },
+      { key: "incident", ...SUPABASE_BACKED_TABLES.incidentReports, type: "Recovery Job Sheet" },
+      { key: "cabinSafety", ...SUPABASE_BACKED_TABLES.cabinHealthSafetyChecks, type: "Cabin H&S Check" },
+      { key: "vehicleCheck", ...SUPABASE_BACKED_TABLES.vehicleDailyChecks, type: "Vehicle Daily Check" },
     ];
     const TYPES = collections && collections.length > 0
       ? ALL_TYPES.filter((t) => collections.includes(t.key))
@@ -1233,10 +1253,10 @@ class StaffService {
 
     try {
       const perTypeResults = await Promise.all(
-        TYPES.map(async ({ table, fromRow, type }) => {
+        TYPES.map(async ({ table, fromRow, type, listColumns }) => {
           const [byRef, byName] = await Promise.all([
-            supabase.from(table).select("*").ilike("reference_id", `${raw}%`).limit(50),
-            supabase.from(table).select("*").ilike("submitted_by_name", `${raw}%`).limit(50),
+            supabase.from(table).select(listColumns).ilike("reference_id", `${raw}%`).limit(50),
+            supabase.from(table).select(listColumns).ilike("submitted_by_name", `${raw}%`).limit(50),
           ]);
           if (byRef.error) throw byRef.error;
           if (byName.error) throw byName.error;

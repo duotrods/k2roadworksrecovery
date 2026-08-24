@@ -161,10 +161,18 @@ const ClientChartsPage = () => {
       // Scoped to the selected date window so we don't read the whole collection.
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999); // include the entire end day
+      // Narrowed to the columns the 12 charts + drill-down sidebar actually
+      // read — this table has ~50 columns (notes, checks, edit_history, etc.)
+      // that analytics never touches, so select("*") here was shipping a lot
+      // of unused bytes over the wire on every date-range change.
       const incidentReports = await staffService.getIncidentReports(null, null, {
         startDate,
         endDate: end,
-      });
+      }, "id, scheme, actual_fault, vehicle_allocated, job_source, "
+        + "time_onsite_to_cleared, driver_on_scene, police_on_scene, "
+        + "nh_on_scene, ripv_on_scene, time_spotted_to_on, vehicle_type, "
+        + "created_at, reference_id, marker_post, date, "
+        + "submitted_by_user_id, submitted_by_name");
       const reportsWithType = incidentReports.map((f) => ({ ...f, type: "Recovery Job Sheet" }));
       setReports(reportsWithType);
     } catch (error) {

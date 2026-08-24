@@ -4,6 +4,7 @@ import { useLiveIncidents, usePaginatedCompletedIncidents } from '../../hooks/us
 import { Eye, Download, Radio, CheckCircle, ChevronLeft, ChevronRight, Loader2, Filter, ChevronRight as ArrowRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { generateReportPDF } from '../../utils/pdfGenerator';
+import { staffService } from '../../services/staffService';
 import { SCHEMES } from '../../utils/schemes';
 import AdminSidebarLayout from '../../components/layout/AdminSidebarLayout';
 
@@ -118,7 +119,11 @@ const AdminLiveIncidentsPage = () => {
   const handleDownloadPDF = async (incident, e) => {
     e.stopPropagation();
     try {
-      await generateReportPDF(incident, 'incident');
+      // The list row only carries display columns (egress optimization) —
+      // fetch the full record before handing it to the PDF generator, which
+      // reads ~40 fields.
+      const fullIncident = await staffService.getIncidentReportById(incident.id);
+      await generateReportPDF(fullIncident, 'incident');
       toast.success('PDF downloaded successfully');
     } catch (error) {
       console.error('Failed to download PDF:', error);

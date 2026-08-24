@@ -27,7 +27,7 @@ class ClientDataService {
       initialFetch: () =>
         supabase
           .from("incident_reports")
-          .select("*")
+          .select("id, reference_id, marker_post, time, created_at")
           .overlaps("scheme_ids", [schemeId])
           .eq("status", "live")
           .order("created_at", { ascending: false })
@@ -70,7 +70,7 @@ class ClientDataService {
     try {
       let q = supabase
         .from("incident_reports")
-        .select("*")
+        .select("id, reference_id, marker_post, time, created_at")
         .overlaps("scheme_ids", [schemeId])
         .eq("status", "completed")
         .order("created_at", { ascending: false })
@@ -154,7 +154,7 @@ class ClientDataService {
     try {
       const { data, error } = await supabase
         .from("incident_reports")
-        .select("*")
+        .select("id, reference_id, scheme, date, submitted_by_user_id, submitted_by_name, status, location, created_at, actual_fault")
         .overlaps("scheme_ids", [schemeId])
         .order("created_at", { ascending: false })
         .limit(limitCount);
@@ -179,7 +179,7 @@ class ClientDataService {
       // Get recent incidents
       const { data, error } = await supabase
         .from("incident_reports")
-        .select("*")
+        .select("actual_fault, vehicle_allocated, job_source, vehicle_type, driver_on_scene, police_on_scene, nh_on_scene, ripv_on_scene, time_onsite_to_cleared, time_spotted_to_on, marker_post, created_at, status")
         .overlaps("scheme_ids", [schemeId])
         .gte("created_at", startDate.toISOString());
       if (error) throw error;
@@ -440,7 +440,7 @@ class ClientDataService {
 
       const { data, error } = await supabase
         .from("incident_reports")
-        .select("*")
+        .select("created_at")
         .overlaps("scheme_ids", [schemeId])
         .gte("created_at", startDate.toISOString())
         .order("created_at", { ascending: true });
@@ -498,7 +498,7 @@ class ClientDataService {
       // Get recent incidents
       const { data, error } = await supabase
         .from("incident_reports")
-        .select("*")
+        .select("id, reference_id, actual_fault, vehicle_allocated, job_source, vehicle_type, driver_on_scene, police_on_scene, nh_on_scene, ripv_on_scene, time_onsite_to_cleared, time_spotted_to_on, marker_post, date, created_at, status, submitted_by_user_id, submitted_by_name")
         .overlaps("scheme_ids", [schemeId])
         .gte("created_at", startDate.toISOString())
         .lte("created_at", endDate.toISOString());
@@ -564,7 +564,7 @@ class ClientDataService {
 
       const { data, error } = await supabase
         .from("incident_reports")
-        .select("*")
+        .select("created_at")
         .overlaps("scheme_ids", [schemeId])
         .gte("created_at", startDate.toISOString())
         .lte("created_at", endDate.toISOString())
@@ -682,7 +682,7 @@ class ClientDataService {
     try {
       let q = supabase
         .from("incident_reports")
-        .select("*")
+        .select("id, reference_id, scheme, date, submitted_by_user_id, submitted_by_name, status, location, created_at, actual_fault")
         .overlaps("scheme_ids", [schemeId])
         .order("created_at", { ascending: false })
         .limit(limitCount);
@@ -931,7 +931,7 @@ class ClientDataService {
     try {
       const { data, error } = await supabase
         .from("incident_reports")
-        .select("*")
+        .select("id, reference_id, scheme, submitted_by_user_id, submitted_by_name, files, created_at")
         .overlaps("scheme_ids", [schemeId])
         .eq("has_video", true)
         .order("created_at", { ascending: false });
@@ -973,13 +973,13 @@ class ClientDataService {
       const [byRef, byName] = await Promise.all([
         supabase
           .from("incident_reports")
-          .select("*")
+          .select("id, reference_id, scheme, date, submitted_by_user_id, submitted_by_name, status, location, created_at, actual_fault")
           .overlaps("scheme_ids", [schemeId])
           .ilike("reference_id", `${raw}%`)
           .limit(10),
         supabase
           .from("incident_reports")
-          .select("*")
+          .select("id, reference_id, scheme, date, submitted_by_user_id, submitted_by_name, status, location, created_at, actual_fault")
           .overlaps("scheme_ids", [schemeId])
           .ilike("submitted_by_name", `${raw}%`)
           .limit(10),
@@ -1027,13 +1027,13 @@ class ClientDataService {
       const [byRef, byName] = await Promise.all([
         supabase
           .from("incident_reports")
-          .select("*")
+          .select("id, reference_id, scheme, date, submitted_by_user_id, submitted_by_name, status, location, created_at, actual_fault")
           .overlaps("scheme_ids", [schemeId])
           .ilike("reference_id", `${raw}%`)
           .limit(200),
         supabase
           .from("incident_reports")
-          .select("*")
+          .select("id, reference_id, scheme, date, submitted_by_user_id, submitted_by_name, status, location, created_at, actual_fault")
           .overlaps("scheme_ids", [schemeId])
           .ilike("submitted_by_name", `${raw}%`)
           .limit(200),

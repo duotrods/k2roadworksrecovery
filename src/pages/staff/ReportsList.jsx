@@ -473,15 +473,19 @@ const ReportsList = () => {
   const handleDownloadForm = async (form) => {
     try {
       let reportType;
+      let fullForm = form;
       if (form.type === "Recovery Job Sheet") {
         reportType = "incident";
+        fullForm = await staffService.getIncidentReportById(form.id);
       } else if (form.type === "Cabin H&S Check") {
         reportType = "cabin-safety";
+        fullForm = await staffService.getCabinHealthSafetyCheckById(form.id);
       } else if (form.type === "Vehicle Daily Check") {
         reportType = "vehicle-check";
+        fullForm = await staffService.getVehicleDailyCheckById(form.id);
       }
 
-      await generateReportPDF(form, reportType, null);
+      await generateReportPDF(fullForm, reportType, null);
       toast.success(`Downloaded ${form.type} as PDF`);
     } catch (error) {
       console.error("Failed to download PDF:", error);

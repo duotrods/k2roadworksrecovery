@@ -370,14 +370,22 @@ const StaffReportsPage = () => {
 
   const handleDownloadPDF = async (report) => {
     try {
-      // Map display type to PDF generator type
+      // The list row only carries display columns (egress optimization) —
+      // fetch the full record before handing it to the PDF generator, which
+      // reads ~40 fields.
+      const fetchByType = {
+        "Recovery Job Sheet": () => staffService.getIncidentReportById(report.id),
+        "Cabin H&S Check": () => staffService.getCabinHealthSafetyCheckById(report.id),
+        "Vehicle Daily Check": () => staffService.getVehicleDailyCheckById(report.id),
+      };
       const typeMap = {
         "Recovery Job Sheet": "incident",
         "Cabin H&S Check": "cabin-safety",
         "Vehicle Daily Check": "vehicle-check",
       };
       const reportType = typeMap[report.type] || "incident";
-      await generateReportPDF(report, reportType);
+      const fullReport = await (fetchByType[report.type]?.() ?? Promise.resolve(report));
+      await generateReportPDF(fullReport, reportType);
       toast.success("PDF downloaded successfully");
     } catch (error) {
       console.error("Failed to generate PDF:", error);

@@ -464,7 +464,14 @@ const ReportsPage = () => {
 
   const handleDownloadReport = async (report) => {
     try {
-      await generateReportPDF(report, report.reportType);
+      // The list row only carries display columns (egress optimization) —
+      // fetch the full record before handing it to the PDF generator, which
+      // reads ~40 fields.
+      const fullReport =
+        report.reportType === "incident"
+          ? await clientDataService.getIncidentById(report.id)
+          : report;
+      await generateReportPDF(fullReport, report.reportType);
       toast.success(`Downloaded ${report.referenceId || "report"} as PDF`);
     } catch (error) {
       console.error("Failed to generate PDF:", error);

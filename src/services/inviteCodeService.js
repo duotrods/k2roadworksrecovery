@@ -95,7 +95,7 @@ class InviteCodeService {
       const to = from + pageSize - 1;
       const { data, error, count } = await supabase
         .from('invite_codes')
-        .select('*', { count: 'exact' })
+        .select('id, code, scheme_id, scheme_name, created_by_name, is_used, created_at, expires_at', { count: 'exact' })
         .eq('type', 'client_otp')
         .order('created_at', { ascending: false })
         .range(from, to);
@@ -118,7 +118,7 @@ class InviteCodeService {
       const to = from + pageSize - 1;
       const { data, error, count } = await supabase
         .from('invite_codes')
-        .select('*', { count: 'exact' })
+        .select('id, code, created_by_name, expires_at, uses_remaining, max_uses, created_at', { count: 'exact' })
         .eq('type', 'staff_invite')
         .order('created_at', { ascending: false })
         .range(from, to);
