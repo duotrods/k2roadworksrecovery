@@ -68,7 +68,7 @@ export const getReportTypeIcon = (type) => {
   switch (type) {
     case "incident":
       return (
-        <FontAwesomeIcon icon={faCarBurst} className="text-amber-600 text-[14px]" />
+        <FontAwesomeIcon icon={faCarBurst} className="text-brand-600 text-[14px]" />
       );
     default:
       return <FileText className="w-4 h-4 text-gray-500" />;
@@ -77,7 +77,7 @@ export const getReportTypeIcon = (type) => {
 
 export const getReportTypeBadge = (type) => {
   const badges = {
-    incident: "bg-amber-100 text-amber-600 font-semibold",
+    incident: "bg-brand-100 text-brand-600 font-semibold",
   };
   return badges[type] || "badge-ghost";
 };
