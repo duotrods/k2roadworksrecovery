@@ -13,7 +13,8 @@ const STEPS = [
   { label: "Customer", short: "Customer" },
 ];
 
-const StepIndicator = ({ currentStep }) => {
+const StepIndicator = ({ currentStep, totalSteps = 4 }) => {
+  const steps = STEPS.slice(0, totalSteps);
   const circleClass = (step) =>
     `flex items-center justify-center w-10 h-10 rounded-full font-bold shrink-0 ${
       currentStep >= step ? "bg-brand-500 text-white" : "bg-gray-200 text-gray-500"
@@ -29,9 +30,9 @@ const StepIndicator = ({ currentStep }) => {
           centre (top-5 = the 40px circle's mid-point) across to the next
           circle's centre (left-1/2 + w-full), sitting behind the circle. */}
       <div className="flex sm:hidden">
-        {STEPS.map(({ short }, index) => {
+        {steps.map(({ short }, index) => {
           const step = index + 1;
-          const isLast = step === STEPS.length;
+          const isLast = step === steps.length;
           return (
             <div
               key={short}
@@ -55,13 +56,13 @@ const StepIndicator = ({ currentStep }) => {
 
       {/* Desktop: horizontal stepper with labels beside the circles */}
       <div className="hidden sm:flex items-center justify-center">
-        {STEPS.map(({ label }, index) => {
+        {steps.map(({ label }, index) => {
           const step = index + 1;
           return (
             <div key={label} className="flex items-center">
               <div className={circleClass(step)}>{step}</div>
               <span className={`ml-2 ${labelClass(step)}`}>{label}</span>
-              {step < STEPS.length && (
+              {step < steps.length && (
                 <div className={`w-16 h-1 mx-4 ${lineClass(step)}`} />
               )}
             </div>

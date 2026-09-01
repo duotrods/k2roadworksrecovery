@@ -131,6 +131,11 @@ const IncidentReportFormPage = () => {
   const [showStandDownConfirm, setShowStandDownConfirm] = useState(false);
 
   const [formData, setFormData] = useState(() => emptyFormData(userProfile));
+  // RIPV jobs use a shortened On Scene form (Step 2) and complete there —
+  // no Drop-Off Sheet or Customer page. Computed once here since Step 1's
+  // and Step 2's StepIndicator, handleStep2Next, and completeRipvJob all
+  // need it.
+  const isRipv = formData.vehicleAllocated === "RIPV";
   const [sourceOtherMode, setSourceOtherMode] = useState(false);
   const [isRedrawingSignature, setIsRedrawingSignature] = useState(false);
   const signaturePadRef = useRef(null);
@@ -554,11 +559,61 @@ const IncidentReportFormPage = () => {
     }
   };
 
+  // RIPV's own completion path: On Scene (Step 2) is the whole job for a
+  // RIPV vehicle, so submitting it completes the job sheet directly instead
+  // of advancing to the Drop-Off Sheet / Customer steps, which RIPV never
+  // uses. Mirrors the completion half of handleSubmit (Step 4) but scoped to
+  // RIPV's own fields — no signature, no customer fields, no image upload.
+  const completeRipvJob = async () => {
+    const incidentId = editId || liveIncidentId;
+    if (!incidentId) return;
+
+    setLoading(true);
+    try {
+      const uploadedFiles = await collectStagedUploads();
+      const trimmedData = {
+        ...formData,
+        firstName: formData.firstName.trim(),
+        markerPost: formData.markerPost.trim(),
+        jobSource: formData.jobSource.trim(),
+        customerLogNo: formData.customerLogNo.trim(),
+        actualFault: formData.actualFault.trim(),
+        notes: formData.notes.trim(),
+        location: formData.location.trim(),
+      };
+      const dataWithTimings = calculateTimeDifferences(trimmedData);
+      const updateData = { ...dataWithTimings };
+
+      if (uploadedFiles.length > 0) {
+        updateData.files = [...(formData.files || []), ...uploadedFiles];
+      }
+
+      // Only flip status on the genuine "operator just finished this live
+      // job" path — matches handleSubmit's Step 4 behavior, so an admin
+      // editing an already-completed report doesn't have its status changed.
+      if (isEditingLiveIncident) updateData.status = "completed";
+
+      await staffService.updateIncidentReport(
+        incidentId,
+        updateData,
+        userProfile.uid,
+        userProfile.displayName,
+        isEditingLiveIncident,
+      );
+
+      toast.success("Job Sheet completed successfully!");
+      navigate(postActionPath);
+    } catch (error) {
+      console.error("Error completing RIPV Job Sheet:", error);
+      toast.error("Failed to complete Job Sheet. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Step 2: On Scene — save progress and continue to Drop-Off Sheet.
   const handleStep2Next = async (e) => {
     e.preventDefault();
-
-    const isRipv = formData.vehicleAllocated === "RIPV";
 
     if (isRipv) {
       // RIPV's shortened On Scene form: no checkboxes, no Arrival Images to
@@ -605,6 +660,11 @@ const IncidentReportFormPage = () => {
         toast.error("Please upload at least one Arrival Image");
         return;
       }
+    }
+
+    if (isRipv) {
+      await completeRipvJob();
+      return;
     }
 
     setLoading(true);
@@ -985,7 +1045,7 @@ const IncidentReportFormPage = () => {
       onSubmit={handleStep1Submit}
       className="bg-white rounded-xl shadow-md p-4 sm:p-8 space-y-6"
     >
-      <StepIndicator currentStep={currentStep} />
+      <StepIndicator currentStep={currentStep} totalSteps={isRipv ? 2 : 4} />
 
       <div className="bg-brand-50 border border-brand-200 rounded-lg p-4 mb-6">
         <p className="text-brand-700 font-medium">Step 1: Start Job</p>
@@ -1225,14 +1285,10 @@ const IncidentReportFormPage = () => {
 
   const renderStep2 = () => {
     const hasClockedOnScene = Boolean(formData.timeOfArrival);
-    // RIPV jobs get a shortened On Scene form (Location, Time on Scene, Cleared,
-    // Marker Post, Fault) instead of the full set below — see handleStep2Next
-    // for the matching validation branch.
-    const isRipv = formData.vehicleAllocated === "RIPV";
 
     return (
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-8 space-y-6">
-        <StepIndicator currentStep={currentStep} />
+        <StepIndicator currentStep={currentStep} totalSteps={isRipv ? 2 : 4} />
 
         <div className="bg-brand-50 border border-brand-200 rounded-lg p-4 mb-6">
           <p className="text-brand-700 font-medium">Step 2: On Scene</p>
@@ -1541,7 +1597,9 @@ const IncidentReportFormPage = () => {
                   disabled={loading || uploadsBusy}
                   className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors font-semibold flex items-center gap-2"
                 >
-                  {loading ? "Saving..." : isUploading ? "Uploading images…" : (
+                  {loading ? "Saving..." : isUploading ? "Uploading images…" : isRipv ? (
+                    "Complete Job Sheet"
+                  ) : (
                     <>
                       Next
                       <ChevronRight className="w-5 h-5" />
