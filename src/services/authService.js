@@ -25,6 +25,18 @@ const mapAuthErrorCode = (error) => {
 
 const toAppError = (error) => new AppError(error.message, mapAuthErrorCode(error), error);
 
+// Supabase's signUp() returns a decoy "success" (no `error`) when the email
+// already has an account, instead of rejecting it — and deliberately sends no
+// email either way, to avoid revealing which emails are registered.
+// `identities` is empty only in that decoy case, never for a genuine new
+// signup, so this is the one reliable way to detect it and surface a real
+// error instead of silently doing nothing.
+const assertEmailNotAlreadyRegistered = (data) => {
+  if (data.user && data.user.identities?.length === 0) {
+    throw new AppError('This email is already registered', 'auth/email-already-in-use');
+  }
+};
+
 class AuthService {
   async signUpWithEmail(email, password, userData) {
     try {
@@ -32,6 +44,7 @@ class AuthService {
         email,
         password,
         options: {
+          emailRedirectTo: window.location.origin,
           data: {
             display_name: userData.displayName,
             role: userData.role || USER_ROLES.CLIENT,
@@ -41,6 +54,7 @@ class AuthService {
         },
       });
       if (error) throw toAppError(error);
+      assertEmailNotAlreadyRegistered(data);
 
       // A session comes back immediately only if email confirmation is
       // disabled project-wide. Otherwise the profile gets completed on the
@@ -118,7 +132,11 @@ class AuthService {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user?.email) return;
-      const { error } = await supabase.auth.resend({ type: 'signup', email: user.email });
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: user.email,
+        options: { emailRedirectTo: window.location.origin },
+      });
       if (error) throw toAppError(error);
     } catch (error) {
       if (error instanceof AppError) throw error;
@@ -143,6 +161,7 @@ class AuthService {
         email,
         password,
         options: {
+          emailRedirectTo: window.location.origin,
           data: {
             display_name: userData.displayName,
             role: USER_ROLES.CLIENT,
@@ -154,6 +173,7 @@ class AuthService {
         },
       });
       if (error) throw toAppError(error);
+      assertEmailNotAlreadyRegistered(data);
 
       if (data.session) {
         await userService.ensureUserProfile(data.user);
@@ -183,6 +203,7 @@ class AuthService {
         email,
         password,
         options: {
+          emailRedirectTo: window.location.origin,
           data: {
             display_name: userData.displayName,
             role: USER_ROLES.STAFF,
@@ -194,6 +215,7 @@ class AuthService {
         },
       });
       if (error) throw toAppError(error);
+      assertEmailNotAlreadyRegistered(data);
 
       if (data.session) {
         await userService.ensureUserProfile(data.user);
