@@ -61,7 +61,7 @@ const AnalyticsPage = () => {
     ? Object.entries(stats.spottedBy).map(([name, count]) => ({ name, count }))
     : [];
 
-  const COLORS = ['#17af93', '#0891b2', '#8b5cf6', '#f59e0b', '#ef4444', '#10b981'];
+  const COLORS = ['#0865ad', '#0891b2', '#8b5cf6', '#f59e0b', '#ef4444', '#10b981'];
 
   const statsCards = [
     {
@@ -156,7 +156,7 @@ const AnalyticsPage = () => {
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="count" stroke="#17af93" strokeWidth={2} />
+                <Line type="monotone" dataKey="count" stroke="#0865ad" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
           </div>

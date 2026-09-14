@@ -616,16 +616,14 @@ const IncidentReportFormPage = () => {
     e.preventDefault();
 
     if (isRipv) {
-      // RIPV's shortened On Scene form: no checkboxes, no Arrival Images to
-      // validate — just its own 5 fields (Fault is the same field as Step 3's
-      // Fault, i.e. actualFault). Also enforces "Cleared" (unlike the
-      // non-RIPV branch below, where timeCompleted is visually marked
-      // required but intentionally left unenforced — see that branch).
+      // RIPV's shortened On Scene form: no checkboxes, no Arrival Images, no
+      // Fault to validate — just its own 4 fields. Also enforces "Cleared"
+      // (unlike the non-RIPV branch below, where timeCompleted is visually
+      // marked required but intentionally left unenforced — see that branch).
       if (
         !formData.timeOfArrival ||
         !formData.markerPost ||
         !formData.location ||
-        !formData.actualFault ||
         !formData.timeCompleted
       ) {
         toast.error("Please fill in all required fields for On Scene");
@@ -650,14 +648,6 @@ const IncidentReportFormPage = () => {
 
       if (formData.otherOnScene && !formData.otherOnSceneDetails.trim()) {
         toast.error("Please specify who else was on scene");
-        return;
-      }
-
-      const savedArrivalImages = (formData.files || []).filter(
-        (file) => file.stage === "arrival",
-      );
-      if (savedArrivalImages.length === 0 && arrivalFiles.length === 0) {
-        toast.error("Please upload at least one Arrival Image");
         return;
       }
     }
@@ -938,7 +928,7 @@ const IncidentReportFormPage = () => {
   // stage is "arrival" (Step 2) or "dropoff" (Step 3) — each gets its own
   // saved-files filter and its own new-files staging array so the two boxes
   // never show each other's attachments.
-  const renderFileUpload = (inputId, label, stage) => {
+  const renderFileUpload = (inputId, label, stage, required = true) => {
     const savedForStage = (formData.files || [])
       .map((file, index) => ({ file, index }))
       .filter(({ file }) => file.stage === stage);
@@ -947,7 +937,9 @@ const IncidentReportFormPage = () => {
     return (
       <div>
         <label className="label">
-          <span className="label-text font-semibold">{label} <span className="text-red-500">*</span> </span>
+          <span className="label-text font-semibold">
+            {label} {required && <span className="text-red-500">*</span>}
+          </span>
         </label>
         <div
           className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-brand-400 transition-colors"
@@ -1403,51 +1395,6 @@ const IncidentReportFormPage = () => {
                     />
                   </div>
                 </div>
-
-                {/* Fault — same field as Step 3's "Fault" (actualFault), so a
-                    value picked here always shows there too, and vice versa. */}
-                <div>
-                  <label className="label">
-                    <span className="label-text font-semibold mb-2">
-                      Fault <span className="text-red-500">*</span>
-                    </span>
-                  </label>
-                  <select
-                    name="actualFault"
-                    value={sourceOtherMode ? "Other" : formData.actualFault}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === "Other") {
-                        setSourceOtherMode(true);
-                        setFormData((prev) => ({ ...prev, actualFault: "" }));
-                      } else {
-                        setSourceOtherMode(false);
-                        setFormData((prev) => ({ ...prev, actualFault: value }));
-                      }
-                    }}
-                    className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-                    required
-                  >
-                    <option value="">Please Select</option>
-                    {ACTUAL_TYPE_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                  {sourceOtherMode && (
-                    <input
-                      type="text"
-                      placeholder="Enter Fault"
-                      value={formData.actualFault}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, actualFault: e.target.value }))
-                      }
-                      className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full mt-3"
-                      maxLength={100}
-                    />
-                  )}
-                </div>
               </>
             ) : (
               <>
@@ -1464,6 +1411,7 @@ const IncidentReportFormPage = () => {
                       ["policeOnScene", "Police on scene"],
                       ["nhOnScene", "NH on scene"],
                       ["ripvOnScene", "RIPV on scene"],
+                      ["policeLeadIncident", "Police Lead Incident"],
                       ["otherOnScene", "Other on scene (please specify)"]
                     ].map(([key, label]) => (
                       <label key={key} className="flex items-center gap-2 cursor-pointer">
@@ -1551,7 +1499,7 @@ const IncidentReportFormPage = () => {
                   </div>
                 </div>
 
-                {renderFileUpload("file-upload-step2", "Arrival Images", "arrival")}
+                {renderFileUpload("file-upload-step2", "Arrival Images", "arrival", false)}
 
                 {/* Time Cleared */}
                 <div>

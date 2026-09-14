@@ -115,31 +115,36 @@ const NewStaffDashboard = () => {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-6 mb-6 sm:mb-8">
-              {statCards.map((card, index) => (
-                <div
-                  key={index}
-                  className={`bg-white rounded-xl shadow-md p-4 sm:p-6 hover:shadow-lg transition-shadow ${
-                    index === statCards.length - 1 && statCards.length % 2 === 1
-                      ? "col-span-2 lg:col-span-1"
-                      : ""
-                  }`}
-                >
-                  <div className="mb-3 sm:mb-4">
-                    <h5 className="text-xs sm:text-sm font-medium text-gray-600 leading-tight">
-                      {card.title}
-                    </h5>
-                  </div>
+            {/* Statistics cards — hidden for staff whose Cabin H&S Check
+                access has been revoked (Admin → Assignments & Access →
+                Cabin Check Access), same flag that gates the CTA below. */}
+            {canSubmitCabinChecks && (
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-6 mb-6 sm:mb-8">
+                {statCards.map((card, index) => (
+                  <div
+                    key={index}
+                    className={`bg-white rounded-xl shadow-md p-4 sm:p-6 hover:shadow-lg transition-shadow ${
+                      index === statCards.length - 1 && statCards.length % 2 === 1
+                        ? "col-span-2 lg:col-span-1"
+                        : ""
+                    }`}
+                  >
+                    <div className="mb-3 sm:mb-4">
+                      <h5 className="text-xs sm:text-sm font-medium text-gray-600 leading-tight">
+                        {card.title}
+                      </h5>
+                    </div>
 
-                  <div className="mt-2">
-                    <span className="text-3xl sm:text-4xl font-bold text-gray-800">
-                      {card.count}
-                    </span>
-                    <p className="text-xs sm:text-sm text-gray-400 mt-1">This week</p>
+                    <div className="mt-2">
+                      <span className="text-3xl sm:text-4xl font-bold text-gray-800">
+                        {card.count}
+                      </span>
+                      <p className="text-xs sm:text-sm text-gray-400 mt-1">This week</p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             <h2 className="text-lg font-semibold text-gray-800 mb-3">
               Start something new

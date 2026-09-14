@@ -43,6 +43,11 @@ const ReportsList = () => {
   // all internal (non-demo, non-TP) schemes; demo → demo scheme. This keeps
   // third-party forms out of the real-staff list, counts, and search.
   const schemeScope = getViewerSchemeScope(userProfile);
+  // Same admin-revocable flag that gates the Cabin H&S Check CTA — staff
+  // without it only get to see their own live Recovery Job Sheets here,
+  // not the whole scheme's forms. undefined while loading is treated as
+  // allowed so the table doesn't flash restricted.
+  const canSubmitCabinChecks = userProfile?.canSubmitCabinHsChecks !== false;
 
   const [latestForms, setLatestForms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -72,6 +77,17 @@ const ReportsList = () => {
 
     loadTotalCount();
 
+    // Staff without Cabin Check access only ever see their own live Recovery
+    // Job Sheets, so lock the type filter to "incident" up front — this also
+    // keeps the fetch scoped to a single table instead of merging all three.
+    if (!canSubmitCabinChecks && !_dashRestore) {
+      setFilterType("incident");
+      staffService
+        .getFormCountForType("incident", schemeScope)
+        .then(setTypeCount)
+        .catch(() => setTypeCount(0));
+    }
+
     if (_dashRestore) {
       // Restore the exact page the user was on before viewing a report
       setCurrentPage(_dashRestore.page);
@@ -96,7 +112,7 @@ const ReportsList = () => {
       setLoading(false);
       wasRestoredRef.current = true;
     } else {
-      loadDashboardData(true);
+      loadDashboardData(true, canSubmitCabinChecks ? null : "incident");
     }
   }, [userProfile?.uid]);
 
@@ -405,6 +421,17 @@ const ReportsList = () => {
 
   // Use Firestore search results when searching, otherwise use paginated page data
   const currentForms = isSearchMode ? searchResults : filteredForms;
+  // Staff without Cabin Check access are locked to filterType "incident"
+  // above, but still narrow further to their own live jobs only — hides
+  // other staff's forms and this staff's own completed ones.
+  const visibleForms = canSubmitCabinChecks
+    ? currentForms
+    : currentForms.filter(
+        (form) =>
+          form.type === "Recovery Job Sheet" &&
+          form.status === "live" &&
+          form.submittedBy?.userId === userProfile?.uid,
+      );
   const activeCount = filterType === "all" ? totalCount : typeCount;
   const totalPages = Math.ceil(activeCount / formsPerPage);
 
@@ -540,20 +567,23 @@ const ReportsList = () => {
                 />
               </div>
 
-              {/* Filter */}
-              <div className="flex items-center gap-2">
-                <Filter className="w-5 h-5 text-gray-500" />
-                <select
-                  value={filterType}
-                  onChange={(e) => handleFilterChange(e.target.value)}
-                  className="select select-bordered bg-white border-gray-300"
-                >
-                  <option value="all">All Types</option>
-                  <option value="incident">Recovery Job Sheets</option>
-                  <option value="cabin-safety">Cabin H&S Checks</option>
-                  <option value="vehicle-check">Vehicle Daily Checks</option>
-                </select>
-              </div>
+              {/* Filter — hidden for staff without Cabin Check access, who
+                  are locked to their own live Recovery Job Sheets only */}
+              {canSubmitCabinChecks && (
+                <div className="flex items-center gap-2">
+                  <Filter className="w-5 h-5 text-gray-500" />
+                  <select
+                    value={filterType}
+                    onChange={(e) => handleFilterChange(e.target.value)}
+                    className="select select-bordered bg-white border-gray-300"
+                  >
+                    <option value="all">All Types</option>
+                    <option value="incident">Recovery Job Sheets</option>
+                    <option value="cabin-safety">Cabin H&S Checks</option>
+                    <option value="vehicle-check">Vehicle Daily Checks</option>
+                  </select>
+                </div>
+              )}
             </div>
           </div>
 
@@ -563,7 +593,7 @@ const ReportsList = () => {
               <div className="flex justify-center items-center py-12">
                 <span className="loading loading-spinner loading-lg text-brand-500"></span>
               </div>
-            ) : currentForms.length === 0 ? (
+            ) : visibleForms.length === 0 ? (
               <div className="text-center py-12">
                 <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500 text-lg">No forms found</p>
@@ -588,7 +618,7 @@ const ReportsList = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {currentForms.map((form) => (
+                      {visibleForms.map((form) => (
                         <tr key={form.id} className="hover:bg-gray-50">
                           <td>
                             <div className="flex items-center gap-2">
@@ -700,7 +730,7 @@ const ReportsList = () => {
 
                 {/* Mobile: one card per form, actions tucked into a kebab menu */}
                 <div className="sm:hidden p-3 space-y-3">
-                  {currentForms.map((form) => {
+                  {visibleForms.map((form) => {
                     const isLive =
                       form.type === "Recovery Job Sheet" &&
                       form.status === "live";
@@ -846,7 +876,7 @@ const ReportsList = () => {
                 </div>
               </div>
             )}
-            {!isSearchMode && (currentPage > 1 || hasMore) && (
+            {!isSearchMode && canSubmitCabinChecks && (currentPage > 1 || hasMore) && (
               <div className="flex items-center justify-between p-4 border-t">
                 <p className="text-sm text-gray-600">
                   Page {currentPage}

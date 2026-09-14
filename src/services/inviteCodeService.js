@@ -1,6 +1,21 @@
 import { supabase } from '../config/supabase';
 import { AppError } from '../utils/errorHandling';
 
+// Crockford base32 (excludes 0/O, 1/I/L ambiguity) — exactly 32 characters,
+// so mapping a random byte via `% 32` has zero modulo bias.
+const CODE_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+// Cryptographically-random code of the given length, drawn via the Web
+// Crypto API rather than Math.random() (not a CSPRNG, and — combined with
+// these codes' previous short length — made invite/OTP codes practically
+// brute-forceable against the anon-callable check_invite_code RPC, which
+// has no rate limiting of its own).
+const secureRandomCode = (length) => {
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
+};
+
 // Maps an invite_codes row (type='client_otp') to the shape OTPManagement.jsx
 // already renders.
 const mapClientCode = (row) => ({
@@ -30,15 +45,13 @@ const mapStaffCode = (row) => ({
 
 class InviteCodeService {
   generateOTPCode(schemeId) {
-    const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
     const year = new Date().getFullYear();
-    return `${schemeId}-${year}-${randomPart}`;
+    return `${schemeId}-${year}-${secureRandomCode(8)}`;
   }
 
   generateStaffInviteCode() {
-    const randomPart = Math.random().toString(36).substring(2, 10).toUpperCase();
     const year = new Date().getFullYear();
-    return `STAFF-${year}-${randomPart}`;
+    return `STAFF-${year}-${secureRandomCode(10)}`;
   }
 
   async createClientCode(schemeId, schemeName, adminUid, adminName, expiresInDays = 30) {

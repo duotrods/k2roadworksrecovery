@@ -414,7 +414,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
         barWidth > 0
       ) {
         // Draw bar - use regular rect if height is too small for rounded corners
-        pdf.setFillColor(23, 175, 147); // brand color
+        pdf.setFillColor(8, 101, 173); // brand-500
         if (barHeight >= 4) {
           pdf.roundedRect(barX, barY, barWidth, barHeight, 2, 2, "F");
         } else {
@@ -462,7 +462,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
 
       // Add header to the PDF
       const headerHeight = 25;
-      pdf.setFillColor(23, 175, 147); // brand color
+      pdf.setFillColor(8, 101, 173); // brand-500
       pdf.rect(0, 0, pdfWidth, headerHeight, "F");
 
       // Header text - left side
@@ -498,7 +498,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
           pdf.addPage();
 
           // Add header to new page
-          pdf.setFillColor(23, 175, 147);
+          pdf.setFillColor(8, 101, 173); // brand-500
           pdf.rect(0, 0, pdfWidth, headerHeight, "F");
           pdf.setTextColor(255, 255, 255);
           pdf.setFontSize(18);
@@ -617,7 +617,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
                   months={2}
                   direction="horizontal"
                   showDateDisplay={false}
-                  rangeColors={["#17af93"]}
+                  rangeColors={["#0865ad"]}
                 />
               </div>
             )}
