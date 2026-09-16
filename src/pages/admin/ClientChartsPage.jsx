@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { staffService } from "../../services/staffService";
 import AdminSidebarLayout from "../../components/layout/AdminSidebarLayout";
@@ -12,11 +12,18 @@ import {
   Filter,
   Truck,
   Car,
+  BarChart3,
+  PieChart as PieChartIcon,
+  History,
+  X,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
   BarChart,
   Bar,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -24,28 +31,129 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { jsPDF } from 'jspdf';
-import { DateRangePicker, defaultStaticRanges } from 'react-date-range';
+import {
+  DateRangePicker,
+  defaultStaticRanges,
+  createStaticRanges,
+} from 'react-date-range';
 import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
-import { addDays } from 'date-fns';
+import { addDays, startOfDay, endOfDay } from 'date-fns';
+import { PIE_COLORS, exportChartsToPDF } from "../../utils/pdfChartExport";
 
 // Static ranges (Today/This Week/etc.) hidden entirely on mobile so the
 // picker stays short enough to avoid scrolling into view.
 const MOBILE_STATIC_RANGES = [];
 
-// Chart Card Component
-const ChartCard = ({ title, children, fullWidth = false, height = 380 }) => (
-  <div
-    className={`bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow ${fullWidth ? 'col-span-full' : ''}`}
-    onMouseDown={(e) => e.preventDefault()}
-  >
-    <h4 className="text-xl font-bold text-gray-800 mb-6 border-b pb-3">{title}</h4>
-    <ResponsiveContainer width="100%" height={height}>
-      {children}
-    </ResponsiveContainer>
-  </div>
-);
+//bar chart color
+const COLORS = {
+  brand: "#0865ad",
+};
+
+// Common chart props — module-level (not inside ClientChartsPage) so
+// ChartCard, defined alongside it below, can use them too.
+const commonChartProps = {
+  //background grid lines of the charts
+  cartesianGrid: { strokeDasharray: "4 5", stroke: COLORS.brand },
+  //font size of the x and y axis labels
+  xAxis: { tick: { fontSize: 12 } },
+  yAxis: { tick: { fontSize: 12 } },
+  tooltip: {
+    contentStyle: { backgroundColor: '#fff', border: '1px solid #0865ad', borderRadius: '8px' },
+    labelStyle: { fontWeight: 'bold' }
+  },
+  legend: { wrapperStyle: { paddingTop: '0px' } },
+  bar: { fill: COLORS.brand, radius: [8, 8, 0, 0] },
+  chartMargin: { top: 10, right: 20, left: -35, bottom: 10 }
+};
+
+// `data` + `onSliceClick` are optional — only charts that pass a plain array
+// of { name, Number } get the bar/pie toggle. `chartKey` + `chartTypesRef`
+// mirror the toggle into a ref keyed by chartKey so handleExportPDF (which
+// lives outside this component and can't see its state) knows whether to
+// draw a bar or pie chart for this card in the PDF.
+const ChartCard = ({
+  title,
+  children,
+  data,
+  onSliceClick,
+  fullWidth = false,
+  height = 380,
+  chartKey,
+  chartTypesRef,
+}) => {
+  const [type, setType] = useState("bar");
+  const canTogglePie = Array.isArray(data);
+
+  const changeType = (t) => {
+    setType(t);
+    if (chartTypesRef && chartKey) chartTypesRef.current[chartKey] = t;
+  };
+
+  return (
+    <div
+      className={`bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow ${fullWidth ? 'col-span-full' : ''}`}
+      onMouseDown={(e) => e.preventDefault()}
+    >
+      <div className="flex items-center justify-between mb-6 border-b pb-3">
+        <h4 className="text-xl font-bold text-gray-800">{title}</h4>
+        {canTogglePie && (
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => changeType("bar")}
+              title="Bar chart"
+              className={`p-1.5 rounded-md transition-colors ${
+                type === "bar"
+                  ? "bg-brand-500 text-white"
+                  : "bg-gray-100 text-gray-400 hover:text-gray-600"
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => changeType("pie")}
+              title="Pie chart"
+              className={`p-1.5 rounded-md transition-colors ${
+                type === "pie"
+                  ? "bg-brand-500 text-white"
+                  : "bg-gray-100 text-gray-400 hover:text-gray-600"
+              }`}
+            >
+              <PieChartIcon className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
+      <ResponsiveContainer width="100%" height={height}>
+        {canTogglePie && type === "pie" ? (
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey="Number"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              outerRadius={Math.min(height, 380) / 2 - 40}
+              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+              onClick={(entry) => onSliceClick?.(entry.name)}
+              style={{ cursor: onSliceClick ? "pointer" : "default" }}
+            >
+              {data.map((entry, i) => (
+                <Cell key={entry.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip {...commonChartProps.tooltip} />
+            <Legend {...commonChartProps.legend} />
+          </PieChart>
+        ) : (
+          children
+        )}
+      </ResponsiveContainer>
+    </div>
+  );
+};
 
 const ClientChartsPage = () => {
   const navigate = useNavigate();
@@ -60,6 +168,13 @@ const ClientChartsPage = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [drillDown, setDrillDown] = useState(null); // { title, incidents }
+  // Current bar/pie selection per chart, keyed by chartKey — written by
+  // ChartCard, read by handleExportPDF so the download matches what's on
+  // screen. A ref (not state) since it's write-only until export time.
+  const chartTypesRef = useRef({});
+  // Earliest incident for the selected scheme — drives the "All Time" date
+  // preset below. Refetched whenever the scheme changes.
+  const [earliestIncidentDate, setEarliestIncidentDate] = useState(null);
 
   const openDrillDown = (data) => {
     if (!data.incidents.length) return;
@@ -96,26 +211,22 @@ const ClientChartsPage = () => {
     }
   ]);
 
-  //bar chart color
-  const COLORS = {
-    brand: "#0865ad",
-  };
-
-  // Common chart props
-  const commonChartProps = {
-    //background grid lines of the charts
-    cartesianGrid: { strokeDasharray: "4 5", stroke: COLORS.brand },
-    //font size of the x and y axis labels
-    xAxis: { tick: { fontSize: 12 } },
-    yAxis: { tick: { fontSize: 12 } },
-    tooltip: {
-      contentStyle: { backgroundColor: '#fff', border: '1px solid #0865ad', borderRadius: '8px' },
-      labelStyle: { fontWeight: 'bold' }
-    },
-    legend: { wrapperStyle: { paddingTop: '0px' } },
-    bar: { fill: COLORS.brand, radius: [8, 8, 0, 0] },
-    chartMargin: { top: 10, right: 20, left: -35, bottom: 10 }
-  };
+  // Adds an "All Time" preset (start of the scheme's data → today) alongside
+  // the date picker's built-in presets (Today, This Week, etc.).
+  const staticRangesWithAllTime = useMemo(
+    () =>
+      createStaticRanges([
+        ...defaultStaticRanges,
+        {
+          label: 'All Time',
+          range: () => ({
+            startDate: startOfDay(earliestIncidentDate || new Date('2020-01-01')),
+            endDate: endOfDay(new Date()),
+          }),
+        },
+      ]),
+    [earliestIncidentDate],
+  );
 
   useEffect(() => {
     // Scheme dropdown = the set of active schemes (stable, independent of the
@@ -141,6 +252,20 @@ const ClientChartsPage = () => {
   useEffect(() => {
     loadAllData(dateRange[0].startDate, dateRange[0].endDate);
   }, [dateRange]);
+
+  // Refetch the scheme's earliest incident date whenever the scheme changes
+  // — drives the "All Time" preset so it starts exactly when this scheme's
+  // data does.
+  useEffect(() => {
+    if (!selectedScheme) return;
+    let cancelled = false;
+    staffService.getEarliestIncidentDateForScheme(selectedScheme).then((date) => {
+      if (!cancelled) setEarliestIncidentDate(date);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedScheme]);
 
   // Close date picker when clicking outside
   useEffect(() => {
@@ -396,185 +521,35 @@ const ClientChartsPage = () => {
     if (filtered.length) openDrillDown({ title: label, incidents: filtered });
   };
 
-  // Helper function to draw a bar chart in PDF
-  const drawBarChart = (pdf, data, title, x, y, width, height) => {
-    if (!data || data.length === 0) return;
-
-    // Draw chart background
-    pdf.setFillColor(255, 255, 255);
-    pdf.rect(x, y, width, height, 'F');
-    pdf.setDrawColor(229, 231, 235);
-    pdf.rect(x, y, width, height, 'S');
-
-    // Draw title at the top with better positioning
-    pdf.setFontSize(9);
-    pdf.setFont('helvetica', 'bold');
-    pdf.setTextColor(31, 41, 55);
-    pdf.text(title, x + width / 2, y + 6, { align: 'center' });
-
-    // Adjusted margins - less bottom margin since labels are closer
-    const margin = { top: 12, right: 10, bottom: 18, left: 10 };
-    const chartWidth = width - margin.left - margin.right;
-    const chartHeight = height - margin.top - margin.bottom;
-    const plotLeft = x + margin.left;
-    const plotTop = y + margin.top;
-    const plotBottom = plotTop + chartHeight;
-
-    // Calculate max value
-    // Floor of 1 avoids a divide-by-zero (-> NaN -> jsPDF throws) when every
-    // bucket in this chart is 0, e.g. no incidents matched in the date range.
-    const maxValue = Math.max(...data.map(d => d.Number), 1);
-    // Bars are centered within their slot (rather than packed from the left
-    // edge) so there's breathing room before the first bar/axis line and
-    // after the last, not just between bars.
-    const slotWidth = chartWidth / data.length;
-    const barWidth = slotWidth * 0.4;
-    const barCornerRadius = 1; // mm — jsPDF's roundedRect takes rx/ry in the doc's own unit
-
-    // Cartesian grid: horizontal gridlines + y-axis tick labels, mirroring
-    // the on-screen <CartesianGrid>/<YAxis>.
-    const tickCount = 4;
-    pdf.setLineDashPattern([1, 1], 0);
-    pdf.setDrawColor(229, 231, 235);
-    for (let i = 0; i <= tickCount; i++) {
-      const tickValue = Math.round((maxValue / tickCount) * i);
-      const tickY = plotBottom - (tickValue / maxValue) * chartHeight;
-      pdf.line(plotLeft, tickY, plotLeft + chartWidth, tickY);
-      pdf.setFontSize(6);
-      pdf.setTextColor(107, 114, 128);
-      pdf.text(String(tickValue), plotLeft - 2, tickY, { align: 'right', baseline: 'middle' });
-    }
-    pdf.setLineDashPattern([], 0);
-
-    // Draw bars
-    data.forEach((item, index) => {
-      const barHeight = (item.Number / maxValue) * chartHeight;
-      const barX = plotLeft + index * slotWidth + (slotWidth - barWidth) / 2;
-      const barY = plotBottom - barHeight;
-
-      // Draw bar
-      pdf.setFillColor(COLORS.brand); // Teal color
-      pdf.roundedRect(barX, barY, barWidth, barHeight, barCornerRadius, barCornerRadius, 'F');
-
-      // Draw value on top of bar
-      pdf.setFontSize(8);
-      pdf.setTextColor(31, 41, 55);
-      pdf.text(String(item.Number), barX + barWidth / 2, barY - 2, { align: 'center' });
-
-      // Draw label below bar - much closer now
-      pdf.setFontSize(7);
-      pdf.setTextColor(107, 114, 128);
-      const label = item.name.length > 12 ? item.name.substring(0, 12) + '...' : item.name;
-      const labelY = plotBottom + 10; // Just 10mm below the chart area
-      pdf.text(label, barX + barWidth / 2, labelY, { align: 'center', maxWidth: barWidth });
-    });
-
-    // X/Y axis lines, drawn last so they sit crisp on top of the grid and bars.
-    pdf.setDrawColor(107, 114, 122);
-    pdf.line(plotLeft, plotTop, plotLeft, plotBottom); // y-axis
-    pdf.line(plotLeft, plotBottom, plotLeft + chartWidth, plotBottom); // x-axis
-  };
-
-  // Export dashboard as PDF
+  // Export charts as PDF — layout/drawing lives in utils/pdfChartExport so
+  // every "Export Charts" button in the app shares one design.
   const handleExportPDF = async () => {
     setIsExporting(true);
     toast.loading('Generating PDF...', { id: 'export-pdf' });
 
     try {
-      // Create PDF in landscape orientation with compression enabled
-      const pdf = new jsPDF({
-        orientation: 'l',
-        unit: 'mm',
-        format: 'a4',
-        compress: true
-      });
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-
-      // Add header to the PDF
-      const headerHeight = 25;
-      pdf.setFillColor(COLORS.brand); // Brand color
-      pdf.rect(0, 0, pdfWidth, headerHeight, 'F');
-
-      // Header text - left side
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(18);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Reports & Analytics', 15, 12);
-
-      pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(`Scheme: ${selectedScheme}`, 15, 19);
-
-      // Stats - right side
+      const dateRangeText = `${dateRange[0].startDate.toLocaleDateString('en-GB')} - ${dateRange[0].endDate.toLocaleDateString('en-GB')}`;
       const statsText = `Total Incidents: ${stats.incident} | Total Reports: ${stats.total}`;
-      pdf.text(statsText, pdfWidth - 15, 15, { align: 'right' });
 
-      // Content area
-      const contentStartY = headerHeight + 10;
-      const chartWidth = (pdfWidth - 30) / 2; // 2 columns with margins
-      const chartHeight = 60;
-      const chartGap = 10;
-
-      let currentY = contentStartY;
-      let currentX = 15;
-      let chartCount = 0;
-
-      // Helper to add new page if needed
-      const checkNewPage = () => {
-        if (currentY + chartHeight > pdfHeight - 10) {
-          pdf.addPage();
-
-          // Add header to new page
-          pdf.setFillColor(COLORS.brand);
-          pdf.rect(0, 0, pdfWidth, headerHeight, 'F');
-          pdf.setTextColor(255, 255, 255);
-          pdf.setFontSize(18);
-          pdf.setFont('helvetica', 'bold');
-          pdf.text('Reports & Analytics', 15, 12);
-          pdf.setFontSize(11);
-          pdf.setFont('helvetica', 'normal');
-          pdf.text(`Scheme: ${selectedScheme}`, 15, 19);
-          pdf.text(statsText, pdfWidth - 15, 15, { align: 'right' });
-
-          currentY = contentStartY;
-          currentX = 15;
-          chartCount = 0;
-        }
-      };
-
-      // Draw all charts in 2-column layout
       const charts = [
-        { data: timeToSiteData, title: 'Time to Site (mins)' },
-        { data: timeToRecoverData, title: 'Time to Recover (mins)' },
-        { data: incidentTypeData, title: 'Incident Type' },
-        { data: vehiclesDispatchedData, title: 'Vehicle Allocated' },
-        { data: spottedByData, title: 'Source of Call' },
-        { data: emergencyServicesData, title: 'Emergency Services Attended' },
-        { data: vehicleTypeData, title: 'Vehicle Type' },
+        { data: timeToSiteData, title: 'Time to Site (mins)', key: 'timeToSite' },
+        { data: timeToRecoverData, title: 'Time to Recover (mins)', key: 'timeToRecover' },
+        { data: incidentTypeData, title: 'Incident Type', key: 'incidentType' },
+        { data: vehiclesDispatchedData, title: 'Vehicle Allocated', key: 'vehicleAllocated' },
+        { data: spottedByData, title: 'Source of Call', key: 'spottedBy' },
+        { data: emergencyServicesData, title: 'Emergency Services Attended', key: 'emergencyServices' },
+        { data: vehicleTypeData, title: 'Vehicle Type', key: 'vehicleType' },
       ];
 
-      charts.forEach((chart) => {
-        if (chart.data && chart.data.length > 0) {
-          checkNewPage();
-
-          drawBarChart(pdf, chart.data, chart.title, currentX, currentY, chartWidth - 5, chartHeight);
-
-          chartCount++;
-          if (chartCount % 2 === 0) {
-            // Move to next row
-            currentY += chartHeight + chartGap;
-            currentX = 15;
-          } else {
-            // Move to next column
-            currentX = 15 + chartWidth + 5;
-          }
-        }
+      await exportChartsToPDF({
+        reportTitle: 'Reports & Analytics',
+        subtitle: `Scheme: ${selectedScheme}`,
+        dateRangeText,
+        statsText,
+        charts,
+        chartTypesRef,
+        fileName: `client_charts_${selectedScheme.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`,
       });
-
-      // Save the PDF
-      const fileName = `client_charts_${selectedScheme.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
-      pdf.save(fileName);
 
       toast.success('Charts exported successfully!', { id: 'export-pdf' });
     } catch (error) {
@@ -632,6 +607,10 @@ const ClientChartsPage = () => {
   const vehicleTypeData = getVehicleTypeData();
   const timeSeriesData = getTimeSeriesData();
 
+  const isAllTimeRange =
+    dateRange[0].startDate.getTime() ===
+    startOfDay(earliestIncidentDate || new Date('2020-01-01')).getTime();
+
   return (
     <AdminSidebarLayout>
       <div className="max-w-8xl mx-auto">
@@ -664,7 +643,11 @@ const ClientChartsPage = () => {
               <div className="relative" ref={datePickerRef}>
                 <button
                   onClick={() => setShowDatePicker(!showDatePicker)}
-                  className="flex items-center justify-center sm:justify-start gap-3 bg-white px-4 py-2.5 sm:py-2 rounded-lg border border-gray-200 hover:shadow-xs transition-shadow cursor-pointer w-full sm:w-auto"
+                  className={`flex items-center justify-center sm:justify-start gap-3 px-4 py-2.5 sm:py-2 rounded-lg border hover:shadow-xs transition-shadow cursor-pointer w-full sm:w-auto ${
+                    isAllTimeRange
+                      ? 'bg-brand-50 border-brand-500'
+                      : 'bg-white border-gray-200'
+                  }`}
                 >
                   <Calendar className="w-5 h-5 text-brand-500" />
                   <div className="flex items-center gap-2 text-sm">
@@ -675,6 +658,11 @@ const ClientChartsPage = () => {
                     <span className="font-medium text-gray-700">
                       {dateRange[0].endDate.toLocaleDateString('en-GB')}
                     </span>
+                    {isAllTimeRange && (
+                      <span className="text-xs font-semibold text-brand-600 bg-brand-100 px-2 py-0.5 rounded-full">
+                        All Time
+                      </span>
+                    )}
                   </div>
                 </button>
 
@@ -684,13 +672,55 @@ const ClientChartsPage = () => {
                       ranges={dateRange}
                       onChange={(item) => setDateRange([item.selection])}
                       moveRangeOnFirstSelection={false}
-                      staticRanges={isMobile ? MOBILE_STATIC_RANGES : defaultStaticRanges}
+                      staticRanges={isMobile ? MOBILE_STATIC_RANGES : staticRangesWithAllTime}
                       months={isMobile ? 1 : 2}
                       direction={isMobile ? 'vertical' : 'horizontal'}
                       showDateDisplay={false}
                       rangeColors={[COLORS.brand]}
                     />
                   </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() => {
+                    setDateRange([
+                      {
+                        startDate: startOfDay(earliestIncidentDate || new Date('2020-01-01')),
+                        endDate: endOfDay(new Date()),
+                        key: 'selection',
+                      },
+                    ]);
+                    setShowDatePicker(false);
+                  }}
+                  title="Loads full incident history — auto-updates when new incidents come in, no need to re-click"
+                  className={`flex items-center justify-center gap-3 px-4 py-2.5 sm:py-2 rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-pointer w-full sm:w-auto ${
+                    isAllTimeRange
+                      ? 'bg-brand-50 border-brand-500'
+                      : 'bg-white border-gray-200'
+                  }`}
+                >
+                  <History className="w-4 h-4 text-brand-600 shrink-0" />
+                  <span className="text-sm font-medium text-gray-700">All Time</span>
+                </button>
+
+                {isAllTimeRange && (
+                  <button
+                    onClick={() => {
+                      setDateRange([
+                        {
+                          startDate: addDays(new Date(), -30),
+                          endDate: new Date(),
+                          key: 'selection',
+                        },
+                      ]);
+                    }}
+                    title="Clear All Time — back to last 30 days"
+                    className="flex items-center justify-center w-9 h-9 shrink-0 bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md hover:text-red-500 hover:border-red-200 text-gray-400 transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 )}
               </div>
 
@@ -744,7 +774,13 @@ const ClientChartsPage = () => {
             {/* Incident Analytics Charts Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
               {/* Chart 9: Time to Site */}
-              <ChartCard title="Time to Site (mins)">
+              <ChartCard
+                title="Time to Site (mins)"
+                data={timeToSiteData.length > 0 ? timeToSiteData : [{ name: "No Data", Number: 0 }]}
+                chartKey="timeToSite"
+                chartTypesRef={chartTypesRef}
+                onSliceClick={(label) => handleBarClick('timeToSite', label)}
+              >
                 <BarChart
                   data={timeToSiteData.length > 0 ? timeToSiteData : [{ name: "No Data", Number: 0 }]}
                   margin={commonChartProps.chartMargin}
@@ -761,7 +797,13 @@ const ClientChartsPage = () => {
               </ChartCard>
 
               {/* Chart 6: Time to Recover */}
-              <ChartCard title="Time to recover (mins)">
+              <ChartCard
+                title="Time to recover (mins)"
+                data={timeToRecoverData.length > 0 ? timeToRecoverData : [{ name: "No Data", Number: 0 }]}
+                chartKey="timeToRecover"
+                chartTypesRef={chartTypesRef}
+                onSliceClick={(label) => handleBarClick('timeToRecover', label)}
+              >
                 <BarChart
                   data={timeToRecoverData.length > 0 ? timeToRecoverData : [{ name: "No Data", Number: 0 }]}
                   margin={commonChartProps.chartMargin}
@@ -778,7 +820,13 @@ const ClientChartsPage = () => {
               </ChartCard>
 
               {/* Chart 2: Incident Type */}
-              <ChartCard title="Incident Type">
+              <ChartCard
+                title="Incident Type"
+                data={incidentTypeData.length > 0 ? incidentTypeData : [{ name: "No Data", Number: 0 }]}
+                chartKey="incidentType"
+                chartTypesRef={chartTypesRef}
+                onSliceClick={(label) => handleBarClick('incidentType', label)}
+              >
                 <BarChart
                   data={incidentTypeData.length > 0 ? incidentTypeData : [{ name: "No Data", Number: 0 }]}
                   margin={commonChartProps.chartMargin}
@@ -795,7 +843,13 @@ const ClientChartsPage = () => {
               </ChartCard>
 
               {/* Chart 3: Vehicles Dispatched */}
-              <ChartCard title="Vehicle Allocated">
+              <ChartCard
+                title="Vehicle Allocated"
+                data={vehiclesDispatchedData.length > 0 ? vehiclesDispatchedData : [{ name: "No Data", Number: 0 }]}
+                chartKey="vehicleAllocated"
+                chartTypesRef={chartTypesRef}
+                onSliceClick={(label) => handleBarClick('vehiclesDispatched', label)}
+              >
                 <BarChart
                   data={vehiclesDispatchedData.length > 0 ? vehiclesDispatchedData : [{ name: "No Data", Number: 0 }]}
                   margin={commonChartProps.chartMargin}
@@ -812,7 +866,13 @@ const ClientChartsPage = () => {
               </ChartCard>
 
               {/* Chart 4: Spotted By */}
-              <ChartCard title="Source of Call">
+              <ChartCard
+                title="Source of Call"
+                data={spottedByData.length > 0 ? spottedByData : [{ name: "No Data", Number: 0 }]}
+                chartKey="spottedBy"
+                chartTypesRef={chartTypesRef}
+                onSliceClick={(label) => handleBarClick('spottedBy', label)}
+              >
                 <BarChart
                   data={spottedByData.length > 0 ? spottedByData : [{ name: "No Data", Number: 0 }]}
                   margin={commonChartProps.chartMargin}
@@ -829,7 +889,13 @@ const ClientChartsPage = () => {
               </ChartCard>
 
               {/* Chart 8: Emergency Services Attended */}
-              <ChartCard title="Emergency Services Attended">
+              <ChartCard
+                title="Emergency Services Attended"
+                data={emergencyServicesData.length > 0 ? emergencyServicesData : [{ name: "No Data", Number: 0 }]}
+                chartKey="emergencyServices"
+                chartTypesRef={chartTypesRef}
+                onSliceClick={(label) => handleBarClick('emergencyServices', label)}
+              >
                 <BarChart
                   data={emergencyServicesData.length > 0 ? emergencyServicesData : [{ name: "No Data", Number: 0 }]}
                   margin={commonChartProps.chartMargin}
@@ -845,7 +911,13 @@ const ClientChartsPage = () => {
                 </BarChart>
               </ChartCard>
               {/* Chart 11: Vehicle Type */}
-              <ChartCard title="Vehicle Type">
+              <ChartCard
+                title="Vehicle Type"
+                data={vehicleTypeData.length > 0 ? vehicleTypeData : [{ name: "No Data", Number: 0 }]}
+                chartKey="vehicleType"
+                chartTypesRef={chartTypesRef}
+                onSliceClick={(label) => handleBarClick('vehicleType', label)}
+              >
                 <BarChart
                   data={vehicleTypeData.length > 0 ? vehicleTypeData : [{ name: "No Data", Number: 0 }]}
                   margin={commonChartProps.chartMargin}

@@ -192,6 +192,28 @@ class StaffService {
     }
   }
 
+  // Earliest incident_reports.created_at for a scheme — drives ClientChartsPage's
+  // "All Time" date-range preset. Matched against the `scheme` text column
+  // (not scheme_ids/scheme_id) since that's how ClientChartsPage itself
+  // filters reports by scheme (see getFilteredReports there). null if the
+  // scheme has no incidents yet.
+  async getEarliestIncidentDateForScheme(scheme) {
+    try {
+      const { data, error } = await supabase
+        .from("incident_reports")
+        .select("created_at")
+        .eq("scheme", scheme)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.created_at ? new Date(data.created_at) : null;
+    } catch (error) {
+      console.error("Failed to get earliest incident date:", error);
+      return null;
+    }
+  }
+
   async getIncidentReports(userId = null, limitCount = null, dateRange = null, columns = "*") {
     try {
       let q = supabase.from("incident_reports").select(columns);
