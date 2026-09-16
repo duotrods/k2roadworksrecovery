@@ -682,7 +682,7 @@ class ClientDataService {
     try {
       let q = supabase
         .from("incident_reports")
-        .select("id, reference_id, scheme, date, submitted_by_user_id, submitted_by_name, status, location, created_at, actual_fault")
+        .select("id, reference_id, scheme, date, submitted_by_user_id, submitted_by_name, status, location, created_at, actual_fault, vehicle_allocated")
         .overlaps("scheme_ids", [schemeId])
         .order("created_at", { ascending: false })
         .limit(limitCount);
@@ -973,13 +973,13 @@ class ClientDataService {
       const [byRef, byName] = await Promise.all([
         supabase
           .from("incident_reports")
-          .select("id, reference_id, scheme, date, submitted_by_user_id, submitted_by_name, status, location, created_at, actual_fault")
+          .select("id, reference_id, scheme, date, submitted_by_user_id, submitted_by_name, status, location, created_at, actual_fault, vehicle_allocated")
           .overlaps("scheme_ids", [schemeId])
           .ilike("reference_id", `${raw}%`)
           .limit(10),
         supabase
           .from("incident_reports")
-          .select("id, reference_id, scheme, date, submitted_by_user_id, submitted_by_name, status, location, created_at, actual_fault")
+          .select("id, reference_id, scheme, date, submitted_by_user_id, submitted_by_name, status, location, created_at, actual_fault, vehicle_allocated")
           .overlaps("scheme_ids", [schemeId])
           .ilike("submitted_by_name", `${raw}%`)
           .limit(10),
@@ -1027,13 +1027,13 @@ class ClientDataService {
       const [byRef, byName] = await Promise.all([
         supabase
           .from("incident_reports")
-          .select("id, reference_id, scheme, date, submitted_by_user_id, submitted_by_name, status, location, created_at, actual_fault")
+          .select("id, reference_id, scheme, date, submitted_by_user_id, submitted_by_name, status, location, created_at, actual_fault, vehicle_allocated")
           .overlaps("scheme_ids", [schemeId])
           .ilike("reference_id", `${raw}%`)
           .limit(200),
         supabase
           .from("incident_reports")
-          .select("id, reference_id, scheme, date, submitted_by_user_id, submitted_by_name, status, location, created_at, actual_fault")
+          .select("id, reference_id, scheme, date, submitted_by_user_id, submitted_by_name, status, location, created_at, actual_fault, vehicle_allocated")
           .overlaps("scheme_ids", [schemeId])
           .ilike("submitted_by_name", `${raw}%`)
           .limit(200),

@@ -22,6 +22,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCarBurst, faUserShield, faCar } from "@fortawesome/free-solid-svg-icons";
 import { toast } from "react-hot-toast";
 import { generateReportPDF } from "../../utils/pdfGenerator";
+import { getVehicleAllocatedColors } from "../../utils/incidentForm";
 
 // Module-level variable — survives component unmount/remount, no serialization needed
 let _staffReportsRestore = null;
@@ -437,11 +438,14 @@ const StaffReportsPage = () => {
     });
   };
 
-  const getFormTypeIcon = (type) => {
+  const getFormTypeIcon = (type, vehicleAllocated) => {
     switch (type) {
       case "Recovery Job Sheet":
         return (
-          <FontAwesomeIcon icon={faCarBurst} className="text-brand-600 text-[14px]" />
+          <FontAwesomeIcon
+            icon={faCarBurst}
+            className={`${getVehicleAllocatedColors(vehicleAllocated).icon} text-[14px]`}
+          />
         );
       case "Cabin H&S Check":
         return (
@@ -456,9 +460,11 @@ const StaffReportsPage = () => {
     }
   };
 
-    const getFormTypeBadge = (type) => {
+    const getFormTypeBadge = (type, vehicleAllocated) => {
+      if (type === "Recovery Job Sheet") {
+        return `${getVehicleAllocatedColors(vehicleAllocated).badge} font-semibold`;
+      }
       const badges = {
-        "Recovery Job Sheet": "bg-brand-100 text-brand-600 font-semibold",
         "Cabin H&S Check": "bg-emerald-100 text-emerald-600 font-semibold",
         "Vehicle Daily Check": "bg-amber-100 text-amber-600 font-semibold",
       };
@@ -663,8 +669,8 @@ const StaffReportsPage = () => {
                         <td>
                           <div className="flex items-center gap-2">
                             
-                            <span className={`badge ${getFormTypeBadge(report.type)} badge-sm p-3`}>
-                              {getFormTypeIcon(report.type)}
+                            <span className={`badge ${getFormTypeBadge(report.type, report.vehicleAllocated)} badge-sm p-3`}>
+                              {getFormTypeIcon(report.type, report.vehicleAllocated)}
                               {(report.type || '').toUpperCase()}
                             </span>
                           </div>
@@ -678,6 +684,12 @@ const StaffReportsPage = () => {
                           {report.type === "Vehicle Daily Check" && report.day && (
                             <div className="text-xs font-sans font-normal text-gray-500 mt-1 capitalize">
                               {report.day}
+                            </div>
+                          )}
+                          {report.type === "Recovery Job Sheet" && report.vehicleAllocated && (
+                            <div className="badge badge-outline badge-sm font-sans font-normal text-gray-600 mt-1 gap-1">
+                              <FontAwesomeIcon icon={faCar} className="text-[10px]" />
+                              {report.vehicleAllocated}
                             </div>
                           )}
                         </td>
@@ -760,8 +772,8 @@ const StaffReportsPage = () => {
                         <code className="text-xs font-mono text-white bg-brand-600 px-2 py-1 rounded">
                           {report.referenceId || report.id.slice(0, 12)}
                         </code>
-                        <span className={`badge ${getFormTypeBadge(report.type)} badge-sm pl-2`}>
-                          {getFormTypeIcon(report.type)}
+                        <span className={`badge ${getFormTypeBadge(report.type, report.vehicleAllocated)} badge-sm pl-2`}>
+                          {getFormTypeIcon(report.type, report.vehicleAllocated)}
                           {(report.type || "").toUpperCase()}
                         </span>
                         {renderStatusBadge(report)}
@@ -770,6 +782,13 @@ const StaffReportsPage = () => {
                             <span className="badge badge-error badge-xs">
                               Incursion
                             </span>
+                          )}
+                        {report.type === "Recovery Job Sheet" &&
+                          report.vehicleAllocated && (
+                            <div className="badge badge-outline badge-sm gap-1 text-gray-600">
+                              <FontAwesomeIcon icon={faCar} className="text-[10px]" />
+                              {report.vehicleAllocated}
+                            </div>
                           )}
                       </div>
 

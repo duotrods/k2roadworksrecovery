@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   MoreVertical,
+  Car,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { generateReportPDF } from "../../utils/pdfGenerator";
@@ -700,9 +701,9 @@ const ReportsPage = () => {
                           {report.referenceId}
                         </code>
                         <span
-                          className={`badge ${getReportTypeBadge(report.reportType)} badge-sm pl-2`}
+                          className={`badge ${getReportTypeBadge(report.reportType, report.vehicleAllocated)} badge-sm pl-2`}
                         >
-                          {getReportTypeIcon(report.reportType)}
+                          {getReportTypeIcon(report.reportType, report.vehicleAllocated)}
                           {getReportTypeLabel(report.reportType)}
                         </span>
                         {renderStatusBadge(report)}
@@ -711,6 +712,13 @@ const ReportsPage = () => {
                             <span className="badge badge-error badge-xs">
                               Incursion
                             </span>
+                          )}
+                        {report.reportType === "incident" &&
+                          report.vehicleAllocated && (
+                            <div className="badge badge-outline badge-sm gap-1 text-gray-600">
+                              <Car className="w-3 h-3" />
+                              {report.vehicleAllocated}
+                            </div>
                           )}
                       </div>
 
@@ -795,9 +803,9 @@ const ReportsPage = () => {
                         <td>
                           <div className="flex items-center gap-2">
                             <span
-                              className={`badge ${getReportTypeBadge(report.reportType)} badge-sm p-3`}
+                              className={`badge ${getReportTypeBadge(report.reportType, report.vehicleAllocated)} badge-sm p-3`}
                             >
-                              {getReportTypeIcon(report.reportType)}
+                              {getReportTypeIcon(report.reportType, report.vehicleAllocated)}
                               {getReportTypeLabel(report.reportType)}
                             </span>
                           </div>
@@ -810,6 +818,13 @@ const ReportsPage = () => {
                               <span className="badge badge-error badge-xs mt-1">
                                 Incursion
                               </span>
+                            )}
+                          {report.reportType === "incident" &&
+                            report.vehicleAllocated && (
+                              <div className="badge badge-outline badge-sm font-sans font-normal text-gray-600 mt-1 gap-1">
+                                <Car className="w-3 h-3" />
+                                {report.vehicleAllocated}
+                              </div>
                             )}
                         </td>
                         <td className="text-sm text-gray-800">

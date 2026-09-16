@@ -1,6 +1,7 @@
 import { FileText } from "lucide-react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCarBurst } from "@fortawesome/free-solid-svg-icons";
+import { getVehicleAllocatedColors } from "./incidentForm";
 
 // Presentation helpers shared by the client Reports page (table, modal, cards).
 // Kept in one place so the page component stays focused on data/pagination logic.
@@ -64,22 +65,25 @@ export const getReportDisplayTime = (report) => {
 
 // Matches the admin StaffReportsPage type styling: FontAwesome icon shown
 // inside a soft coloured badge.
-export const getReportTypeIcon = (type) => {
+export const getReportTypeIcon = (type, vehicleAllocated) => {
   switch (type) {
     case "incident":
       return (
-        <FontAwesomeIcon icon={faCarBurst} className="text-brand-600 text-[14px]" />
+        <FontAwesomeIcon
+          icon={faCarBurst}
+          className={`${getVehicleAllocatedColors(vehicleAllocated).icon} text-[14px]`}
+        />
       );
     default:
       return <FileText className="w-4 h-4 text-gray-500" />;
   }
 };
 
-export const getReportTypeBadge = (type) => {
-  const badges = {
-    incident: "bg-brand-100 text-brand-600 font-semibold",
-  };
-  return badges[type] || "badge-ghost";
+export const getReportTypeBadge = (type, vehicleAllocated) => {
+  if (type === "incident") {
+    return `${getVehicleAllocatedColors(vehicleAllocated).badge} font-semibold`;
+  }
+  return "badge-ghost";
 };
 
 // Human label for a report type, e.g. "incident" → "RECOVERY JOB SHEET".

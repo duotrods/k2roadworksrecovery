@@ -26,6 +26,7 @@ import {
   getViewerSchemeScope,
 } from "../../utils/schemes";
 import { getStaffBasePath } from "../../utils/constants";
+import { getVehicleAllocatedColors } from "../../utils/incidentForm";
 
 // Module-level variable — survives component unmount/remount, no serialization needed
 let _dashRestore = null;
@@ -338,11 +339,14 @@ const ReportsList = () => {
     });
   };
 
-  const getFormTypeIcon = (type) => {
+  const getFormTypeIcon = (type, vehicleAllocated) => {
     switch (type) {
       case "Recovery Job Sheet":
         return (
-          <FontAwesomeIcon icon={faCarBurst} className="text-brand-600 text-[14px]" />
+          <FontAwesomeIcon
+            icon={faCarBurst}
+            className={`${getVehicleAllocatedColors(vehicleAllocated).icon} text-[14px]`}
+          />
         );
       case "Cabin H&S Check":
         return (
@@ -357,9 +361,11 @@ const ReportsList = () => {
     }
   };
 
-  const getFormTypeBadge = (type) => {
+  const getFormTypeBadge = (type, vehicleAllocated) => {
+    if (type === "Recovery Job Sheet") {
+      return `${getVehicleAllocatedColors(vehicleAllocated).badge} font-semibold`;
+    }
     const badges = {
-      "Recovery Job Sheet": "bg-brand-100 text-brand-600 font-semibold",
       "Cabin H&S Check": "bg-emerald-100 text-emerald-600 font-semibold",
       "Vehicle Daily Check": "bg-amber-100 text-amber-600 font-semibold",
     };
@@ -623,9 +629,9 @@ const ReportsList = () => {
                           <td>
                             <div className="flex items-center gap-2">
                               <span
-                                className={`badge ${getFormTypeBadge(form.type)} badge-sm p-3`}
+                                className={`badge ${getFormTypeBadge(form.type, form.vehicleAllocated)} badge-sm p-3`}
                               >
-                                {getFormTypeIcon(form.type)}
+                                {getFormTypeIcon(form.type, form.vehicleAllocated)}
                                 {form.type.toUpperCase()}
                               </span>
                             </div>
@@ -638,6 +644,16 @@ const ReportsList = () => {
                               form.day && (
                                 <div className="text-xs font-sans font-normal text-gray-500 mt-1 capitalize">
                                   {form.day}
+                                </div>
+                              )}
+                            {form.type === "Recovery Job Sheet" &&
+                              form.vehicleAllocated && (
+                                <div className="badge badge-outline badge-sm font-sans font-normal text-gray-600 mt-1 gap-1">
+                                  <FontAwesomeIcon
+                                    icon={faCar}
+                                    className="text-[10px]"
+                                  />
+                                  {form.vehicleAllocated}
                                 </div>
                               )}
                           </td>
@@ -745,9 +761,9 @@ const ReportsList = () => {
                               {form.referenceId || form.id.slice(0, 12)}
                             </code>
                             <span
-                              className={`badge ${getFormTypeBadge(form.type)} badge-sm pl-2`}
+                              className={`badge ${getFormTypeBadge(form.type, form.vehicleAllocated)} badge-sm pl-2`}
                             >
-                              {getFormTypeIcon(form.type)}
+                              {getFormTypeIcon(form.type, form.vehicleAllocated)}
                               {form.type.toUpperCase()}
                             </span>
                             {isLive && (
@@ -761,6 +777,16 @@ const ReportsList = () => {
                                 <div className="badge badge-success badge-soft badge-sm gap-1">
                                   <CheckCircle className="w-3 h-3 text-green-500" />
                                   Completed
+                                </div>
+                              )}
+                            {form.type === "Recovery Job Sheet" &&
+                              form.vehicleAllocated && (
+                                <div className="badge badge-outline badge-sm gap-1 text-gray-600">
+                                  <FontAwesomeIcon
+                                    icon={faCar}
+                                    className="text-[10px]"
+                                  />
+                                  {form.vehicleAllocated}
                                 </div>
                               )}
                           </div>

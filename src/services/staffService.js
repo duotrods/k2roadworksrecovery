@@ -26,7 +26,7 @@ const SUPABASE_BACKED_TABLES = {
   incidentReports: {
     table: "incident_reports",
     fromRow: fromIncidentRow,
-    listColumns: "id, reference_id, scheme, scheme_id, scheme_ids, first_name, date, time, time_of_arrival, submitted_by_user_id, submitted_by_name, last_edited_by_user_id, last_edited_by_name, status, created_at",
+    listColumns: "id, reference_id, scheme, scheme_id, scheme_ids, first_name, date, time, time_of_arrival, vehicle_allocated, submitted_by_user_id, submitted_by_name, last_edited_by_user_id, last_edited_by_name, status, created_at",
   },
   cabinHealthSafetyChecks: {
     table: "cabin_health_safety_checks",

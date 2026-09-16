@@ -96,6 +96,20 @@ export const VEHICLE_ALLOCATED_OPTIONS = [
   "Motorbike",
 ];
 
+// Per-vehicle-type colour used to tint the "Recovery Job Sheet" type badge
+// and its icon in the reports tables. "Light Recovery" keeps the app's
+// existing brand colour; the rest get their own colour so the vehicle
+// allocated to a job is visible at a glance from the Type column.
+const VEHICLE_ALLOCATED_COLORS = {
+  "Light Recovery": { badge: "bg-brand-100 text-brand-600", icon: "text-brand-600" },
+  "Heavy Recovery": { badge: "bg-purple-100 text-purple-600", icon: "text-purple-600" },
+  RIPV: { badge: "bg-red-100 text-red-600", icon: "text-red-600" },
+  Motorbike: { badge: "bg-orange-100 text-orange-600", icon: "text-orange-600" },
+};
+
+export const getVehicleAllocatedColors = (vehicleAllocated) =>
+  VEHICLE_ALLOCATED_COLORS[vehicleAllocated] || VEHICLE_ALLOCATED_COLORS["Light Recovery"];
+
 export const VEHICLE_TRANSMISSION_OPTIONS = [
   "Manual",
   "Automatic",
