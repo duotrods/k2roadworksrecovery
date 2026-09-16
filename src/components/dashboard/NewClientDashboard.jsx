@@ -8,6 +8,9 @@ import { clientDataService } from "../../services/clientDataService";
 import {
   BarChart,
   Bar,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -25,15 +28,23 @@ import {
   Truck,
   Car,
   Clock,
+  BarChart3,
+  PieChart as PieChartIcon,
+  History,
+  X,
 } from "lucide-react";
 import { SCHEMES } from "../../utils/schemes";
 import DrillDownSidebar from "./DrillDownSidebar";
-import { DateRangePicker } from "react-date-range";
+import {
+  DateRangePicker,
+  defaultStaticRanges,
+  createStaticRanges,
+} from "react-date-range";
 import "react-date-range/dist/styles.css"; // main css file
 import "react-date-range/dist/theme/default.css"; // theme css file
-import { addDays } from "date-fns";
-import { jsPDF } from "jspdf";
+import { addDays, startOfDay, endOfDay } from "date-fns";
 import toast from "react-hot-toast";
+import { PIE_COLORS, exportChartsToPDF } from "../../utils/pdfChartExport";
 
 const commonChartProps = {
   cartesianGrid: { strokeDasharray: "3 3", stroke: "#0865ad" },
@@ -52,20 +63,96 @@ const commonChartProps = {
   chartMargin: { top: 10, right: 20, left: -35, bottom: 10 },
 };
 
+// `data` + `onSliceClick` are optional — only charts that pass a plain array
+// of { name, Number } get the bar/pie toggle; charts that don't (e.g. the
+// time-series chart) always render their `children` bar chart as-is.
+// `chartKey` + `chartTypesRef` mirror the toggle into a ref keyed by
+// chartKey so handleExportPDF (which lives outside this component and can't
+// see its state) knows whether to draw a bar or pie chart for this card in
+// the PDF.
 const ChartCard = memo(
-  ({ title, children, fullWidth = false, height = 380 }) => (
-    <div
-      className={`bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow ${fullWidth ? "col-span-full" : ""}`}
-      onMouseDown={(e) => e.preventDefault()}
-    >
-      <h5 className="text-xl font-bold text-gray-800 mb-6 border-b pb-3">
-        {title}
-      </h5>
-      <ResponsiveContainer width="100%" height={height}>
-        {children}
-      </ResponsiveContainer>
-    </div>
-  ),
+  ({
+    title,
+    children,
+    data,
+    onSliceClick,
+    fullWidth = false,
+    height = 380,
+    chartKey,
+    chartTypesRef,
+  }) => {
+    const [type, setType] = useState("bar");
+    const canTogglePie = Array.isArray(data);
+
+    const changeType = (t) => {
+      setType(t);
+      if (chartTypesRef && chartKey) chartTypesRef.current[chartKey] = t;
+    };
+
+    return (
+      <div
+        className={`bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow ${fullWidth ? "col-span-full" : ""}`}
+        onMouseDown={(e) => e.preventDefault()}
+      >
+        <div className="flex items-center justify-between mb-6 border-b pb-3">
+          <h5 className="text-xl font-bold text-gray-800">{title}</h5>
+          {canTogglePie && (
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => changeType("bar")}
+                title="Bar chart"
+                className={`p-1.5 rounded-md transition-colors ${
+                  type === "bar"
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-100 text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => changeType("pie")}
+                title="Pie chart"
+                className={`p-1.5 rounded-md transition-colors ${
+                  type === "pie"
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-100 text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                <PieChartIcon className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+        <ResponsiveContainer width="100%" height={height}>
+          {canTogglePie && type === "pie" ? (
+            <PieChart>
+              <Pie
+                data={data}
+                dataKey="Number"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                outerRadius={Math.min(height, 380) / 2 - 40}
+                label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                onClick={(entry) => onSliceClick?.(entry.name)}
+                style={{ cursor: onSliceClick ? "pointer" : "default" }}
+              >
+                {data.map((entry, i) => (
+                  <Cell key={entry.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip {...commonChartProps.tooltip} />
+              <Legend {...commonChartProps.legend} />
+            </PieChart>
+          ) : (
+            children
+          )}
+        </ResponsiveContainer>
+      </div>
+    );
+  },
 );
 
 // The confirmed fault classification for an incident — set once the job's
@@ -92,6 +179,10 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
   const { userProfile } = useAuth();
   const datePickerRef = useRef(null);
   const dashboardRef = useRef(null);
+  // Current bar/pie selection per chart, keyed by chartKey — written by
+  // ChartCard, read by handleExportPDF so the download matches what's on
+  // screen. A ref (not state) since it's write-only until export time.
+  const chartTypesRef = useRef({});
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [drillDown, setDrillDown] = useState(null); // { title, incidents }
@@ -138,6 +229,32 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
   // Convert date range to string format for queries
   const startDate = dateRange[0].startDate.toISOString().split("T")[0];
   const endDate = dateRange[0].endDate.toISOString().split("T")[0];
+
+  // Cached query for the earliest incident date — drives the "All Time"
+  // static range below so it starts exactly when this scheme's data does.
+  const { data: earliestIncidentDate } = useQuery({
+    queryKey: ["earliestIncidentDate", schemeId],
+    queryFn: () => clientDataService.getEarliestIncidentDate(schemeId),
+    enabled: !!schemeId,
+    staleTime: 60 * 60 * 1000, // an hour — this date essentially never changes
+  });
+
+  // Adds an "All Time" preset (start of the scheme's data → today) alongside
+  // the date picker's built-in presets (Today, This Week, etc.).
+  const staticRanges = useMemo(
+    () =>
+      createStaticRanges([
+        ...defaultStaticRanges,
+        {
+          label: "All Time",
+          range: () => ({
+            startDate: startOfDay(earliestIncidentDate || new Date("2020-01-01")),
+            endDate: endOfDay(new Date()),
+          }),
+        },
+      ]),
+    [earliestIncidentDate],
+  );
 
   // Close date picker when clicking outside
   useEffect(() => {
@@ -373,190 +490,36 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
     { day: "numeric", month: "short", year: "numeric" },
   )}`;
 
-  // Helper function to draw a bar chart in PDF
-  const drawBarChart = (pdf, data, title, x, y, width, height) => {
-    if (!data || data.length === 0) return;
-
-    // Draw chart background
-    pdf.setFillColor(255, 255, 255);
-    pdf.rect(x, y, width, height, "F");
-    pdf.setDrawColor(229, 231, 235);
-    pdf.rect(x, y, width, height, "S");
-
-    // Draw title at the top with better positioning
-    pdf.setFontSize(9);
-    pdf.setFont("helvetica", "bold");
-    pdf.setTextColor(31, 41, 55);
-    pdf.text(title, x + width / 2, y + 6, { align: "center" });
-
-    // Adjusted margins - less bottom margin since labels are closer
-    const margin = { top: 12, right: 10, bottom: 18, left: 10 };
-    const chartWidth = width - margin.left - margin.right;
-    const chartHeight = height - margin.top - margin.bottom;
-
-    // Calculate max value - ensure it's at least 1 to avoid division by zero
-    const maxValue = Math.max(...data.map((d) => d.Number), 1);
-    const barWidth = (chartWidth / data.length) * 0.7;
-    const gap = (chartWidth / data.length) * 0.3;
-
-    // Draw bars
-    data.forEach((item, index) => {
-      const barHeight = (item.Number / maxValue) * chartHeight;
-      const barX = x + margin.left + index * (barWidth + gap);
-      const barY = y + margin.top + chartHeight - barHeight;
-
-      // Only draw bar if height is valid and greater than 0
-      if (
-        barHeight > 0 &&
-        !isNaN(barHeight) &&
-        !isNaN(barX) &&
-        !isNaN(barY) &&
-        barWidth > 0
-      ) {
-        // Draw bar - use regular rect if height is too small for rounded corners
-        pdf.setFillColor(8, 101, 173); // brand-500
-        if (barHeight >= 4) {
-          pdf.roundedRect(barX, barY, barWidth, barHeight, 2, 2, "F");
-        } else {
-          pdf.rect(barX, barY, barWidth, barHeight, "F");
-        }
-      }
-
-      // Draw value on top of bar
-      pdf.setFontSize(8);
-      pdf.setTextColor(31, 41, 55);
-      const valueY =
-        barHeight > 0 ? barY - 2 : y + margin.top + chartHeight - 2;
-      pdf.text(String(item.Number), barX + barWidth / 2, valueY, {
-        align: "center",
-      });
-
-      // Draw label below bar - much closer now
-      pdf.setFontSize(7);
-      pdf.setTextColor(107, 114, 128);
-      const label =
-        item.name.length > 12 ? item.name.substring(0, 12) + "..." : item.name;
-      const labelY = y + margin.top + chartHeight + 5; // Just 5mm below the chart area
-      pdf.text(label, barX + barWidth / 2, labelY, {
-        align: "center",
-        maxWidth: barWidth,
-      });
-    });
-  };
-
-  // Export dashboard as PDF
+  // Export dashboard as PDF — layout/drawing lives in utils/pdfChartExport
+  // so every "Export Charts" button in the app can share one design.
   const handleExportPDF = async () => {
     setIsExporting(true);
     toast.loading("Generating PDF...", { id: "export-pdf" });
 
     try {
-      // Create PDF in landscape orientation with compression enabled
-      const pdf = new jsPDF({
-        orientation: "l",
-        unit: "mm",
-        format: "a4",
-        compress: true,
-      });
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-
-      // Add header to the PDF
-      const headerHeight = 25;
-      pdf.setFillColor(8, 101, 173); // brand-500
-      pdf.rect(0, 0, pdfWidth, headerHeight, "F");
-
-      // Header text - left side
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(18);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("Dashboard Report", 15, 12);
-
-      pdf.setFontSize(11);
-      pdf.setFont("helvetica", "normal");
-      pdf.text(`${getActiveSchemeId()} - ${getActiveSchemeName()}`, 15, 19);
-
-      // Date range and stats - right side
       const dateRangeText = `${dateRange[0].startDate.toLocaleDateString("en-GB")} - ${dateRange[0].endDate.toLocaleDateString("en-GB")}`;
-      pdf.text(dateRangeText, pdfWidth - 15, 12, { align: "right" });
-
       const statsText = `Total Incidents: ${stats?.totalIncidents || 0} | Vehicles Dispatched: ${stats?.vehiclesDispatched || 0} | Free Recovery: ${(Number(stats?.incidentsByType?.["Free Recovery"]) || 0)}`;
-      pdf.text(statsText, pdfWidth - 15, 19, { align: "right" });
 
-      // Content area
-      const contentStartY = headerHeight + 10;
-      const chartWidth = (pdfWidth - 30) / 2; // 2 columns with margins
-      const chartHeight = 60;
-      const chartGap = 10;
-
-      let currentY = contentStartY;
-      let currentX = 15;
-      let chartCount = 0;
-
-      // Helper to add new page if needed
-      const checkNewPage = () => {
-        if (currentY + chartHeight > pdfHeight - 10) {
-          pdf.addPage();
-
-          // Add header to new page
-          pdf.setFillColor(8, 101, 173); // brand-500
-          pdf.rect(0, 0, pdfWidth, headerHeight, "F");
-          pdf.setTextColor(255, 255, 255);
-          pdf.setFontSize(18);
-          pdf.setFont("helvetica", "bold");
-          pdf.text("Dashboard Report", 15, 12);
-          pdf.setFontSize(11);
-          pdf.setFont("helvetica", "normal");
-          pdf.text(`${getActiveSchemeId()} - ${getActiveSchemeName()}`, 15, 19);
-          pdf.text(dateRangeText, pdfWidth - 15, 12, { align: "right" });
-          pdf.text(statsText, pdfWidth - 15, 19, { align: "right" });
-
-          currentY = contentStartY;
-          currentX = 15;
-          chartCount = 0;
-        }
-      };
-
-      // Draw all charts in 2-column layout
       const charts = [
-        { data: timeToSiteData, title: "Time to Site (mins)" },
-        { data: timeToRecoverData, title: "Time to Recover (mins)" },
-        { data: incidentTypeData, title: "Incident Type" },
-        { data: vehiclesDispatchedData, title: "Vehicle Allocated" },
-        { data: spottedByData, title: "Source of Call" },
-        { data: emergencyServicesData, title: "Emergency Services Attended" },
-        { data: vehicleTypeData, title: "Vehicle Type" },
-        { data: incursionsData, title: "Incursions" },
+        { data: timeToSiteData, title: "Time to Site (mins)", key: "timeToSite" },
+        { data: timeToRecoverData, title: "Time to Recover (mins)", key: "timeToRecover" },
+        { data: incidentTypeData, title: "Incident Type", key: "incidentType" },
+        { data: vehiclesDispatchedData, title: "Vehicle Allocated", key: "vehicleAllocated" },
+        { data: spottedByData, title: "Source of Call", key: "spottedBy" },
+        { data: emergencyServicesData, title: "Emergency Services Attended", key: "emergencyServices" },
+        { data: vehicleTypeData, title: "Vehicle Type", key: "vehicleType" },
+        { data: incursionsData, title: "Incursions", key: "incursions" },
       ];
 
-      charts.forEach((chart) => {
-        if (chart.data && chart.data.length > 0) {
-          checkNewPage();
-
-          drawBarChart(
-            pdf,
-            chart.data,
-            chart.title,
-            currentX,
-            currentY,
-            chartWidth - 5,
-            chartHeight,
-          );
-
-          chartCount++;
-          if (chartCount % 2 === 0) {
-            // Move to next row
-            currentY += chartHeight + chartGap;
-            currentX = 15;
-          } else {
-            // Move to next column
-            currentX = 15 + chartWidth + 5;
-          }
-        }
+      await exportChartsToPDF({
+        reportTitle: "Dashboard Report",
+        subtitle: `${getActiveSchemeId()} - ${getActiveSchemeName()}`,
+        dateRangeText,
+        statsText,
+        charts,
+        chartTypesRef,
+        fileName: `dashboard_${getActiveSchemeId()}_${startDate}_to_${endDate}.pdf`,
       });
-
-      // Save the PDF
-      const fileName = `dashboard_${getActiveSchemeId()}_${startDate}_to_${endDate}.pdf`;
-      pdf.save(fileName);
 
       toast.success("Dashboard exported successfully!", { id: "export-pdf" });
     } catch (error) {
@@ -566,6 +529,10 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
       setIsExporting(false);
     }
   };
+
+  const isAllTimeRange =
+    dateRange[0].startDate.getTime() ===
+    startOfDay(earliestIncidentDate || new Date("2020-01-01")).getTime();
 
   return (
     <div className="max-w-[1600px] mx-auto px-4">
@@ -594,7 +561,11 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
           <div className="relative" ref={datePickerRef}>
             <button
               onClick={() => setShowDatePicker(!showDatePicker)}
-              className="flex items-center gap-3 bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+              className={`flex items-center gap-3 px-4 py-2 rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-pointer ${
+                isAllTimeRange
+                  ? "bg-brand-50 border-brand-500"
+                  : "bg-white border-gray-200"
+              }`}
             >
               <Calendar className="w-5 h-5 text-brand-600" />
               <div className="flex items-center gap-2 text-sm">
@@ -605,6 +576,11 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
                 <span className="font-medium text-gray-700">
                   {dateRange[0].endDate.toLocaleDateString("en-GB")}
                 </span>
+                {isAllTimeRange && (
+                  <span className="text-xs font-semibold text-brand-600 bg-brand-100 px-2 py-0.5 rounded-full">
+                    All Time
+                  </span>
+                )}
               </div>
             </button>
 
@@ -618,8 +594,55 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
                   direction="horizontal"
                   showDateDisplay={false}
                   rangeColors={["#0865ad"]}
+                  staticRanges={staticRanges}
                 />
               </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setDateRange([
+                  {
+                    startDate: startOfDay(
+                      earliestIncidentDate || new Date("2020-01-01"),
+                    ),
+                    endDate: endOfDay(new Date()),
+                    key: "selection",
+                  },
+                ]);
+                setShowDatePicker(false);
+              }}
+              title="Loads full incident history — auto-updates when new incidents come in, no need to re-click"
+              className={`flex items-center gap-3 px-4 py-2 rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-pointer ${
+                isAllTimeRange
+                  ? "bg-brand-50 border-brand-500"
+                  : "bg-white border-gray-200"
+              }`}
+            >
+              <History className="w-4 h-4 text-brand-600 shrink-0" />
+              <span className="text-sm font-medium text-gray-700">
+                All Time
+              </span>
+            </button>
+
+            {isAllTimeRange && (
+              <button
+                onClick={() => {
+                  setDateRange([
+                    {
+                      startDate: addDays(new Date(), -30),
+                      endDate: new Date(),
+                      key: "selection",
+                    },
+                  ]);
+                }}
+                title="Clear All Time — back to last 30 days"
+                className="flex items-center justify-center w-9 h-9 bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md hover:text-red-500 hover:border-red-200 text-gray-400 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             )}
           </div>
         </div>
@@ -741,7 +764,13 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
 
           {/* All Charts in 2 Column Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-            <ChartCard title="Time to Site (mins)">
+            <ChartCard
+              title="Time to Site (mins)"
+              data={timeToSiteData}
+              chartKey="timeToSite"
+              chartTypesRef={chartTypesRef}
+              onSliceClick={(label) => handleBarClick("timeToSite", label)}
+            >
               <BarChart
                 data={timeToSiteData}
                 margin={commonChartProps.chartMargin}
@@ -759,7 +788,13 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
               </BarChart>
             </ChartCard>
 
-            <ChartCard title="Time to recover (mins)">
+            <ChartCard
+              title="Time to recover (mins)"
+              data={timeToRecoverData}
+              chartKey="timeToRecover"
+              chartTypesRef={chartTypesRef}
+              onSliceClick={(label) => handleBarClick("timeToRecover", label)}
+            >
               <BarChart
                 data={timeToRecoverData}
                 margin={commonChartProps.chartMargin}
@@ -778,7 +813,13 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
               </BarChart>
             </ChartCard>
 
-            <ChartCard title="Incident Type">
+            <ChartCard
+              title="Incident Type"
+              data={incidentTypeData}
+              chartKey="incidentType"
+              chartTypesRef={chartTypesRef}
+              onSliceClick={(label) => handleBarClick("incidentType", label)}
+            >
               <BarChart
                 data={incidentTypeData}
                 margin={commonChartProps.chartMargin}
@@ -797,7 +838,13 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
               </BarChart>
             </ChartCard>
 
-            <ChartCard title="Vehicle Allocated">
+            <ChartCard
+              title="Vehicle Allocated"
+              data={vehiclesDispatchedData}
+              chartKey="vehicleAllocated"
+              chartTypesRef={chartTypesRef}
+              onSliceClick={(label) => handleBarClick("vehicleTypesDispatched", label)}
+            >
               <BarChart
                 data={vehiclesDispatchedData}
                 margin={commonChartProps.chartMargin}
@@ -816,7 +863,13 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
               </BarChart>
             </ChartCard>
 
-            <ChartCard title="Source of Call">
+            <ChartCard
+              title="Source of Call"
+              data={spottedByData}
+              chartKey="spottedBy"
+              chartTypesRef={chartTypesRef}
+              onSliceClick={(label) => handleBarClick("jobSource", label)}
+            >
               <BarChart
                 data={spottedByData}
                 margin={commonChartProps.chartMargin}
@@ -834,7 +887,13 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
               </BarChart>
             </ChartCard>
 
-            <ChartCard title="Emergency Services Attended">
+            <ChartCard
+              title="Emergency Services Attended"
+              data={emergencyServicesData}
+              chartKey="emergencyServices"
+              chartTypesRef={chartTypesRef}
+              onSliceClick={(label) => handleBarClick("emergencyServices", label)}
+            >
               <BarChart
                 data={emergencyServicesData}
                 margin={commonChartProps.chartMargin}
@@ -853,7 +912,13 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
               </BarChart>
             </ChartCard>
 
-            <ChartCard title="Vehicle Type">
+            <ChartCard
+              title="Vehicle Type"
+              data={vehicleTypeData}
+              chartKey="vehicleType"
+              chartTypesRef={chartTypesRef}
+              onSliceClick={(label) => handleBarClick("vehicleTypes", label)}
+            >
               <BarChart
                 data={vehicleTypeData}
                 margin={commonChartProps.chartMargin}

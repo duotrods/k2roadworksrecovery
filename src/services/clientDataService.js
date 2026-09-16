@@ -171,6 +171,26 @@ class ClientDataService {
   }
 
   // Get aggregated statistics for a scheme
+  // Earliest incident_reports.created_at for a scheme — drives the "All Time"
+  // date-range preset so it starts exactly when the scheme's data does,
+  // instead of an arbitrary fixed date. null if the scheme has no incidents yet.
+  async getEarliestIncidentDate(schemeId) {
+    try {
+      const { data, error } = await supabase
+        .from("incident_reports")
+        .select("created_at")
+        .overlaps("scheme_ids", [schemeId])
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.created_at ? new Date(data.created_at) : null;
+    } catch (error) {
+      console.error("Failed to get earliest incident date:", error);
+      return null;
+    }
+  }
+
   async getSchemeStats(schemeId, days = 30) {
     try {
       const now = new Date();
