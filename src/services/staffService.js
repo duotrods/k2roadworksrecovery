@@ -976,7 +976,10 @@ class StaffService {
       return {
         forms: cleanForms,
         cursors: newCursors,
+        // Also more when docs were fetched but cut by the slice — e.g. 6 incidents + 6
+        // vehicle checks left: neither fetch is "full", yet 2 forms remain for the next page.
         hasMore:
+          allForms.length > pageSize ||
           incidentReports.hasMore ||
           cabinSafetyChecks.hasMore ||
           vehicleDailyChecks.hasMore,
