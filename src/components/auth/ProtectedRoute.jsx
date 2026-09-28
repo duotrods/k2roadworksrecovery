@@ -5,7 +5,7 @@ import EmailVerification from './EmailVerification';
 import SecurityWarningModal from './SecurityWarningModal';
 
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
-  const { currentUser, userProfile, initializing, isEmailVerified, role } = useAuth();
+  const { currentUser, userProfile, initializing, loading, isEmailVerified, role } = useAuth();
   const location = useLocation();
 
   // Gate on `initializing` (true only until the first auth resolution), NOT on
@@ -13,6 +13,15 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   // swapping children for a spinner there would remount the routed page and
   // reset any in-progress form (e.g. a new job sheet jumping back to Step 1).
   if (initializing) {
+    return <LoadingSpinner />;
+  }
+
+  // A sign-in after a sign-out in the same tab: signInWithPassword resolves once
+  // `currentUser` is set, but the profile is still loading. Without this wait the
+  // `!userProfile` check below bounces a freshly signed-in user back to /signin.
+  // Only blocks while no profile for this user exists yet, so focus refires
+  // (profile already loaded) still never remount the page.
+  if (loading && currentUser && userProfile?.uid !== currentUser.uid) {
     return <LoadingSpinner />;
   }
 

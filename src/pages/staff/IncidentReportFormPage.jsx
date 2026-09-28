@@ -699,7 +699,7 @@ const IncidentReportFormPage = () => {
       (file) => file.stage === "dropoff",
     );
     if (savedDropoffImages.length === 0 && dropoffFiles.length === 0) {
-      toast.error("Please upload at least one Unloaded Image");
+      toast.error("Please upload at least one image or video");
       return;
     }
 
@@ -1812,7 +1812,7 @@ const IncidentReportFormPage = () => {
         </div>
       </div>
 
-      {renderFileUpload("file-upload-step3", "Unloaded Images", "dropoff")}
+      {renderFileUpload("file-upload-step3", "Upload Images/Videos", "dropoff")}
 
       {/* Submit Buttons */}
       <div className="flex justify-between gap-4 mt-8 pt-6 border-t">
