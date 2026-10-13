@@ -70,6 +70,9 @@ export default defineConfig({
             return 'charts'
           if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('dompurify'))
             return 'pdf'
+          // Only loaded by the dashboard's Excel export (dynamic import), so
+          // keep it out of the shared vendor chunk every page downloads.
+          if (id.includes('exceljs')) return 'excel'
           return 'vendor'
         },
       },

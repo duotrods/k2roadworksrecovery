@@ -22,6 +22,7 @@ import {
   AlertTriangle,
   Calendar,
   Download,
+  FileSpreadsheet,
   Radio,
   Eye,
   Wrench,
@@ -45,6 +46,8 @@ import "react-date-range/dist/theme/default.css"; // theme css file
 import { addDays, startOfDay, endOfDay } from "date-fns";
 import toast from "react-hot-toast";
 import { PIE_COLORS, exportChartsToPDF } from "../../utils/pdfChartExport";
+import { exportDashboardToExcel } from "../../utils/excelExport";
+import { clearanceBucket, clearanceRateData } from "../../utils/incidentStats";
 
 const commonChartProps = {
   cartesianGrid: { strokeDasharray: "3 3", stroke: "#0865ad" },
@@ -80,6 +83,7 @@ const ChartCard = memo(
     height = 380,
     chartKey,
     chartTypesRef,
+    tooltipFormatter,
   }) => {
     const [type, setType] = useState("bar");
     const canTogglePie = Array.isArray(data);
@@ -143,7 +147,7 @@ const ChartCard = memo(
                   <Cell key={entry.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip {...commonChartProps.tooltip} />
+              <Tooltip {...commonChartProps.tooltip} formatter={tooltipFormatter} />
               <Legend {...commonChartProps.legend} />
             </PieChart>
           ) : (
@@ -158,6 +162,22 @@ const ChartCard = memo(
 // The confirmed fault classification for an incident — set once the job's
 // fully inspected (Step 3's Fault). Mirrors clientDataService.incidentClassification.
 const incidentClassification = (i) => i.actualFault || "";
+
+// Tooltip for the clearance-rate charts: count plus its share, e.g. "12 (80%)".
+const clearanceTooltipFormatter = (value, _name, item) =>
+  `${value} (${item?.payload?.pct ?? 0}%)`;
+
+// Combined first so it pairs with Vehicle Type in the 2-column grid,
+// leaving Heavy and Light side by side on the next row.
+const CLEARANCE_CHARTS = [
+  {
+    key: "combinedClearance",
+    title: "Clearance Rate (Light + Heavy)",
+    vehicleTypes: ["Light Recovery", "Heavy Recovery"],
+  },
+  { key: "heavyClearance", title: "Heavy Clearance Rate", vehicleTypes: ["Heavy Recovery"] },
+  { key: "lightClearance", title: "Light Clearance Rate", vehicleTypes: ["Light Recovery"] },
+];
 
 const transformDataForChart = (dataObj, filterUnknown = true) => {
   if (!dataObj) return [];
@@ -379,6 +399,29 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
     [stats],
   );
 
+  const clearanceCharts = useMemo(
+    () =>
+      CLEARANCE_CHARTS.map((c) => ({
+        ...c,
+        data: clearanceRateData(incidents, c.vehicleTypes),
+      })),
+    [incidents],
+  );
+
+  const handleClearanceClick = useCallback(
+    (chart, label) => {
+      if (!label) return;
+      const filtered = incidents.filter(
+        (i) =>
+          chart.vehicleTypes.includes(i.vehicleAllocated) &&
+          clearanceBucket(i) === label,
+      );
+      if (filtered.length)
+        openDrillDown({ title: `${chart.title} – ${label}`, incidents: filtered });
+    },
+    [incidents, openDrillDown],
+  );
+
   const handleBarClick = useCallback(
     (chartType, label) => {
       if (!label || !incidents.length) return;
@@ -492,39 +535,81 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
 
   // Export dashboard as PDF — layout/drawing lives in utils/pdfChartExport
   // so every "Export Charts" button in the app can share one design.
+  // Shared by the PDF and Excel exports so both list the same charts.
+  const exportDateRangeText = `${dateRange[0].startDate.toLocaleDateString("en-GB")} - ${dateRange[0].endDate.toLocaleDateString("en-GB")}`;
+  const exportSubtitle = `${getActiveSchemeId()} - ${getActiveSchemeName()}`;
+  const exportFileBase = `dashboard_${getActiveSchemeId()}_${startDate}_to_${endDate}`;
+  const getExportCharts = () => [
+    { data: timeToSiteData, title: "Time to Site (mins)", key: "timeToSite" },
+    { data: timeToRecoverData, title: "Time to Recover (mins)", key: "timeToRecover" },
+    { data: incidentTypeData, title: "Incident Type", key: "incidentType" },
+    { data: vehiclesDispatchedData, title: "Vehicle Allocated", key: "vehicleAllocated" },
+    { data: spottedByData, title: "Source of Call", key: "spottedBy" },
+    { data: emergencyServicesData, title: "Emergency Services Attended", key: "emergencyServices" },
+    { data: vehicleTypeData, title: "Vehicle Type", key: "vehicleType" },
+    ...clearanceCharts.map(({ data, title, key }) => ({ data, title, key })),
+    { data: incursionsData, title: "Incursions", key: "incursions" },
+  ];
+
   const handleExportPDF = async () => {
     setIsExporting(true);
     toast.loading("Generating PDF...", { id: "export-pdf" });
 
     try {
-      const dateRangeText = `${dateRange[0].startDate.toLocaleDateString("en-GB")} - ${dateRange[0].endDate.toLocaleDateString("en-GB")}`;
       const statsText = `Total Incidents: ${stats?.totalIncidents || 0} | Vehicles Dispatched: ${stats?.vehiclesDispatched || 0} | Free Recovery: ${(Number(stats?.incidentsByType?.["Free Recovery"]) || 0)}`;
-
-      const charts = [
-        { data: timeToSiteData, title: "Time to Site (mins)", key: "timeToSite" },
-        { data: timeToRecoverData, title: "Time to Recover (mins)", key: "timeToRecover" },
-        { data: incidentTypeData, title: "Incident Type", key: "incidentType" },
-        { data: vehiclesDispatchedData, title: "Vehicle Allocated", key: "vehicleAllocated" },
-        { data: spottedByData, title: "Source of Call", key: "spottedBy" },
-        { data: emergencyServicesData, title: "Emergency Services Attended", key: "emergencyServices" },
-        { data: vehicleTypeData, title: "Vehicle Type", key: "vehicleType" },
-        { data: incursionsData, title: "Incursions", key: "incursions" },
-      ];
 
       await exportChartsToPDF({
         reportTitle: "Dashboard Report",
-        subtitle: `${getActiveSchemeId()} - ${getActiveSchemeName()}`,
-        dateRangeText,
+        subtitle: exportSubtitle,
+        dateRangeText: exportDateRangeText,
         statsText,
-        charts,
+        charts: getExportCharts(),
         chartTypesRef,
-        fileName: `dashboard_${getActiveSchemeId()}_${startDate}_to_${endDate}.pdf`,
+        fileName: `${exportFileBase}.pdf`,
       });
 
       toast.success("Dashboard exported successfully!", { id: "export-pdf" });
     } catch (error) {
       console.error("Failed to export PDF:", error);
       toast.error("Failed to export dashboard", { id: "export-pdf" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Excel version of the export: KPI cards on a Summary sheet, every chart's
+  // numbers (plus Incidents Over Time) on a Chart Data sheet.
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    toast.loading("Generating Excel...", { id: "export-excel" });
+
+    try {
+      await exportDashboardToExcel({
+        reportTitle: "Dashboard Report",
+        subtitle: exportSubtitle,
+        dateRangeText: exportDateRangeText,
+        kpis: [
+          { label: "Total Incidents", value: Number(stats?.totalIncidents) || 0 },
+          ...statsCards.map((c) => ({ label: c.title, value: Number(c.value) || 0 })),
+          {
+            label: "Free Recovery",
+            value: Number(stats?.incidentsByType?.["Free Recovery"]) || 0,
+          },
+        ],
+        charts: [
+          ...getExportCharts(),
+          {
+            title: "Incidents Over Time",
+            data: timeSeriesData.map((d) => ({ name: d.name, Number: d.count })),
+          },
+        ],
+        fileName: `${exportFileBase}.xlsx`,
+      });
+
+      toast.success("Dashboard exported successfully!", { id: "export-excel" });
+    } catch (error) {
+      console.error("Failed to export Excel:", error);
+      toast.error("Failed to export dashboard", { id: "export-excel" });
     } finally {
       setIsExporting(false);
     }
@@ -555,7 +640,16 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
             className="flex items-center gap-2 bg-brand-500 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-brand-600 hover:shadow-md transition-all disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             <Download className="w-5 h-5" />
-            <span className="font-medium">Export Charts</span>
+            <span className="font-medium">Export PDF</span>
+          </button>
+
+          <button
+            onClick={handleExportExcel}
+            disabled={isExporting || loading}
+            className="flex items-center gap-2 bg-white text-brand-600 border border-brand-500 px-4 py-2 rounded-lg shadow-sm hover:bg-brand-50 hover:shadow-md transition-all disabled:text-gray-400 disabled:border-gray-300 disabled:bg-white disabled:cursor-not-allowed"
+          >
+            <FileSpreadsheet className="w-5 h-5" />
+            <span className="font-medium">Export Excel</span>
           </button>
 
           <div className="relative" ref={datePickerRef}>
@@ -936,6 +1030,37 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
                 <Bar dataKey="Number" {...commonChartProps.bar} />
               </BarChart>
             </ChartCard>
+
+            {clearanceCharts.map((chart) => (
+              <ChartCard
+                key={chart.key}
+                title={chart.title}
+                data={chart.data}
+                chartKey={chart.key}
+                chartTypesRef={chartTypesRef}
+                tooltipFormatter={clearanceTooltipFormatter}
+                onSliceClick={(label) => handleClearanceClick(chart, label)}
+              >
+                <BarChart
+                  data={chart.data}
+                  margin={commonChartProps.chartMargin}
+                  onClick={(d) =>
+                    d?.activeLabel && handleClearanceClick(chart, d.activeLabel)
+                  }
+                  style={{ cursor: "pointer" }}
+                >
+                  <CartesianGrid {...commonChartProps.cartesianGrid} />
+                  <XAxis dataKey="name" {...commonChartProps.xAxis} />
+                  <YAxis {...commonChartProps.yAxis} />
+                  <Tooltip
+                    {...commonChartProps.tooltip}
+                    formatter={clearanceTooltipFormatter}
+                  />
+                  <Legend {...commonChartProps.legend} />
+                  <Bar dataKey="Number" {...commonChartProps.bar} />
+                </BarChart>
+              </ChartCard>
+            ))}
 
             {/* <ChartCard title="Incursions">
               <BarChart

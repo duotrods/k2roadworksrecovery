@@ -3,6 +3,8 @@ import {
   formatDateToBritish,
   minutesBetween,
   calculateTimeDifferences,
+  currentTimeHHMM,
+  formatMinutes,
 } from "../incidentForm";
 
 describe("formatDateToBritish", () => {
@@ -49,5 +51,20 @@ describe("calculateTimeDifferences", () => {
     const result = calculateTimeDifferences({ scheme: "M3", time: "10:00", timeOfArrival: "10:05" });
     expect(result.scheme).toBe("M3");
     expect(result.timeSpottedToOn).toBe("5 mins");
+  });
+});
+
+describe("currentTimeHHMM", () => {
+  it("formats local time as zero-padded 24-hour HH:MM", () => {
+    expect(currentTimeHHMM(new Date(2026, 0, 1, 13, 4))).toBe("13:04");
+    expect(currentTimeHHMM(new Date(2026, 0, 1, 1, 5))).toBe("01:05");
+  });
+});
+
+describe("formatMinutes", () => {
+  it("formats minutes as hours and minutes", () => {
+    expect(formatMinutes(720)).toBe("12h 0m");
+    expect(formatMinutes(195)).toBe("3h 15m");
+    expect(formatMinutes(45)).toBe("45m");
   });
 });

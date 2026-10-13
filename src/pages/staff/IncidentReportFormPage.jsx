@@ -20,12 +20,16 @@ import AdminSidebarLayout from "../../components/layout/AdminSidebarLayout";
 import StepIndicator from "../../components/staff/incident/StepIndicator";
 import SignaturePad from "../../components/staff/incident/SignaturePad";
 import StandDownConfirmModal from "../../components/staff/incident/StandDownConfirmModal";
+import LongDurationConfirmModal from "../../components/staff/incident/LongDurationConfirmModal";
+import TimeClearedField from "../../components/staff/incident/TimeClearedField";
 import { compressImage } from "../../utils/imageCompression";
 import { getSchemesForUser } from "../../utils/schemes";
 import { generateReportPDF, blobToBase64 } from "../../utils/pdfGenerator";
 import {
   formatDateToBritish,
   calculateTimeDifferences,
+  minutesBetween,
+  LONG_JOB_MINUTES,
   SERVICE_ACCEPTANCE_STATEMENTS,
   VEHICLE_CONDITION_SECTIONS,
   CHECK_ITEMS,
@@ -129,6 +133,7 @@ const IncidentReportFormPage = () => {
   const [liveIncidentId, setLiveIncidentId] = useState(null);
   const [existingReferenceId, setExistingReferenceId] = useState(null);
   const [showStandDownConfirm, setShowStandDownConfirm] = useState(false);
+  const [showLongDurationConfirm, setShowLongDurationConfirm] = useState(false);
 
   const [formData, setFormData] = useState(() => emptyFormData(userProfile));
   // RIPV jobs use a shortened On Scene form (Step 2) and complete there —
@@ -652,6 +657,17 @@ const IncidentReportFormPage = () => {
       }
     }
 
+    // Likely an AM/PM misclick (e.g. 01:04 instead of 13:04) — confirm first.
+    const jobMinutes = minutesBetween(formData.timeOfArrival, formData.timeCompleted);
+    if (jobMinutes !== null && jobMinutes > LONG_JOB_MINUTES) {
+      setShowLongDurationConfirm(true);
+      return;
+    }
+
+    await continueStep2();
+  };
+
+  const continueStep2 = async () => {
     if (isRipv) {
       await completeRipvJob();
       return;
@@ -1379,21 +1395,13 @@ const IncidentReportFormPage = () => {
                     />
                   </div>
 
-                  <div>
-                    <label className="label">
-                      <span className="label-text font-semibold mb-2">
-                        Cleared <span className="text-red-500">*</span>
-                      </span>
-                    </label>
-                    <input
-                      type="time"
-                      name="timeCompleted"
-                      value={formData.timeCompleted}
-                      onChange={handleChange}
-                      className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
-                      required
-                    />
-                  </div>
+                  <TimeClearedField
+                    label="Cleared"
+                    value={formData.timeCompleted}
+                    arrivalTime={formData.timeOfArrival}
+                    onChange={handleChange}
+                    required
+                  />
                 </div>
               </>
             ) : (
@@ -1502,21 +1510,14 @@ const IncidentReportFormPage = () => {
                 {renderFileUpload("file-upload-step2", "Arrival Images", "arrival", false)}
 
                 {/* Time Cleared */}
-                <div>
-                  <label className="label">
-                    <span className="label-text font-semibold mb-2 mr-2">
-                      Time Cleared <span className="text-red-500">*</span>
-                    </span>
-                  </label>
-                  <input
-                    type="time"
-                    name="timeCompleted"
-                    value={formData.timeCompleted}
-                    onChange={handleChange}
-                    className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full md:w-1/3"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">Record when the scene is cleared.</p>
-                </div>
+                <TimeClearedField
+                  label="Time Cleared"
+                  value={formData.timeCompleted}
+                  arrivalTime={formData.timeOfArrival}
+                  onChange={handleChange}
+                  hint="Record when the scene is cleared."
+                  className="w-full md:w-1/3"
+                />
               </>
             )}
 
@@ -1563,6 +1564,19 @@ const IncidentReportFormPage = () => {
           <StandDownConfirmModal
             onConfirm={handleStandDown}
             onCancel={() => setShowStandDownConfirm(false)}
+          />
+        )}
+
+        {showLongDurationConfirm && (
+          <LongDurationConfirmModal
+            duration={minutesBetween(formData.timeOfArrival, formData.timeCompleted)}
+            arrivalTime={formData.timeOfArrival}
+            clearedTime={formData.timeCompleted}
+            onConfirm={() => {
+              setShowLongDurationConfirm(false);
+              continueStep2();
+            }}
+            onCancel={() => setShowLongDurationConfirm(false)}
           />
         )}
       </div>
