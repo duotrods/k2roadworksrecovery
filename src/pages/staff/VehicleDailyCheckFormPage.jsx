@@ -7,6 +7,7 @@ import { staffService } from "../../services/staffService";
 import { supabase } from "../../config/supabase";
 import StaffSidebarLayout from "../../components/layout/StaffSidebarLayout";
 import AdminSidebarLayout from "../../components/layout/AdminSidebarLayout";
+import EditingBanner from "../../components/common/EditingBanner";
 import { getSchemesForUser, extractSchemeId, isDemoScheme } from "../../utils/schemes";
 import { getStaffBasePath, USER_ROLES } from "../../utils/constants";
 import { VEHICLE_CHECK_ITEMS } from "../../utils/vehicleCheckStats";
@@ -106,6 +107,7 @@ const VehicleDailyCheckFormPage = () => {
   const postActionPath = isAdmin ? "/dashboard/admin/staff-reports" : basePath;
   const [searchParams] = useSearchParams();
   const editId = searchParams.get("edit");
+  const [editingReferenceId, setEditingReferenceId] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState(() => {
@@ -154,6 +156,7 @@ const VehicleDailyCheckFormPage = () => {
       const form = await staffService.getVehicleDailyCheckById(editId);
 
       if (form) {
+        setEditingReferenceId(form.referenceId || null);
         setFormData({
           weekCommencing: form.weekCommencing || "",
           day: form.day || getDefaultDay(form.weekCommencing || ""),
@@ -330,6 +333,12 @@ const VehicleDailyCheckFormPage = () => {
               : "Recovery Vehicle Daily Check Sheet"}
           </h3>
         </div>
+        {editId && (
+          <EditingBanner
+            recordLabel="vehicle daily check"
+            referenceId={editingReferenceId}
+          />
+        )}
 
         {/* Form */}
         <form

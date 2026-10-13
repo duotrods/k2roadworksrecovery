@@ -18,6 +18,7 @@ import { supabase } from "../../config/supabase";
 import StaffSidebarLayout from "../../components/layout/StaffSidebarLayout";
 import AdminSidebarLayout from "../../components/layout/AdminSidebarLayout";
 import StepIndicator from "../../components/staff/incident/StepIndicator";
+import EditingBanner from "../../components/common/EditingBanner";
 import SignaturePad from "../../components/staff/incident/SignaturePad";
 import StandDownConfirmModal from "../../components/staff/incident/StandDownConfirmModal";
 import LongDurationConfirmModal from "../../components/staff/incident/LongDurationConfirmModal";
@@ -2242,6 +2243,13 @@ const IncidentReportFormPage = () => {
               : "Job Sheet"}
           </h2>
         </div>
+        {editId && (
+          <EditingBanner
+            action={isEditingLiveIncident ? "completing" : "editing"}
+            recordLabel="job sheet"
+            referenceId={existingReferenceId}
+          />
+        )}
         {/* Render current step */}
         {loading && !formData.scheme ? (
           <div className="flex justify-center py-12">

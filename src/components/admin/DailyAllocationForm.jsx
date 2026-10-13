@@ -5,6 +5,7 @@ import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { staffService } from "../../services/staffService";
 import { SCHEMES } from "../../utils/schemes";
+import EditingBanner from "../common/EditingBanner";
 
 const DAYS_OF_WEEK = [
   "monday",
@@ -68,6 +69,7 @@ const DailyAllocationForm = () => {
   const { userProfile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState(emptyFormData);
+  const [editingReferenceId, setEditingReferenceId] = useState(null);
 
   useEffect(() => {
     if (id) loadAllocation();
@@ -83,6 +85,7 @@ const DailyAllocationForm = () => {
         navigate("/dashboard/admin/daily-allocations");
         return;
       }
+      setEditingReferenceId(allocation.referenceId || null);
       setFormData({
         schemeId: allocation.schemeId || "",
         schemeName: allocation.schemeName || "",
@@ -184,6 +187,12 @@ const DailyAllocationForm = () => {
           </p>
         </div>
       </div>
+      {id && (
+        <EditingBanner
+          recordLabel="daily allocation"
+          referenceId={editingReferenceId}
+        />
+      )}
 
       <form
         onSubmit={handleSubmit}

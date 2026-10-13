@@ -15,6 +15,7 @@ import { staffService } from "../../services/staffService";
 import { supabase } from "../../config/supabase";
 import StaffSidebarLayout from "../../components/layout/StaffSidebarLayout";
 import AdminSidebarLayout from "../../components/layout/AdminSidebarLayout";
+import EditingBanner from "../../components/common/EditingBanner";
 import { getSchemesForUser, extractSchemeId, isDemoScheme } from "../../utils/schemes";
 import { getStaffBasePath, USER_ROLES } from "../../utils/constants";
 import { compressImage } from "../../utils/imageCompression";
@@ -81,6 +82,7 @@ const CabinSafetyCheckFormPage = () => {
   const canSubmit = isAdmin || userProfile?.canSubmitCabinHsChecks !== false;
   const [searchParams] = useSearchParams();
   const editId = searchParams.get("edit");
+  const [editingReferenceId, setEditingReferenceId] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -128,6 +130,7 @@ const CabinSafetyCheckFormPage = () => {
       const form = await staffService.getCabinHealthSafetyCheckById(editId);
 
       if (form) {
+        setEditingReferenceId(form.referenceId || null);
         setFormData({
           cabinOrPlotNo: form.cabinOrPlotNo || "",
           inspectionCompletedBy: form.inspectionCompletedBy || "",
@@ -467,6 +470,12 @@ const CabinSafetyCheckFormPage = () => {
               : "Cabin Health & Safety Monthly Inspection Checklist"}
           </h3>
         </div>
+        {editId && (
+          <EditingBanner
+            recordLabel="cabin health & safety check"
+            referenceId={editingReferenceId}
+          />
+        )}
 
         {/* Form */}
         <form
