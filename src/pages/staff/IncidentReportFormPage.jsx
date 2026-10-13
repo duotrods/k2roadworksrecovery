@@ -21,6 +21,7 @@ import StepIndicator from "../../components/staff/incident/StepIndicator";
 import SignaturePad from "../../components/staff/incident/SignaturePad";
 import StandDownConfirmModal from "../../components/staff/incident/StandDownConfirmModal";
 import LongDurationConfirmModal from "../../components/staff/incident/LongDurationConfirmModal";
+import DriverDelayedModal from "../../components/staff/incident/DriverDelayedModal";
 import TimeClearedField from "../../components/staff/incident/TimeClearedField";
 import { compressImage } from "../../utils/imageCompression";
 import { getSchemesForUser } from "../../utils/schemes";
@@ -30,6 +31,7 @@ import {
   calculateTimeDifferences,
   minutesBetween,
   LONG_JOB_MINUTES,
+  DRIVER_DELAY_MINUTES,
   SERVICE_ACCEPTANCE_STATEMENTS,
   VEHICLE_CONDITION_SECTIONS,
   CHECK_ITEMS,
@@ -70,6 +72,8 @@ const emptyFormData = (userProfile) => ({
   ripvOnScene: false,
   otherOnScene: false,
   otherOnSceneDetails: "",
+  driverDelayedArrival: false,
+  driverDelayedReason: "",
   timeOfArrival: "",
   markerPost: "",
   vehicleType: "",
@@ -134,6 +138,8 @@ const IncidentReportFormPage = () => {
   const [existingReferenceId, setExistingReferenceId] = useState(null);
   const [showStandDownConfirm, setShowStandDownConfirm] = useState(false);
   const [showLongDurationConfirm, setShowLongDurationConfirm] = useState(false);
+  const [showDriverDelayedModal, setShowDriverDelayedModal] = useState(false);
+  const driverDelayedReasonRef = useRef(null);
 
   const [formData, setFormData] = useState(() => emptyFormData(userProfile));
   // RIPV jobs use a shortened On Scene form (Step 2) and complete there —
@@ -165,6 +171,8 @@ const IncidentReportFormPage = () => {
           ripvOnScene: report.ripvOnScene || false,
           otherOnScene: report.otherOnScene || false,
           otherOnSceneDetails: report.otherOnSceneDetails || "",
+          driverDelayedArrival: report.driverDelayedArrival || false,
+          driverDelayedReason: report.driverDelayedReason || "",
           firstName: report.firstName || "",
           scheme: report.scheme || "",
           driverName: report.driverName || "",
@@ -617,6 +625,17 @@ const IncidentReportFormPage = () => {
   };
 
   // Step 2: On Scene — save progress and continue to Drop-Off Sheet.
+  // True when arrival is over DRIVER_DELAY_MINUTES after the job's start time
+  // and the delay hasn't been recorded yet.
+  const needsDriverDelayedReason = (arrivalTime) => {
+    const responseMinutes = minutesBetween(formData.time, arrivalTime);
+    return (
+      responseMinutes !== null &&
+      responseMinutes > DRIVER_DELAY_MINUTES &&
+      !formData.driverDelayedArrival
+    );
+  };
+
   const handleStep2Next = async (e) => {
     e.preventDefault();
 
@@ -640,6 +659,13 @@ const IncidentReportFormPage = () => {
         return;
       }
 
+      // Arrived over an hour after the job started — the delay must be
+      // recorded (ticked + reason) before the job sheet can move on.
+      if (needsDriverDelayedReason(formData.timeOfArrival)) {
+        setShowDriverDelayedModal(true);
+        return;
+      }
+
       if (
         !formData.driverOnScene &&
         !formData.policeOnScene &&
@@ -653,6 +679,11 @@ const IncidentReportFormPage = () => {
 
       if (formData.otherOnScene && !formData.otherOnSceneDetails.trim()) {
         toast.error("Please specify who else was on scene");
+        return;
+      }
+
+      if (formData.driverDelayedArrival && !formData.driverDelayedReason.trim()) {
+        toast.error("Please give the reason for the driver's delayed arrival");
         return;
       }
     }
@@ -1420,7 +1451,8 @@ const IncidentReportFormPage = () => {
                       ["nhOnScene", "NH on scene"],
                       ["ripvOnScene", "RIPV on scene"],
                       ["policeLeadIncident", "Police Lead Incident"],
-                      ["otherOnScene", "Other on scene (please specify)"]
+                      ["driverDelayedArrival", "Driver Delayed Arrival"],
+                      ["otherOnScene", "Other on scene"],
                     ].map(([key, label]) => (
                       <label key={key} className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -1436,6 +1468,18 @@ const IncidentReportFormPage = () => {
                       </label>
                     ))}
                   </div>
+                  {formData.driverDelayedArrival && (
+                    <input
+                      ref={driverDelayedReasonRef}
+                      type="text"
+                      name="driverDelayedReason"
+                      placeholder="Please specify the reason for the delayed arrival"
+                      value={formData.driverDelayedReason}
+                      onChange={handleChange}
+                      required
+                      className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full mt-3"
+                    />
+                  )}
                   {formData.otherOnScene && (
                     <input
                       type="text"
@@ -1443,6 +1487,7 @@ const IncidentReportFormPage = () => {
                       placeholder="Please specify who else was on scene"
                       value={formData.otherOnSceneDetails}
                       onChange={handleChange}
+                      required
                       className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full mt-3"
                     />
                   )}
@@ -1461,6 +1506,12 @@ const IncidentReportFormPage = () => {
                       name="timeOfArrival"
                       value={formData.timeOfArrival}
                       onChange={handleChange}
+                      // Checked on blur, not on change: the time input fires
+                      // onChange per segment while it's still being typed.
+                      onBlur={(e) => {
+                        if (needsDriverDelayedReason(e.target.value))
+                          setShowDriverDelayedModal(true);
+                      }}
                       className="input bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
                       required
                     />
@@ -1564,6 +1615,20 @@ const IncidentReportFormPage = () => {
           <StandDownConfirmModal
             onConfirm={handleStandDown}
             onCancel={() => setShowStandDownConfirm(false)}
+          />
+        )}
+
+        {showDriverDelayedModal && (
+          <DriverDelayedModal
+            responseMinutes={minutesBetween(formData.time, formData.timeOfArrival)}
+            startTime={formData.time}
+            arrivalTime={formData.timeOfArrival}
+            onConfirm={() => {
+              setShowDriverDelayedModal(false);
+              setFormData((prev) => ({ ...prev, driverDelayedArrival: true }));
+              // The reason input only renders once the box is ticked.
+              setTimeout(() => driverDelayedReasonRef.current?.focus(), 0);
+            }}
           />
         )}
 

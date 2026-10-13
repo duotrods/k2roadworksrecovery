@@ -325,6 +325,11 @@ export const generateReportPDF = async (report, reportType, options) => {
           `Other${report.otherOnSceneDetails ? ` (${report.otherOnSceneDetails})` : ""}`,
       ].filter(Boolean);
       addField("On Scene", onScene.length > 0 ? onScene.join(", ") : "None");
+      if (report.driverDelayedArrival)
+        addField(
+          "Driver Delayed Arrival",
+          report.driverDelayedReason || "Yes",
+        );
       if (report.driverName) addField("Driver Name", report.driverName);
       if (report.jobSource) addField("Job Source/Customer", report.jobSource);
       if (report.customerLogNo)

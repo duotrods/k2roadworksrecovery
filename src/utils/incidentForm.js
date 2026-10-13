@@ -26,6 +26,10 @@ export const minutesBetween = (time1, time2) => {
 // AM/PM misclick on a 12-hour time picker (e.g. 01:04 instead of 13:04).
 export const LONG_JOB_MINUTES = 180;
 
+// Job start → arrival longer than this counts as a delayed arrival, and
+// staff must tick "Driver Delayed Arrival" and give a reason on Step 2.
+export const DRIVER_DELAY_MINUTES = 60;
+
 // Current local time as HH:MM (24-hour), the value format of <input type="time">.
 export const currentTimeHHMM = (date = new Date()) =>
   `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;

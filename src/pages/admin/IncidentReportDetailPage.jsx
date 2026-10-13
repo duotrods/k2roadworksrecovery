@@ -142,6 +142,12 @@ const IncidentReportDetailPage = () => {
                   </span>
                 ))}
             </div>
+            {report.driverDelayedArrival && (
+              <p className="text-sm text-gray-700 mb-4">
+                <span className="font-semibold">Driver Delayed Arrival:</span>{" "}
+                {report.driverDelayedReason || "Yes"}
+              </p>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="text-sm font-semibold text-gray-500 uppercase">Operator</label>
