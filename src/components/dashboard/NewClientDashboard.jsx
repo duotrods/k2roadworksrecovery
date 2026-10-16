@@ -47,7 +47,11 @@ import { addDays, startOfDay, endOfDay } from "date-fns";
 import toast from "react-hot-toast";
 import { PIE_COLORS, exportChartsToPDF } from "../../utils/pdfChartExport";
 import { exportDashboardToExcel } from "../../utils/excelExport";
-import { clearanceBucket, clearanceRateData } from "../../utils/incidentStats";
+import {
+  clearanceBucket,
+  clearanceRateData,
+  monthlyRecoverySummary,
+} from "../../utils/incidentStats";
 
 const commonChartProps = {
   cartesianGrid: { strokeDasharray: "3 3", stroke: "#0865ad" },
@@ -577,8 +581,9 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
     }
   };
 
-  // Excel version of the export: KPI cards on a Summary sheet, every chart's
-  // numbers (plus Incidents Over Time) on a Chart Data sheet.
+  // Excel version of the export: the client's monthly Recovery Report sheet
+  // first, then KPI cards on a Summary sheet and every chart's numbers (plus
+  // Incidents Over Time) on a Chart Data sheet.
   const handleExportExcel = async () => {
     setIsExporting(true);
     toast.loading("Generating Excel...", { id: "export-excel" });
@@ -603,6 +608,11 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
             data: timeSeriesData.map((d) => ({ name: d.name, Number: d.count })),
           },
         ],
+        recoveryReport: monthlyRecoverySummary(
+          incidents,
+          dateRange[0].startDate,
+          dateRange[0].endDate,
+        ),
         fileName: `${exportFileBase}.xlsx`,
       });
 

@@ -4,6 +4,7 @@ import {
   isPureIncident,
   clearanceBucket,
   clearanceRateData,
+  monthlyRecoverySummary,
 } from "../incidentStats";
 
 describe("countVehicles", () => {
@@ -101,5 +102,39 @@ describe("clearanceRateData", () => {
   it("returns [] with no matching incidents", () => {
     expect(clearanceRateData([], ["Light Recovery"])).toEqual([]);
     expect(clearanceRateData(undefined, ["Light Recovery"])).toEqual([]);
+  });
+});
+
+describe("monthlyRecoverySummary", () => {
+  const inc = (createdAt, vehicleAllocated, mins) => ({
+    createdAt,
+    vehicleAllocated,
+    timeOnsiteToCleared: `${mins} mins`,
+  });
+
+  it("builds one row per month with light/heavy/combined clearance", () => {
+    const incidents = [
+      inc("2026-03-05T10:00:00", "Light Recovery", 30),
+      inc("2026-03-06T10:00:00", "Light Recovery", 90),
+      inc("2026-03-07T10:00:00", "Heavy Recovery", 60),
+      inc("2026-03-08T10:00:00", "RIPV", 10), // not a recovery
+      inc("2026-05-01T10:00:00", "Heavy Recovery", 120),
+    ];
+    const r = monthlyRecoverySummary(incidents, new Date(2026, 2, 1), new Date(2026, 4, 31));
+    expect(r.months.map((m) => m.recoveries)).toEqual([3, 0, 1]);
+    expect(r.months[0].clearance).toBeCloseTo(2 / 3);
+    expect(r.months[0].lights).toBe(0.5);
+    expect(r.months[0].heavies).toBe(1);
+    expect(r.months[1].clearance).toBeNull();
+    expect(r.months[2].lights).toBeNull();
+    expect(r.totalRecoveries).toBe(4);
+    expect(r.overallClearance).toBe(0.5);
+  });
+
+  it("returns empty-month rows and null rates with no incidents", () => {
+    const r = monthlyRecoverySummary([], new Date(2026, 0, 10), new Date(2026, 1, 10));
+    expect(r.months).toHaveLength(2);
+    expect(r.totalRecoveries).toBe(0);
+    expect(r.overallClearance).toBeNull();
   });
 });

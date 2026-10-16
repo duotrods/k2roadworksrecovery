@@ -1,6 +1,8 @@
 // Excel export for dashboards — the spreadsheet counterpart of
 // pdfChartExport. ExcelJS is large, so it's loaded only when an export runs.
 
+import { clearanceRateChartPng, monthlyRecoveriesChartPng } from "./recoveryChartImages";
+
 const BRAND = "FF0865AD";
 const HEADER_FONT = { bold: true, color: { argb: "FFFFFFFF" } };
 const HEADER_FILL = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND } };
@@ -33,6 +35,70 @@ const chartRows = (data) => {
   return data.map((d) => [d.name, Number(d.Number) || 0, total ? (Number(d.Number) || 0) / total : 0]);
 };
 
+const NAVY = "FF0F2A4A";
+const BLACK_BORDER = {
+  top: { style: "thin" },
+  bottom: { style: "thin" },
+  left: { style: "thin" },
+  right: { style: "thin" },
+};
+
+// The client's own monthly reporting layout: month table with clearance rates
+// (combined / lights / heavies), totals underneath, and the two charts beside it.
+const addRecoveryReportSheet = (workbook, { months, totalRecoveries, overallClearance }) => {
+  const sheet = workbook.addWorksheet("Recovery Report", { views: [{ showGridLines: true }] });
+  sheet.columns = [
+    { width: 12 },
+    { width: 19 },
+    { width: 15 },
+    { width: 11 },
+    { width: 11 },
+    { width: 46 },
+    { width: 4 },
+  ];
+
+  const header = sheet.addRow(["Month", "No of recoveries", "Clearance rate", "Lights", "Heavies", "Actions on challenges"]);
+  header.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
+    cell.border = BLACK_BORDER;
+  });
+
+  months.forEach((m) => {
+    // ExcelJS serialises dates as UTC, so use UTC midnight — local midnight
+    // would land on the previous month for anyone east of UTC (e.g. BST).
+    const monthUtc = new Date(Date.UTC(m.month.getFullYear(), m.month.getMonth(), 1));
+    const row = sheet.addRow([monthUtc, m.recoveries, m.clearance ?? "N/A", m.lights ?? "N/A", m.heavies ?? "N/A", ""]);
+    row.eachCell({ includeEmpty: true }, (cell, col) => {
+      cell.border = BLACK_BORDER;
+      cell.alignment = { horizontal: col === 6 ? "left" : "right", vertical: "middle" };
+      if (col >= 3 && col <= 5) cell.numFmt = "0%";
+    });
+    row.getCell(1).numFmt = "mmm-yy";
+  });
+
+  sheet.addRow([]);
+  sheet.addRow(["Total Recoveries", totalRecoveries]).getCell(1).font = { bold: true };
+  sheet.addRow([]);
+  const rate = sheet.addRow(["Clearance Rate", overallClearance ?? "N/A", "Running total"]);
+  rate.eachCell((cell, col) => {
+    cell.font = { bold: true };
+    cell.border = { bottom: { style: "thin" } };
+    if (col === 2) {
+      cell.numFmt = "0.00%";
+      cell.alignment = { horizontal: "right" };
+    }
+  });
+
+  // Charts to the right of the table (col H onward), stacked.
+  const place = (png, row) => {
+    const id = workbook.addImage({ base64: png, extension: "png" });
+    sheet.addImage(id, { tl: { col: 7, row }, ext: { width: 760, height: 330 } });
+  };
+  place(monthlyRecoveriesChartPng(months), 1);
+  place(clearanceRateChartPng(months), 18);
+};
+
 /**
  * @param {object} opts
  * @param {string} opts.reportTitle
@@ -40,6 +106,8 @@ const chartRows = (data) => {
  * @param {string} opts.dateRangeText
  * @param {{ label: string, value: number }[]} opts.kpis
  * @param {{ title: string, data: { name: string, Number: number }[] }[]} opts.charts
+ * @param {object} [opts.recoveryReport] result of monthlyRecoverySummary; adds the
+ *   client-style "Recovery Report" sheet (month table + charts) as the first sheet
  * @param {string} opts.fileName
  */
 export const exportDashboardToExcel = async ({
@@ -48,11 +116,14 @@ export const exportDashboardToExcel = async ({
   dateRangeText,
   kpis,
   charts,
+  recoveryReport,
   fileName,
 }) => {
   const { default: ExcelJS } = await import("exceljs");
   const workbook = new ExcelJS.Workbook();
   workbook.created = new Date();
+
+  if (recoveryReport) addRecoveryReportSheet(workbook, recoveryReport);
 
   // Summary: report details + KPI cards.
   const summary = workbook.addWorksheet("Summary");

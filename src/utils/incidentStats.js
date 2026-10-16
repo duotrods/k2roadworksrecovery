@@ -46,3 +46,60 @@ export const clearanceRateData = (incidents, vehicleTypes) => {
       pct: Math.round((count / total) * 100),
     }));
 };
+
+// Month-by-month recovery report (the client's own Excel reporting layout).
+// "Recoveries" are Light + Heavy recovery jobs; clearance rate is the share of
+// those cleared within an hour. Rates are fractions (0-1), or null when a
+// month has no measurable jobs of that kind (shown as "N/A").
+const LIGHT = "Light Recovery";
+const HEAVY = "Heavy Recovery";
+
+const incidentMillis = (createdAt) => {
+  if (!createdAt) return NaN;
+  if (typeof createdAt.seconds === "number") return createdAt.seconds * 1000;
+  return new Date(createdAt).getTime();
+};
+
+const rateOf = (list) => {
+  const measured = list.filter((i) => clearanceBucket(i));
+  if (!measured.length) return null;
+  return measured.filter((i) => clearanceBucket(i) === CLEARANCE_LABELS.under).length / measured.length;
+};
+
+export const monthlyRecoverySummary = (incidents, startDate, endDate) => {
+  const byMonth = new Map();
+  (incidents || []).forEach((i) => {
+    if (i.vehicleAllocated !== LIGHT && i.vehicleAllocated !== HEAVY) return;
+    const d = new Date(incidentMillis(i.createdAt));
+    if (isNaN(d)) return;
+    const key = d.getFullYear() * 12 + d.getMonth();
+    if (!byMonth.has(key)) byMonth.set(key, []);
+    byMonth.get(key).push(i);
+  });
+
+  // One row per calendar month across the range, including empty months.
+  const first = byMonth.size ? Math.min(...byMonth.keys()) : null;
+  const rangeStart = startDate.getFullYear() * 12 + startDate.getMonth();
+  const rangeEnd = endDate.getFullYear() * 12 + endDate.getMonth();
+  const from = first === null ? rangeStart : Math.min(rangeStart, first);
+  const to = Math.max(rangeEnd, ...byMonth.keys());
+
+  const months = [];
+  for (let key = from; key <= to; key++) {
+    const list = byMonth.get(key) || [];
+    months.push({
+      month: new Date(Math.floor(key / 12), key % 12, 1),
+      recoveries: list.length,
+      clearance: rateOf(list),
+      lights: rateOf(list.filter((i) => i.vehicleAllocated === LIGHT)),
+      heavies: rateOf(list.filter((i) => i.vehicleAllocated === HEAVY)),
+    });
+  }
+
+  const all = [...byMonth.values()].flat();
+  return {
+    months,
+    totalRecoveries: all.length,
+    overallClearance: rateOf(all),
+  };
+};
