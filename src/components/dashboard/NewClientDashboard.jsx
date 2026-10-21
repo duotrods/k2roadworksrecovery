@@ -46,6 +46,7 @@ import "react-date-range/dist/theme/default.css"; // theme css file
 import { addDays, startOfDay, endOfDay } from "date-fns";
 import toast from "react-hot-toast";
 import { PIE_COLORS, exportChartsToPDF } from "../../utils/pdfChartExport";
+import { layoutPieLabels } from "../../utils/pieLabelLayout";
 import { exportDashboardToExcel } from "../../utils/excelExport";
 import {
   clearanceBucket,
@@ -68,6 +69,162 @@ const commonChartProps = {
   legend: { wrapperStyle: { paddingTop: "20px" } },
   bar: { fill: "#0865ad", radius: [8, 8, 0, 0] },
   chartMargin: { top: 10, right: 20, left: -35, bottom: 10 },
+};
+
+const fmtPct = (value, total) => {
+  if (!total || !value) return "0%";
+  const pct = (value / total) * 100;
+  return pct < 1 ? "<1%" : `${Math.round(pct)}%`;
+};
+
+const truncate = (text, max) =>
+  text.length > max ? `${text.slice(0, Math.max(1, max - 1)).trimEnd()}…` : text;
+
+// Pie view for ChartCard: a labelled pie whose labels never overlap or get
+// clipped (see layoutPieLabels), with a compact legend underneath. The card
+// keeps its height — the pie takes whatever the legend leaves.
+const PieBreakdown = ({ data, height, onSliceClick, tooltipFormatter }) => {
+  const wrapRef = useRef(null);
+  const legendRef = useRef(null);
+  const [width, setWidth] = useState(0);
+  const [legendHeight, setLegendHeight] = useState(0);
+  const [activeName, setActiveName] = useState(null);
+
+  useEffect(() => {
+    const measure = () => {
+      setWidth(wrapRef.current?.clientWidth ?? 0);
+      setLegendHeight(legendRef.current?.offsetHeight ?? 0);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (wrapRef.current) observer.observe(wrapRef.current);
+    if (legendRef.current) observer.observe(legendRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // Colour is tied to a category's position in the full data set, so a
+  // zero-value category dropping out doesn't repaint the rest.
+  const slices = data
+    .map((d, i) => ({
+      ...d,
+      Number: Number(d.Number) || 0,
+      color: PIE_COLORS[i % PIE_COLORS.length],
+    }))
+    .filter((d) => d.Number > 0);
+  const total = slices.reduce((sum, d) => sum + d.Number, 0);
+  const chartHeight = height - legendHeight;
+  const layout =
+    width > 0 && total > 0
+      ? layoutPieLabels(slices.map((d) => d.Number), width, chartHeight)
+      : null;
+
+  const renderLabel = ({ index }) => {
+    const label = layout.labels[index];
+    if (!label) return null;
+    const slice = slices[index];
+    const dimmed = activeName && activeName !== slice.name;
+    const anchor = label.right ? "start" : "end";
+    const [lineEndX] = label.lineEnd;
+    const stats = `${slice.Number.toLocaleString()} (${fmtPct(slice.Number, total)})`;
+    return (
+      <g key={slice.name} opacity={dimmed ? 0.3 : 1} style={{ pointerEvents: "none" }}>
+        <polyline
+          points={`${label.edge.join(",")} ${label.bend.join(",")} ${lineEndX},${label.y}`}
+          fill="none"
+          stroke={slice.color}
+          strokeWidth={1.5}
+        />
+        <circle cx={lineEndX} cy={label.y} r={2.5} fill={slice.color} />
+        {layout.twoLine ? (
+          <text x={label.x} textAnchor={anchor} fontSize={12}>
+            <tspan x={label.x} y={label.y - 3} fill="#1f2937" fontWeight={600}>
+              {truncate(slice.name, layout.maxChars)}
+            </tspan>
+            <tspan x={label.x} y={label.y + 12} fill="#637381">
+              {stats}
+            </tspan>
+          </text>
+        ) : (
+          <text x={label.x} y={label.y + 4} textAnchor={anchor} fontSize={12} fill="#1f2937">
+            <tspan fontWeight={600}>
+              {truncate(slice.name, Math.max(4, layout.maxChars - stats.length - 1))}
+            </tspan>
+            <tspan fill="#637381">{` ${stats}`}</tspan>
+          </text>
+        )}
+      </g>
+    );
+  };
+
+  return (
+    <div ref={wrapRef} className="flex flex-col" style={{ height }}>
+      {total === 0 ? (
+        <div className="flex-1 flex items-center justify-center text-sm text-gray-400">
+          No data for this period
+        </div>
+      ) : (
+        layout && (
+          <PieChart width={width} height={chartHeight}>
+            <Pie
+              data={slices}
+              dataKey="Number"
+              nameKey="name"
+              cx={layout.cx}
+              cy={layout.cy}
+              outerRadius={layout.radius}
+              startAngle={layout.startAngle}
+              endAngle={layout.startAngle - 360}
+              stroke="#fff"
+              strokeWidth={2}
+              label={renderLabel}
+              labelLine={false}
+              isAnimationActive={false}
+              onClick={(entry) => onSliceClick?.(entry.name)}
+              onMouseEnter={(entry) => setActiveName(entry.name)}
+              onMouseLeave={() => setActiveName(null)}
+              style={{ cursor: onSliceClick ? "pointer" : "default", outline: "none" }}
+            >
+              {slices.map((entry) => (
+                <Cell
+                  key={entry.name}
+                  fill={entry.color}
+                  fillOpacity={activeName && activeName !== entry.name ? 0.3 : 1}
+                />
+              ))}
+            </Pie>
+            <Tooltip
+              {...commonChartProps.tooltip}
+              formatter={
+                tooltipFormatter ||
+                ((value, name) => [`${value} (${fmtPct(value, total)})`, name])
+              }
+            />
+          </PieChart>
+        )
+      )}
+      <ul
+        ref={legendRef}
+        className="mt-auto pt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 max-h-[66px] overflow-y-auto"
+      >
+        {slices.map((slice) => (
+          <li key={slice.name}>
+            <button
+              type="button"
+              onClick={() => onSliceClick?.(slice.name)}
+              onMouseEnter={() => setActiveName(slice.name)}
+              onMouseLeave={() => setActiveName(null)}
+              className={`flex items-center gap-1.5 text-xs text-gray-600 transition-opacity ${
+                onSliceClick ? "cursor-pointer hover:text-gray-900" : "cursor-default"
+              } ${activeName && activeName !== slice.name ? "opacity-40" : ""}`}
+            >
+              <span className="size-2.5 rounded-sm shrink-0" style={{ backgroundColor: slice.color }} />
+              {slice.name}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 };
 
 // `data` + `onSliceClick` are optional — only charts that pass a plain array
@@ -133,31 +290,18 @@ const ChartCard = memo(
             </div>
           )}
         </div>
-        <ResponsiveContainer width="100%" height={height}>
-          {canTogglePie && type === "pie" ? (
-            <PieChart>
-              <Pie
-                data={data}
-                dataKey="Number"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                outerRadius={Math.min(height, 380) / 2 - 40}
-                label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                onClick={(entry) => onSliceClick?.(entry.name)}
-                style={{ cursor: onSliceClick ? "pointer" : "default" }}
-              >
-                {data.map((entry, i) => (
-                  <Cell key={entry.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip {...commonChartProps.tooltip} formatter={tooltipFormatter} />
-              <Legend {...commonChartProps.legend} />
-            </PieChart>
-          ) : (
-            children
-          )}
-        </ResponsiveContainer>
+        {canTogglePie && type === "pie" ? (
+          <PieBreakdown
+            data={data}
+            height={height}
+            onSliceClick={onSliceClick}
+            tooltipFormatter={tooltipFormatter}
+          />
+        ) : (
+          <ResponsiveContainer width="100%" height={height}>
+            {children}
+          </ResponsiveContainer>
+        )}
       </div>
     );
   },

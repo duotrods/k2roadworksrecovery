@@ -3,6 +3,13 @@
 @import "tailwindcss";
 @plugin "daisyui";
 
+/* DaisyUI badges have a fixed height, so on narrow screens a label that wraps
+   (e.g. "Light Recovery", "RECOVERY JOB SHEET") spills out of its pill and
+   overlaps the text beside it. Keep every badge label on one line. */
+.badge {
+  white-space: nowrap;
+}
+
 :root {
   font-family: "Poppins", system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
