@@ -127,17 +127,17 @@ export async function onRequestPost({ request, env }) {
       "vehicle-check": {
         filename: `VehicleDailyCheck_${referenceId || reportId}.pdf`,
         subject: `Vehicle Daily Check Copy — ${referenceId || reportId}`,
-        text: `Attached is a copy of Vehicle Daily Check ${referenceId || reportId}.\n\nThank you,\nK2 Vehicle Recovery`,
+        text: `Attached is a copy of Vehicle Daily Check ${referenceId || reportId}.\n\nK2 Vehicle Recovery`,
       },
       "cabin-safety": {
         filename: `CabinSafetyCheck_${referenceId || reportId}.pdf`,
         subject: `Cabin Health & Safety Check Copy — ${referenceId || reportId}`,
-        text: `Attached is a copy of Cabin Health & Safety Check ${referenceId || reportId}.\n\nThank you,\nK2 Vehicle Recovery`,
+        text: `Attached is a copy of Cabin Health & Safety Check ${referenceId || reportId}.\n\nK2 Vehicle Recovery`,
       },
       incident: {
         filename: `IncidentReport_${referenceId || reportId}.pdf`,
         subject: `Your K2 Vehicle Recovery Job Sheet Copy — ${referenceId || reportId}`,
-        text: `Hi ${customerName || "there"},\n\nAttached is a copy of your Job Sheet (${referenceId || reportId}) for your records.\n\nThank you,\nK2 Vehicle Recovery`,
+        text: `Hi ${customerName || "there"},\n\nAttached is a copy of your Job Sheet (${referenceId || reportId}) for your records.\n\nK2 Vehicle Recovery`,
       },
     };
     const { filename, subject, text } = EMAIL_CONTENT_BY_TYPE[reportType];

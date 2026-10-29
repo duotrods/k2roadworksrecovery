@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
 // Mouse/touch-driven signature canvas. Exposes isEmpty/clear/toBlob via ref
 // so the parent form can decide when to upload the drawn signature.
-const SignaturePad = forwardRef(({ width = 1000, height = 160 }, ref) => {
+const SignaturePad = forwardRef(({ width = 1000, height = 500 }, ref) => {
   const canvasRef = useRef(null);
   const drawingRef = useRef(false);
   const hasDrawnRef = useRef(false);
@@ -10,7 +10,7 @@ const SignaturePad = forwardRef(({ width = 1000, height = 160 }, ref) => {
 
   useEffect(() => {
     const ctx = canvasRef.current.getContext("2d");
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 4;
     ctx.lineCap = "round";
     ctx.strokeStyle = "#1f2937";
   }, []);
@@ -67,7 +67,7 @@ const SignaturePad = forwardRef(({ width = 1000, height = 160 }, ref) => {
       ref={canvasRef}
       width={width}
       height={height}
-      className="border border-gray-300 rounded-lg bg-white touch-none w-full cursor-crosshair"
+      className="border border-gray-300 rounded-lg bg-white touch-none w-full aspect-[2/1] max-w-2xl cursor-crosshair"
       onMouseDown={startDrawing}
       onMouseMove={draw}
       onMouseUp={stopDrawing}

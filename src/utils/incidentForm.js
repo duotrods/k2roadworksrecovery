@@ -144,7 +144,23 @@ export const VEHICLE_TYPE_OPTIONS = [
   "HGV",
   "Motorbike",
   "Coach/Bus",
+  "Other",
   "None",
+];
+
+// Step 2 On Scene: which carriageway/track and lane(s) the incident affected.
+export const TRACK_OPTIONS = ["A", "B", "J", "K", "L", "M", "Other"];
+
+export const AFFECTED_LANES_OPTIONS = [
+  "HS",
+  "Lane 1",
+  "Lane 2",
+  "Lane 3",
+  "Lane 4",
+  "Works",
+  "Verge",
+  "Central Res",
+  "Slip Road",
 ];
 
 export const INCIDENT_TYPE_OPTIONS = [
@@ -165,8 +181,10 @@ export const ACTUAL_TYPE_OPTIONS = [
   "No Fuel",
   "Drive Off",
   "Vehicle Fire",
+  "RTC",
+  "Abandoned",
   "No Fault",
-  "Other"
+
 ];
 
 export const createEmptyVehicleCondition = () =>

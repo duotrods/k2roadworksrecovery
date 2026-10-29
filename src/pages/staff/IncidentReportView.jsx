@@ -325,6 +325,18 @@ const IncidentReportView = () => {
               </div>
               <div>
                 <label className="text-sm font-semibold text-gray-600">
+                  Track
+                </label>
+                <p className="text-gray-800">{report.track || "N/A"}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-600">
+                  Affected Lanes
+                </label>
+                <p className="text-gray-800">{report.affectedLanes || "N/A"}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-600">
                   Location
                 </label>
                 <p className="text-gray-800">{report.location || "N/A"}</p>

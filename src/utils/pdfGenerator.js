@@ -359,6 +359,8 @@ export const generateReportPDF = async (report, reportType, options) => {
       addSectionHeader("FAULT & LOCATION");
       if (report.actualFault) addField("Fault", report.actualFault);
       if (report.markerPost) addField("Marker Post", report.markerPost);
+      if (report.track) addField("Track", report.track);
+      if (report.affectedLanes) addField("Affected Lanes", report.affectedLanes);
       if (report.location) addField("Location", report.location);
       if (report.notes) addField("Notes", report.notes);
 

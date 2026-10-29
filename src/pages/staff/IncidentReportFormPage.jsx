@@ -42,6 +42,8 @@ import {
   VEHICLE_ALLOCATED_OPTIONS,
   VEHICLE_TRANSMISSION_OPTIONS,
   VEHICLE_TYPE_OPTIONS,
+  TRACK_OPTIONS,
+  AFFECTED_LANES_OPTIONS,
   ACTUAL_TYPE_OPTIONS,
 } from "../../utils/incidentForm";
 
@@ -77,6 +79,8 @@ const emptyFormData = (userProfile) => ({
   driverDelayedReason: "",
   timeOfArrival: "",
   markerPost: "",
+  track: "",
+  affectedLanes: "",
   vehicleType: "",
   // RIPV-only field (shortened On Scene form) — see renderStep2. Its "Fault"
   // field reuses actualFault (below, Step 3) rather than its own key.
@@ -191,6 +195,8 @@ const IncidentReportFormPage = () => {
           speedo: report.speedo || "",
           actualFault: report.actualFault || "",
           markerPost: report.markerPost || "",
+          track: report.track || "",
+          affectedLanes: report.affectedLanes || "",
           location: report.location || "",
           notes: report.notes || "",
           timeCompleted: report.timeCompleted || "",
@@ -655,7 +661,12 @@ const IncidentReportFormPage = () => {
         return;
       }
     } else {
-      if (!formData.timeOfArrival || !formData.markerPost) {
+      if (
+        !formData.timeOfArrival ||
+        !formData.markerPost ||
+        !formData.track ||
+        !formData.affectedLanes
+      ) {
         toast.error("Please fill in all required fields for On Scene");
         return;
       }
@@ -1258,19 +1269,19 @@ const IncidentReportFormPage = () => {
       </div>
 
       {/* Submit Buttons */}
-      <div className="flex justify-between gap-4 mt-8 pt-6 border-t">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-3 sm:gap-4 mt-8 pt-6 border-t">
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+          className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
         >
           Cancel
         </button>
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           <button
             type="submit"
             disabled={loading || uploadsBusy}
-            className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors font-semibold flex items-center gap-2"
+            className="w-full sm:w-auto px-4 sm:px-8 py-2.5 sm:py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors font-semibold flex items-center justify-center gap-2"
           >
             {loading ? (
               editId ? "Saving..." : "Creating..."
@@ -1559,6 +1570,52 @@ const IncidentReportFormPage = () => {
                   </div>
                 </div>
 
+                {/* Track, Affected Lanes */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="label">
+                      <span className="label-text font-semibold mb-2">
+                        Track <span className="text-red-500">*</span>
+                      </span>
+                    </label>
+                    <select
+                      name="track"
+                      value={formData.track}
+                      onChange={handleChange}
+                      className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+                      required
+                    >
+                      <option value="">Please select</option>
+                      {TRACK_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">
+                      <span className="label-text font-semibold mb-2">
+                        Affected Lanes <span className="text-red-500">*</span>
+                      </span>
+                    </label>
+                    <select
+                      name="affectedLanes"
+                      value={formData.affectedLanes}
+                      onChange={handleChange}
+                      className="select bg-white border-gray-300 rounded-lg hover:bg-gray-100 w-full"
+                      required
+                    >
+                      <option value="">Please select</option>
+                      {AFFECTED_LANES_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 {renderFileUpload("file-upload-step2", "Arrival Images", "arrival", false)}
 
                 {/* Time Cleared */}
@@ -1574,21 +1631,21 @@ const IncidentReportFormPage = () => {
             )}
 
             {/* Submit Buttons */}
-            <div className="flex justify-between gap-4 mt-8 pt-6 border-t">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-3 sm:gap-4 mt-8 pt-6 border-t">
               <button
                 type="button"
                 onClick={() => setCurrentStep(1)}
-                className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 Back
               </button>
-              <div className="flex gap-3">
+              <div className="flex flex-col-reverse sm:flex-row gap-3">
                 {(isEditingLiveIncident || editId) && (
                   <button
                     type="button"
                     onClick={handleSave}
                     disabled={loading || uploadsBusy}
-                    className="px-6 py-3 border border-brand-500 text-brand-600 rounded-lg hover:bg-brand-50 disabled:opacity-50 transition-colors font-semibold"
+                    className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 border border-brand-500 text-brand-600 rounded-lg hover:bg-brand-50 disabled:opacity-50 transition-colors font-semibold"
                   >
                     {loading ? "Saving..." : "Save & Return"}
                   </button>
@@ -1596,7 +1653,7 @@ const IncidentReportFormPage = () => {
                 <button
                   type="submit"
                   disabled={loading || uploadsBusy}
-                  className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors font-semibold flex items-center gap-2"
+                  className="w-full sm:w-auto px-4 sm:px-8 py-2.5 sm:py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors font-semibold flex items-center justify-center gap-2"
                 >
                   {loading ? "Saving..." : isUploading ? "Uploading images…" : isRipv ? (
                     "Complete Job Sheet"
@@ -1895,21 +1952,21 @@ const IncidentReportFormPage = () => {
       {renderFileUpload("file-upload-step3", "Upload Images/Videos", "dropoff")}
 
       {/* Submit Buttons */}
-      <div className="flex justify-between gap-4 mt-8 pt-6 border-t">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-3 sm:gap-4 mt-8 pt-6 border-t">
         <button
           type="button"
           onClick={() => setCurrentStep(2)}
-          className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+          className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
         >
           Back
         </button>
-        <div className="flex gap-3">
+        <div className="flex flex-col-reverse sm:flex-row gap-3">
           {(isEditingLiveIncident || editId) && (
             <button
               type="button"
               onClick={handleSave}
               disabled={loading || uploadsBusy}
-              className="px-6 py-3 border border-brand-500 text-brand-600 rounded-lg hover:bg-brand-50 disabled:opacity-50 transition-colors font-semibold"
+              className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 border border-brand-500 text-brand-600 rounded-lg hover:bg-brand-50 disabled:opacity-50 transition-colors font-semibold"
             >
               {loading ? "Saving..." : "Save & Return"}
             </button>
@@ -1917,7 +1974,7 @@ const IncidentReportFormPage = () => {
           <button
             type="submit"
             disabled={loading || uploadsBusy}
-            className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors font-semibold flex items-center gap-2"
+            className="w-full sm:w-auto px-4 sm:px-8 py-2.5 sm:py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors font-semibold flex items-center justify-center gap-2"
           >
             {loading ? "Saving..." : isUploading ? "Uploading images…" : (
               <>
@@ -2176,21 +2233,21 @@ const IncidentReportFormPage = () => {
       </div>
 
       {/* Submit Buttons */}
-      <div className="flex justify-between gap-4 mt-8 pt-6 border-t">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-3 sm:gap-4 mt-8 pt-6 border-t">
         <button
           type="button"
           onClick={() => setCurrentStep(3)}
-          className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+          className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
         >
           Back
         </button>
-        <div className="flex gap-3">
+        <div className="flex flex-col-reverse sm:flex-row gap-3">
           {(isEditingLiveIncident || editId) && (
             <button
               type="button"
               onClick={handleSave}
               disabled={loading || uploadsBusy}
-              className="px-6 py-3 border border-brand-500 text-brand-600 rounded-lg hover:bg-brand-50 disabled:opacity-50 transition-colors font-semibold"
+              className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 border border-brand-500 text-brand-600 rounded-lg hover:bg-brand-50 disabled:opacity-50 transition-colors font-semibold"
             >
               {loading ? "Saving..." : "Save & Return"}
             </button>
@@ -2198,7 +2255,7 @@ const IncidentReportFormPage = () => {
           <button
             type="submit"
             disabled={loading || uploadsBusy}
-            className="px-8 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors font-semibold"
+            className="w-full sm:w-auto px-4 sm:px-8 py-2.5 sm:py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors font-semibold"
           >
             {loading
               ? editId
