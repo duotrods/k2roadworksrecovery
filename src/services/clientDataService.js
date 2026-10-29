@@ -5,6 +5,13 @@ import { isVideoFile } from "../utils/fileType";
 import { fromIncidentRow } from "../utils/incidentRowMapper";
 import { subscribeRealtimeList } from "../utils/realtimeSubscription";
 
+// "YYYY-MM-DD" as a local-midnight Date. new Date("YYYY-MM-DD") is UTC
+// midnight, which lands on the wrong local day outside UTC.
+const parseLocalDate = (dateStr) => {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d);
+};
+
 // Normalizes createdAt — defensive against any lingering Firestore
 // Timestamp shape, though every read in this file is Supabase (ISO string)
 // now.
@@ -509,10 +516,10 @@ class ClientDataService {
   async getSchemeStatsByDateRange(schemeId, startDateStr, endDateStr) {
     try {
       // Convert date strings (YYYY-MM-DD) to Date objects
-      const startDate = new Date(startDateStr);
+      const startDate = parseLocalDate(startDateStr);
       startDate.setHours(0, 0, 0, 0); // Start of day
 
-      const endDate = new Date(endDateStr);
+      const endDate = parseLocalDate(endDateStr);
       endDate.setHours(23, 59, 59, 999); // End of day
 
       // Get recent incidents
@@ -576,10 +583,10 @@ class ClientDataService {
   async getTimeSeriesDataByDateRange(schemeId, startDateStr, endDateStr) {
     try {
       // Convert date strings (YYYY-MM-DD) to Date objects
-      const startDate = new Date(startDateStr);
+      const startDate = parseLocalDate(startDateStr);
       startDate.setHours(0, 0, 0, 0);
 
-      const endDate = new Date(endDateStr);
+      const endDate = parseLocalDate(endDateStr);
       endDate.setHours(23, 59, 59, 999);
 
       const { data, error } = await supabase

@@ -93,6 +93,8 @@ const IncidentReportView = () => {
     });
   };
 
+  const isStoodDown = report?.status === "stood_down";
+
   if (loading) {
     return (
       <StaffSidebarLayout basePath={basePath}>
@@ -143,6 +145,7 @@ const IncidentReportView = () => {
               <Download className="w-4 h-4" />
               PDF
             </button>
+            {!isStoodDown && (
             <button
               onClick={handleEdit}
               className="flex flex-1 md:flex-none items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
@@ -150,6 +153,7 @@ const IncidentReportView = () => {
               <Edit className="w-4 h-4" />
               Edit
             </button>
+            )}
             <button
               onClick={handleDelete}
               className="flex flex-1 md:flex-none items-center justify-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
@@ -159,6 +163,16 @@ const IncidentReportView = () => {
             </button>
           </div>
         </div>
+
+        {isStoodDown && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+            <p className="font-semibold text-red-700">Stood Down Recovery</p>
+            <p className="text-sm text-red-600 mt-1">
+              This recovery was stood down before arrival on scene (recorded as a
+              Drive Off). Only the Step 1 details were captured.
+            </p>
+          </div>
+        )}
 
         {/* Report Content */}
         <div className="bg-white rounded-xl shadow-md p-4 sm:p-8 space-y-6">
@@ -242,6 +256,8 @@ const IncidentReportView = () => {
             </div>
           </div>
 
+          {!isStoodDown && (
+            <>
           {/* Vehicle Details */}
           <div>
             <h4 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">
@@ -514,6 +530,9 @@ const IncidentReportView = () => {
               </div>
             )}
           </div>
+
+            </>
+          )}
 
           {/* Notes */}
           <div>

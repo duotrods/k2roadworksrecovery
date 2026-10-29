@@ -66,6 +66,8 @@ const IncidentReportDetailPage = () => {
     return time;
   };
 
+  const isStoodDown = report?.status === 'stood_down';
+
   if (loading) {
     return (
       <AdminSidebarLayout>
@@ -102,6 +104,8 @@ const IncidentReportDetailPage = () => {
                   </span>
                 ) : report.status === 'completed' ? (
                   <span className="badge badge-success text-white">Completed</span>
+                ) : isStoodDown ? (
+                  <span className="badge badge-error text-white">Stood Down</span>
                 ) : (
                   <span className="badge badge-warning capitalize">{report.status || 'submitted'}</span>
                 )}
@@ -117,6 +121,16 @@ const IncidentReportDetailPage = () => {
             Download PDF
           </button>
         </div>
+
+        {isStoodDown && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+            <p className="font-semibold text-red-700">Stood Down Recovery</p>
+            <p className="text-sm text-red-600 mt-1">
+              This recovery was stood down before arrival on scene (recorded as a
+              Drive Off). Only the Step 1 details were captured.
+            </p>
+          </div>
+        )}
 
         {/* Report Content */}
         <div className="bg-white rounded-xl shadow-md p-8">
@@ -176,6 +190,8 @@ const IncidentReportDetailPage = () => {
             </div>
           </div>
 
+          {!isStoodDown && (
+            <>
           {/* Vehicle Details */}
           <div className="mb-8 pb-8 border-b">
             <h4 className="text-lg font-bold text-gray-800 mb-4">Vehicle Details</h4>
@@ -369,6 +385,9 @@ const IncidentReportDetailPage = () => {
             )}
           </div>
 
+            </>
+          )}
+
           {/* Notes */}
           <div className="mb-8">
             <h4 className="text-lg font-bold text-gray-800 mb-4">Notes</h4>
@@ -437,9 +456,11 @@ const IncidentReportDetailPage = () => {
                     ? 'badge-error text-white'
                     : report.status === 'completed'
                       ? 'badge-success text-white'
-                      : 'badge-warning'
+                      : isStoodDown
+                        ? 'badge-error text-white'
+                        : 'badge-warning'
                 }`}>
-                  {report.status || 'submitted'}
+                  {isStoodDown ? 'Stood Down' : report.status || 'submitted'}
                 </span>
               </div>
             </div>

@@ -535,6 +535,13 @@ const ReportsPage = () => {
 
   // LIVE pill — shown only for incidents still live (matches admin StaffReportsPage).
   const renderStatusBadge = (report) => {
+    if (report.reportType === "incident" && report.status === "stood_down") {
+      return (
+        <span className="badge bg-red-50 badge-sm text-[11px] text-red-600">
+          STOOD DOWN
+        </span>
+      );
+    }
     if (report.reportType !== "incident" || report.status !== "live") return null;
     return (
       <span className="badge bg-red-50 badge-sm gap-2 text-[11px] text-red-600">

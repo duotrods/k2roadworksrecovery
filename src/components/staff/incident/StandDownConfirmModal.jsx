@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 
-// Confirms the destructive "Recovery Stood Down" action on Step 2 of the
+// Confirms the "Recovery Stood Down" action on Step 2 of the
 // incident form — deleting the live job sheet is permanent, so this mirrors
 // LogoutConfirmModal's danger-confirm pattern rather than a plain window.confirm.
 const StandDownConfirmModal = ({ onConfirm, onCancel }) => {
@@ -28,7 +28,7 @@ const StandDownConfirmModal = ({ onConfirm, onCancel }) => {
           Stand down this recovery?
         </h2>
         <p className="text-sm text-gray-500 text-center mb-5">
-          This will permanently delete the job sheet. This action cannot be undone.
+          This will be recorded as a stood down (Drive Off) with only the Step 1 details. It cannot be reopened.
         </p>
 
         {/* Actions */}

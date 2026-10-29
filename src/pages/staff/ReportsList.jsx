@@ -699,6 +699,12 @@ const ReportsList = () => {
                                     Completed
                                   </div>
                                 )}
+                              {form.type === "Recovery Job Sheet" &&
+                                form.status === "stood_down" && (
+                                  <div className="badge badge-error badge-soft">
+                                    Stood Down
+                                  </div>
+                                )}
                             </div>
                           </td>
                           <td>
@@ -777,6 +783,12 @@ const ReportsList = () => {
                                 <div className="badge badge-success badge-soft badge-sm gap-1">
                                   <CheckCircle className="w-3 h-3 text-green-500" />
                                   Completed
+                                </div>
+                              )}
+                            {form.type === "Recovery Job Sheet" &&
+                              form.status === "stood_down" && (
+                                <div className="badge badge-error badge-soft badge-sm">
+                                  Stood Down
                                 </div>
                               )}
                             {form.type === "Recovery Job Sheet" &&

@@ -342,6 +342,43 @@ class StaffService {
     }
   }
 
+  // Keeps a Step-1-only job sheet as a stood-down recovery (counted as a
+  // "Drive Off" in the Incident Type chart) instead of deleting it.
+  async standDownIncidentReport(reportId, userId, userName) {
+    try {
+      const { data: currentRow, error: fetchError } = await supabase
+        .from("incident_reports")
+        .select("reference_id")
+        .eq("id", reportId)
+        .maybeSingle();
+      if (fetchError) throw fetchError;
+      if (!currentRow) throw new Error("Report not found");
+
+      const { error } = await supabase
+        .from("incident_reports")
+        .update({
+          status: "stood_down",
+          actual_fault: "Drive Off",
+          is_pure_incident: false,
+        })
+        .eq("id", reportId);
+      if (error) throw error;
+
+      await this.logActivity({
+        type: "form_stood_down",
+        staffId: userId,
+        staffName: userName,
+        description: `${userName} stood down Recovery Job Sheet ${currentRow.reference_id}`,
+        relatedFormId: reportId,
+      });
+
+      return reportId;
+    } catch (error) {
+      console.error("Failed to stand down incident report:", error);
+      throw error;
+    }
+  }
+
   async deleteIncidentReport(reportId, userId, userName) {
     try {
       const { data: currentRow, error: fetchError } = await supabase

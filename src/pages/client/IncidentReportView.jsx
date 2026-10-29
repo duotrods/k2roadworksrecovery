@@ -180,6 +180,8 @@ const IncidentReportView = () => {
     });
   };
 
+  const isStoodDown = report?.status === "stood_down";
+
   if (loading) {
     return (
       <ClientSidebarLayout>
@@ -221,6 +223,10 @@ const IncidentReportView = () => {
                   <span className="px-3 py-1 bg-yellow-500 text-white rounded-full text-sm font-semibold">
                     LIVE
                   </span>
+                ) : isStoodDown ? (
+                  <span className="px-3 py-1 bg-red-500 text-white rounded-full text-sm font-semibold">
+                    STOOD DOWN
+                  </span>
                 ) : (
                   <span className="px-3 py-1 bg-green-500 text-white rounded-full text-sm font-semibold">
                     COMPLETED
@@ -247,8 +253,8 @@ const IncidentReportView = () => {
         {/* Report Content */}
         <div className="bg-white rounded-xl shadow-md p-4 sm:p-8 space-y-6">
           {/* CONDITIONAL RENDER: Show different content based on status */}
-          {report.status === "live" ? (
-            // ============ LIVE INCIDENT - Show only Step 1 fields ============
+          {report.status === "live" || isStoodDown ? (
+            // ============ LIVE / STOOD DOWN INCIDENT - Show only Step 1 fields ============
             <>
               {/* Basic Info for Live Job */}
               <div>
@@ -311,14 +317,16 @@ const IncidentReportView = () => {
                     </label>
                     <p className="text-gray-800">{report.date || "N/A"}</p>
                   </div>
-                  <div>
-                    <label className="text-sm font-semibold text-gray-600">
-                      Time of Arrival
-                    </label>
-                    <p className="text-gray-800">
-                      {report.timeOfArrival || "N/A"}
-                    </p>
-                  </div>
+                  {!isStoodDown && (
+                    <div>
+                      <label className="text-sm font-semibold text-gray-600">
+                        Time of Arrival
+                      </label>
+                      <p className="text-gray-800">
+                        {report.timeOfArrival || "N/A"}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 {report.notes && (
                   <div className="mt-4">
@@ -333,16 +341,29 @@ const IncidentReportView = () => {
               {/* Attachments for Live Incident - Lazy loaded to save bandwidth */}
               {report.files && report.files.length > 0 && renderAttachments()}
 
-              {/* Live Status Indicator */}
-              <div className="bg-yellow-50 rounded-lg p-6">
-                <span className="px-3 py-1 bg-yellow-500 text-white rounded-full text-sm font-medium">
-                  LIVE
-                </span>
-                <p className="text-sm text-gray-600 mt-3">
-                  This Job Sheet is still live. Full details will be
-                  available once completed.
-                </p>
-              </div>
+              {/* Live / Stood Down Status Indicator */}
+              {isStoodDown ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+                  <span className="px-3 py-1 bg-red-500 text-white rounded-full text-sm font-medium">
+                    STOOD DOWN RECOVERY
+                  </span>
+                  <p className="text-sm text-gray-600 mt-3">
+                    This recovery was stood down before arrival on scene
+                    (recorded as a Drive Off). Only the Step 1 details were
+                    captured.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-yellow-50 rounded-lg p-6">
+                  <span className="px-3 py-1 bg-yellow-500 text-white rounded-full text-sm font-medium">
+                    LIVE
+                  </span>
+                  <p className="text-sm text-gray-600 mt-3">
+                    This Job Sheet is still live. Full details will be
+                    available once completed.
+                  </p>
+                </div>
+              )}
             </>
           ) : (
             // ============ COMPLETED INCIDENT - Show all fields ============

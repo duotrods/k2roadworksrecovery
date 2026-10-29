@@ -234,6 +234,17 @@ const IncidentReportFormPage = () => {
           Boolean(report.jobSource) && !SOURCE_OF_CALL_OPTIONS.includes(report.jobSource),
         );
 
+        // A stood-down recovery is read-only — send it to its view page.
+        if (report.status === "stood_down") {
+          navigate(
+            isAdmin
+              ? `/dashboard/admin/staff-reports/incident/${editId}`
+              : `${basePath}/reports/incident/${editId}`,
+            { replace: true },
+          );
+          return;
+        }
+
         // If editing a live job, resume at whichever step was last saved
         if (report.status === "live") {
           setCurrentStep(report.currentStep || 2);
@@ -1307,23 +1318,23 @@ const IncidentReportFormPage = () => {
     }));
   };
 
-  // Cancels the job outright — permanently deletes the live incident created
-  // in Step 1 (vehicle stats roll back, an activity log entry is left behind).
-  // Only reachable before "Click when on Scene", since after that the job is
-  // genuinely underway. Confirmation is handled by StandDownConfirmModal, not
-  // a plain window.confirm.
+  // Cancels the job — the live incident created in Step 1 is kept as a
+  // stood-down recovery (status 'stood_down', counted as a "Drive Off") with
+  // only its Step 1 details. Only reachable before "Click when on Scene",
+  // since after that the job is genuinely underway. Confirmation is handled
+  // by StandDownConfirmModal, not a plain window.confirm.
   const handleStandDown = async () => {
     const incidentId = editId || liveIncidentId;
     if (!incidentId) return;
 
     setLoading(true);
     try {
-      await staffService.deleteIncidentReport(
+      await staffService.standDownIncidentReport(
         incidentId,
         userProfile.uid,
         userProfile.displayName,
       );
-      toast.success("Recovery stood down. Job sheet deleted.");
+      toast.success("Recovery stood down.");
       navigate(postActionPath);
     } catch (error) {
       console.error("Error standing down recovery:", error);

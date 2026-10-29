@@ -473,6 +473,13 @@ const StaffReportsPage = () => {
 
   // Live pill — shown only for incidents still live; completed/others get nothing.
   const renderStatusBadge = (report) => {
+    if (report.type === "Recovery Job Sheet" && report.status === "stood_down") {
+      return (
+        <span className="badge bg-red-50 badge-sm text-[11px] text-red-600">
+          STOOD DOWN
+        </span>
+      );
+    }
     if (report.type !== "Recovery Job Sheet" || report.status !== "live") return null;
     return (
       <span className="badge bg-red-50 badge-sm gap-2 text-[11px] text-red-600">

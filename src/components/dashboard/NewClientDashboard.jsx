@@ -43,7 +43,7 @@ import {
 } from "react-date-range";
 import "react-date-range/dist/styles.css"; // main css file
 import "react-date-range/dist/theme/default.css"; // theme css file
-import { addDays, startOfDay, endOfDay } from "date-fns";
+import { addDays, startOfDay, endOfDay, format } from "date-fns";
 import toast from "react-hot-toast";
 import { PIE_COLORS, exportChartsToPDF } from "../../utils/pdfChartExport";
 import { layoutPieLabels } from "../../utils/pieLabelLayout";
@@ -395,8 +395,10 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
   const schemeId = userProfile?.activeSchemeId || userProfile?.schemeId;
 
   // Convert date range to string format for queries
-  const startDate = dateRange[0].startDate.toISOString().split("T")[0];
-  const endDate = dateRange[0].endDate.toISOString().split("T")[0];
+  // Local calendar dates — toISOString() is UTC, which shifts "today" back a
+  // day for users ahead of UTC and hides jobs created today.
+  const startDate = format(dateRange[0].startDate, "yyyy-MM-dd");
+  const endDate = format(dateRange[0].endDate, "yyyy-MM-dd");
 
   // Cached query for the earliest incident date — drives the "All Time"
   // static range below so it starts exactly when this scheme's data does.
@@ -470,6 +472,9 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
     queryFn: () =>
       clientDataService.getSchemeStatsByDateRange(schemeId, startDate, endDate),
     enabled: !!schemeId && !!startDate && !!endDate,
+    // New/stood-down jobs are written by staff elsewhere, so don't serve the
+    // 5-minute cached stats when the dashboard is reopened.
+    refetchOnMount: "always",
   });
 
   // Cached query for time series
@@ -482,6 +487,7 @@ const NewClientDashboard = ({ basePath = "/dashboard/client" }) => {
         endDate,
       ),
     enabled: !!schemeId && !!startDate && !!endDate,
+    refetchOnMount: "always",
   });
 
   // Real-time subscription for live incidents (no polling - only charges when data changes)

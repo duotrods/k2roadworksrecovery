@@ -107,6 +107,14 @@ const DrillDownSidebar = ({ drillDown, onClose, onNavigate }) => {
                   >
                     {inc.referenceId || inc.id?.slice(0, 10)}
                   </span>
+                  {inc.status === "stood_down" && (
+                    <span
+                      className="text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap"
+                      style={{ background: "#fee2e2", color: "#dc2626" }}
+                    >
+                      Stood Down
+                    </span>
+                  )}
                   {inc.incidentType && (
                     <span
                       className="text-xs font-semibold px-2 py-0.5 rounded-full truncate max-w-[120px]"

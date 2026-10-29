@@ -315,6 +315,20 @@ export const generateReportPDF = async (report, reportType, options) => {
 
   switch (reportType) {
     case "incident": {
+      // Stood down before arrival — only the Step 1 details exist.
+      if (report.status === "stood_down") {
+        addField("Recovery", "STOOD DOWN RECOVERY (recorded as Drive Off)", true);
+        if (report.driverName) addField("Driver Name", report.driverName);
+        if (report.vehicleAllocated)
+          addField("Vehicle Allocated", report.vehicleAllocated);
+        if (report.jobSource) addField("Job Source/Customer", report.jobSource);
+        if (report.customerLogNo)
+          addField("Customer Log No.", report.customerLogNo);
+        if (report.time) addField("Time", report.time);
+        if (report.notes) addField("Notes", report.notes);
+        break;
+      }
+
       // Arrival Details
       const onScene = [
         report.driverOnScene && "Driver",
@@ -615,7 +629,11 @@ export const generateReportPDF = async (report, reportType, options) => {
   }
 
   if (report.status) {
-    addField("Status", report.status, true);
+    addField(
+      "Status",
+      report.status === "stood_down" ? "Stood Down" : report.status,
+      true,
+    );
   }
 
   // Add a note section at the bottom
