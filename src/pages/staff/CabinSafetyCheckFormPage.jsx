@@ -23,8 +23,9 @@ import { generateReportPDF, blobToBase64 } from "../../utils/pdfGenerator";
 
 const MAX_IMAGES = 10;
 
-// Fixed 22-question checklist, grouped into 6 sections — matches the paper
-// "Cabin Health and Safety Monthly Inspection Checklist" template exactly.
+// Fixed 18-question checklist, grouped into 5 sections — based on the paper
+// "Cabin Health and Safety Monthly Inspection Checklist" template (Gas Safety
+// section removed).
 // Not user-addable/removable; only the answer/comments/actionOwner/completed
 // fields per question are editable.
 const CABIN_SAFETY_QUESTIONS = [
@@ -40,10 +41,6 @@ const CABIN_SAFETY_QUESTIONS = [
   { section: "Electrical Safety", question: "Does the number of electrical items plugged into extension leads / adapters correlate with the number of sockets available; it is prohibited to daisy chain i.e., connect multi sockets onto multiple sockets?" },
   { section: "Electrical Safety", question: "Are all cables free from straining, if an extension lead has been used is it fully extended and not coiled?" },
   { section: "Electrical Safety", question: "Are plugs and sockets free from damage?" },
-  { section: "Gas Safety", question: "Has a gas safety check been completed within the last twelve months?" },
-  { section: "Gas Safety", question: "Do records show that the carbon monoxide detector is being tested weekly?" },
-  { section: "Gas Safety", question: "Are air vents clear?" },
-  { section: "Gas Safety", question: "Are gas bottles appropriately stored?" },
   { section: "First Aid", question: "Have the contents of the first aid kit been checked within the last month and are bandages and eye wash vials within their expiration date." },
   { section: "Slips, Trips and Falls (Same Level)", question: "Are walking surfaces leading to cabin level, free from holes, cracks, and protrusions?" },
   { section: "Slips, Trips and Falls (Same Level)", question: "Is adequate external lighting provided?" },
@@ -59,7 +56,7 @@ const seedChecklist = () =>
     section,
     question,
     // Defaults to "N/A" to save time — staff only need to flip the items
-    // that actually apply to "Yes"/"No" rather than fill in all 22.
+    // that actually apply to "Yes"/"No" rather than fill in all 18.
     answer: "N/A",
     comments: "",
     actionOwner: "",

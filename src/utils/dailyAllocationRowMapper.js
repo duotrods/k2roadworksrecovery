@@ -6,7 +6,7 @@ export const fromDailyAllocationRow = (row) => {
   if (!row) return null;
   const {
     id, scheme_id, scheme_name, week_ending, rows, scheme_ids,
-    reference_id, submitted_by_user_id, submitted_by_name, status,
+    reference_id, allocation_type, submitted_by_user_id, submitted_by_name, status,
     created_at, updated_at, edit_history, last_edited_by_user_id,
     last_edited_by_name,
   } = row;
@@ -14,7 +14,7 @@ export const fromDailyAllocationRow = (row) => {
   return {
     id, schemeId: scheme_id, schemeName: scheme_name,
     weekEnding: week_ending, rows, schemeIds: scheme_ids,
-    referenceId: reference_id,
+    referenceId: reference_id, allocationType: allocation_type,
     submittedBy: submitted_by_user_id || submitted_by_name
       ? { userId: submitted_by_user_id, name: submitted_by_name }
       : null,
@@ -32,6 +32,7 @@ export const toDailyAllocationRow = (formData) => {
   const map = {
     schemeId: "scheme_id", schemeName: "scheme_name",
     weekEnding: "week_ending", rows: "rows",
+    allocationType: "allocation_type",
   };
 
   const row = {};

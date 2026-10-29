@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
@@ -25,6 +25,26 @@ const DAY_LABELS = {
   friday: "Friday",
   saturday: "Saturday",
   sunday: "Sunday",
+};
+
+// Staff and vehicle allocations are separate rosters with their own columns.
+const ALLOCATION_TYPES = {
+  staff: {
+    label: "Staff Allocation",
+    fields: [
+      { key: "opName", label: "Op Name" },
+      { key: "class", label: "Class" },
+      { key: "location", label: "Location" },
+    ],
+  },
+  vehicle: {
+    label: "Vehicle Allocation",
+    fields: [
+      { key: "reg", label: "Reg" },
+      { key: "vehicleType", label: "Type of Vehicle" },
+      { key: "location", label: "Location" },
+    ],
+  },
 };
 
 // A scaffold, not a constraint — admin can add/remove rows freely.
@@ -56,7 +76,8 @@ const seedRows = () =>
     Array.from({ length: ROWS_PER_DAY_SEED }, () => createBlankRow(day)),
   );
 
-const emptyFormData = () => ({
+const emptyFormData = (allocationType) => ({
+  allocationType,
   schemeId: "",
   schemeName: "",
   weekEnding: formatDateToBritish(new Date()),
@@ -67,8 +88,13 @@ const DailyAllocationForm = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { userProfile } = useAuth();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState(emptyFormData);
+  // New allocations take their type from ?type=; existing ones from the saved row.
+  const [formData, setFormData] = useState(() =>
+    emptyFormData(searchParams.get("type") === "vehicle" ? "vehicle" : "staff"),
+  );
+  const { label: typeLabel, fields } = ALLOCATION_TYPES[formData.allocationType];
   const [editingReferenceId, setEditingReferenceId] = useState(null);
 
   useEffect(() => {
@@ -87,6 +113,7 @@ const DailyAllocationForm = () => {
       }
       setEditingReferenceId(allocation.referenceId || null);
       setFormData({
+        allocationType: allocation.allocationType || "staff",
         schemeId: allocation.schemeId || "",
         schemeName: allocation.schemeName || "",
         weekEnding: allocation.weekEnding || "",
@@ -180,10 +207,12 @@ const DailyAllocationForm = () => {
         </button>
         <div>
           <h1 className=" font-bold text-gray-800 mb-2">
-            {id ? "Edit Daily Allocations" : "Daily Allocations"}
+            {id ? `Edit ${typeLabel}` : typeLabel}
           </h1>
           <p className="text-gray-500 text-[13px] sm:text-[14px]">
-            Weekly roster of operator allocations by scheme
+            {formData.allocationType === "vehicle"
+              ? "Weekly roster of vehicle allocations by scheme"
+              : "Weekly roster of operator allocations by scheme"}
           </p>
         </div>
       </div>
@@ -274,87 +303,33 @@ const DailyAllocationForm = () => {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="text-left text-xs font-medium text-gray-500 uppercase">
-                          <th className="pb-2 pr-2">Op Name</th>
-                          <th className="pb-2 pr-2">Class</th>
-                          <th className="pb-2 pr-2">Location</th>
-                          <th className="pb-2 pr-2">Reg</th>
-                          <th className="pb-2 pr-2">Type of Vehicle</th>
+                          {fields.map(({ key, label }) => (
+                            <th key={key} className="pb-2 pr-2">
+                              {label}
+                            </th>
+                          ))}
                           <th className="pb-2 w-8"></th>
                         </tr>
                       </thead>
                       <tbody>
                         {dayRows.map((row) => (
                           <tr key={row.rowId}>
-                            <td className="py-1 pr-2">
-                              <input
-                                type="text"
-                                value={row.opName}
-                                onChange={(e) =>
-                                  handleRowChange(
-                                    row.rowId,
-                                    "opName",
-                                    e.target.value,
-                                  )
-                                }
-                                className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
-                              />
-                            </td>
-                            <td className="py-1 pr-2">
-                              <input
-                                type="text"
-                                value={row.class}
-                                onChange={(e) =>
-                                  handleRowChange(
-                                    row.rowId,
-                                    "class",
-                                    e.target.value,
-                                  )
-                                }
-                                className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
-                              />
-                            </td>
-                            <td className="py-1 pr-2">
-                              <input
-                                type="text"
-                                value={row.location}
-                                onChange={(e) =>
-                                  handleRowChange(
-                                    row.rowId,
-                                    "location",
-                                    e.target.value,
-                                  )
-                                }
-                                className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
-                              />
-                            </td>
-                            <td className="py-1 pr-2">
-                              <input
-                                type="text"
-                                value={row.reg}
-                                onChange={(e) =>
-                                  handleRowChange(
-                                    row.rowId,
-                                    "reg",
-                                    e.target.value,
-                                  )
-                                }
-                                className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
-                              />
-                            </td>
-                            <td className="py-1 pr-2">
-                              <input
-                                type="text"
-                                value={row.vehicleType}
-                                onChange={(e) =>
-                                  handleRowChange(
-                                    row.rowId,
-                                    "vehicleType",
-                                    e.target.value,
-                                  )
-                                }
-                                className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
-                              />
-                            </td>
+                            {fields.map(({ key }) => (
+                              <td key={key} className="py-1 pr-2">
+                                <input
+                                  type="text"
+                                  value={row[key] || ""}
+                                  onChange={(e) =>
+                                    handleRowChange(
+                                      row.rowId,
+                                      key,
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100"
+                                />
+                              </td>
+                            ))}
                             <td className="py-1">
                               <button
                                 type="button"
@@ -387,75 +362,21 @@ const DailyAllocationForm = () => {
                           <Trash2 className="w-4 h-4" />
                         </button>
 
-                        <div>
-                          <label className="text-xs font-medium text-gray-500">
-                            Op Name
-                          </label>
-                          <input
-                            type="text"
-                            value={row.opName}
-                            onChange={(e) =>
-                              handleRowChange(row.rowId, "opName", e.target.value)
-                            }
-                            className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100 mt-1"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-xs font-medium text-gray-500">
-                            Class
-                          </label>
-                          <input
-                            type="text"
-                            value={row.class}
-                            onChange={(e) =>
-                              handleRowChange(row.rowId, "class", e.target.value)
-                            }
-                            className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100 mt-1"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-xs font-medium text-gray-500">
-                            Location
-                          </label>
-                          <input
-                            type="text"
-                            value={row.location}
-                            onChange={(e) =>
-                              handleRowChange(row.rowId, "location", e.target.value)
-                            }
-                            className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100 mt-1"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-xs font-medium text-gray-500">
-                            Reg
-                          </label>
-                          <input
-                            type="text"
-                            value={row.reg}
-                            onChange={(e) =>
-                              handleRowChange(row.rowId, "reg", e.target.value)
-                            }
-                            className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100 mt-1"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-xs font-medium text-gray-500">
-                            Type of Vehicle
-                          </label>
-                          <input
-                            type="text"
-                            value={row.vehicleType}
-                            onChange={(e) =>
-                              handleRowChange(row.rowId, "vehicleType", e.target.value)
-                            }
-                            className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100 mt-1"
-                          />
-                        </div>
+                        {fields.map(({ key, label }) => (
+                          <div key={key}>
+                            <label className="text-xs font-medium text-gray-500">
+                              {label}
+                            </label>
+                            <input
+                              type="text"
+                              value={row[key] || ""}
+                              onChange={(e) =>
+                                handleRowChange(row.rowId, key, e.target.value)
+                              }
+                              className="input input-sm w-full bg-white border-gray-300 rounded-lg hover:bg-gray-100 mt-1"
+                            />
+                          </div>
+                        ))}
                       </div>
                     ))}
                   </div>

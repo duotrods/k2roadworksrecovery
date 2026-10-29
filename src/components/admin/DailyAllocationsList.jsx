@@ -6,6 +6,7 @@ import {
   RefreshCw,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Eye,
   Trash2,
   CalendarDays,
@@ -127,13 +128,41 @@ const DailyAllocationsList = () => {
               />
               Refresh
             </button>
-            <button
-              onClick={() => navigate("/dashboard/admin/daily-allocations/new")}
-              className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              New Allocation
-            </button>
+            <div className="dropdown dropdown-end">
+              <button
+                tabIndex={0}
+                type="button"
+                className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                New Allocation
+                <ChevronDown className="w-4 h-4" />
+              </button>
+              <ul
+                tabIndex={0}
+                className="dropdown-content menu bg-white rounded-lg border border-gray-200 shadow-lg z-20 w-52 p-2 mt-1"
+              >
+                {[
+                  ["staff", "Staff Allocation"],
+                  ["vehicle", "Vehicle Allocation"],
+                ].map(([type, label]) => (
+                  <li key={type}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        document.activeElement?.blur();
+                        navigate(
+                          `/dashboard/admin/daily-allocations/new?type=${type}`,
+                        );
+                      }}
+                      className="text-gray-700"
+                    >
+                      {label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
 
@@ -163,6 +192,9 @@ const DailyAllocationsList = () => {
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                       Reference
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                      Type
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                       Scheme
@@ -196,6 +228,11 @@ const DailyAllocationsList = () => {
                         <code className="text-sm font-mono font-semibold px-2 py-1 rounded">
                           {allocation.referenceId}
                         </code>
+                      </td>
+                      <td className="px-6 py-4 text-gray-800">
+                        {allocation.allocationType === "vehicle"
+                          ? "Vehicle"
+                          : "Staff"}
                       </td>
                       <td className="px-6 py-4 text-gray-800">
                         {allocation.schemeName || allocation.schemeId}
@@ -282,6 +319,11 @@ const DailyAllocationsList = () => {
                   </div>
                   <p className="font-semibold text-brand-500">
                     {allocation.schemeName || allocation.schemeId}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {allocation.allocationType === "vehicle"
+                      ? "Vehicle Allocation"
+                      : "Staff Allocation"}
                   </p>
                   <div className="flex items-center justify-between mt-3 text-sm text-gray-600">
                     <span>Week ending {allocation.weekEnding}</span>
