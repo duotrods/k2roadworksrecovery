@@ -5,7 +5,7 @@ import { ArrowLeft, Download } from "lucide-react";
 import { staffService } from "../../services/staffService";
 import AdminSidebarLayout from "../../components/layout/AdminSidebarLayout";
 import { generateReportPDF } from "../../utils/pdfGenerator";
-import k2logo from "../../assets/k2logo.svg";
+import k2logo from "../../assets/k2logo.png";
 
 const CabinSafetyCheckDetailPage = () => {
   const navigate = useNavigate();

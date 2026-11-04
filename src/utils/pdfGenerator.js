@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import k2logo from "../assets/k2logo.svg";
+import k2logo from "../assets/k2logo.png";
 import {
   SERVICE_ACCEPTANCE_STATEMENTS,
   VEHICLE_CONDITION_SECTIONS,
@@ -24,10 +24,10 @@ const getCompressedLogo = () => {
     img.crossOrigin = "anonymous";
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      // 3x display size for retina quality (logo displays at 84x25 — k2logo.svg's
-      // native 664:197 aspect ratio, unlike the old square-ish Chellan logo).
+      // 3x display size for retina quality (logo displays at 84x25 — k2logo.png's
+      // native 664:159 aspect ratio, unlike the old square-ish Chellan logo).
       canvas.width = 252;
-      canvas.height = 75;
+      canvas.height = 60;
       const ctx = canvas.getContext("2d");
       // White background for transparency
       ctx.fillStyle = "#FFFFFF";
@@ -156,8 +156,8 @@ export const generateReportPDF = async (report, reportType, options) => {
   // Add compressed logo centered on top
   try {
     const compressedLogo = await getCompressedLogo();
-    const logoWidth = 84; // Width — matches k2logo.svg's 664:197 aspect ratio
-    const logoHeight = 25; // Height (adjust ratio to prevent distortion)
+    const logoWidth = 84; // Width — matches k2logo.png's 664:159 aspect ratio
+    const logoHeight = 20; // Height (adjust ratio to prevent distortion)
     const logoX = (pageWidth - logoWidth) / 2; // Center horizontally
     doc.addImage(
       compressedLogo,
@@ -718,8 +718,8 @@ export const generateCCTVRecordingPDF = async (recording) => {
   // Add compressed logo centered on top
   try {
     const compressedLogo = await getCompressedLogo();
-    const logoWidth = 84; // Width — matches k2logo.svg's 664:197 aspect ratio
-    const logoHeight = 25; // Height (adjust ratio to prevent distortion)
+    const logoWidth = 84; // Width — matches k2logo.png's 664:159 aspect ratio
+    const logoHeight = 20; // Height (adjust ratio to prevent distortion)
     const logoX = (pageWidth - logoWidth) / 2; // Center horizontally
     doc.addImage(
       compressedLogo,

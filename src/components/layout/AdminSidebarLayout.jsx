@@ -17,7 +17,7 @@
     CalendarDays,
     Radio,
   } from "lucide-react";
-  import headerLogo from "../../assets/k2logo.svg";
+  import headerLogo from "../../assets/k2logo.png";
   import logomark from "../../assets/k2iconlogo.svg";
   import LogoutConfirmModal from "./LogoutConfirmModal";
 

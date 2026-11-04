@@ -15,7 +15,7 @@ import {
   FolderOpen,
 } from "lucide-react";
 import headerLogo from "../../assets/headerlogo.svg";
-import k2logo from "../../assets/k2logo.svg";
+import k2logo from "../../assets/k2logo.png";
 import logomark from "../../assets/Logomark.svg";
 import k2icon from "../../assets/k2iconlogo.svg";
 import { isDemoUser } from "../../utils/schemes";
