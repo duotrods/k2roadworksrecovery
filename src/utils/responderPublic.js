@@ -32,6 +32,7 @@ export const toExternalPins = (rows, allowed = EXTERNAL_SCHEME_ALLOWLIST) =>
           (r.incident_reports.scheme_ids || []).includes(s) ||
           r.incident_reports.scheme_id === s,
       ),
+      vehicleAllocated: r.incident_reports.vehicle_allocated || "",
       lat: r.lat,
       lng: r.lng,
       recordedAt: r.recorded_at,

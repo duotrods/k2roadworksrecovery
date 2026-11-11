@@ -25,7 +25,7 @@ export async function onRequestGet({ request, env }) {
   const { data, error } = await supabaseAdmin
     .from("incident_responder_locations")
     .select(
-      "id, incident_id, lat, lng, recorded_at, incident_reports!inner(reference_id, scheme_id, scheme_ids, status)",
+      "id, incident_id, lat, lng, recorded_at, incident_reports!inner(reference_id, scheme_id, scheme_ids, status, vehicle_allocated)",
     )
     .eq("incident_reports.status", "live");
 

@@ -13,17 +13,21 @@ const UK_CENTER = [52.5, -1.5];
 
 // divIcon (a styled <div>) instead of Leaflet's default image marker, whose
 // image URLs break under Vite bundling.
+// White truck glyph (Lucide "truck") on a coloured badge; colour = vehicle type.
+const TRUCK_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>';
+
 const pinIcon = (stale, selected, color) =>
   L.divIcon({
     className: "",
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
-    popupAnchor: [0, -12],
-    html: `<div style="width:22px;height:22px;border-radius:9999px;border:3px solid #fff;background:${
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+    popupAnchor: [0, -18],
+    html: `<div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:9999px;border:3px solid #fff;background:${
       stale ? "#9ca3af" : color
     };box-shadow:0 0 0 ${selected ? 4 : 1}px ${
       selected ? "#0ea5e9" : "rgba(0,0,0,.35)"
-    }"></div>`,
+    }">${TRUCK_SVG}</div>`,
   });
 
 // Re-fits the view only when the *set* of operators changes, not on every GPS
