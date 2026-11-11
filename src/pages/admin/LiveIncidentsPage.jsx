@@ -1,12 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveIncidents, usePaginatedCompletedIncidents } from '../../hooks/useLiveIncidents';
-import { Eye, Download, Radio, CheckCircle, ChevronLeft, ChevronRight, Loader2, Filter, ChevronRight as ArrowRight } from 'lucide-react';
+import { Eye, Download, Radio, CheckCircle, ChevronLeft, ChevronRight, Loader2, Filter, MapPin, ChevronRight as ArrowRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { generateReportPDF } from '../../utils/pdfGenerator';
 import { staffService } from '../../services/staffService';
 import { SCHEMES } from '../../utils/schemes';
 import AdminSidebarLayout from '../../components/layout/AdminSidebarLayout';
+import { useResponderLocations } from '../../hooks/useResponderLocations';
+
+// Leaflet is only needed on this page — keep it out of the main bundle.
+const ResponderMap = lazy(() => import('../../components/admin/ResponderMap'));
 
 const AdminLiveIncidentsPage = () => {
   const navigate = useNavigate();
@@ -49,6 +53,33 @@ const AdminLiveIncidentsPage = () => {
   const LIVE_PAGE_SIZE = 6;
   const [livePage, setLivePage] = useState(1);
   const liveTotalPages = Math.max(1, Math.ceil(liveIncidents.length / LIVE_PAGE_SIZE));
+
+  // Operators currently sharing their location. Only pins for the selected
+  // scheme's live incidents are shown, which also drops stood-down/completed
+  // jobs the moment they leave "live".
+  const { responders } = useResponderLocations();
+  const [highlightedIncidentId, setHighlightedIncidentId] = useState(null);
+
+  const pins = useMemo(() => {
+    const liveById = new Map(liveIncidents.map((i) => [i.id, i]));
+    return responders
+      .filter((r) => liveById.has(r.incidentId))
+      .map((r) => {
+        const incident = liveById.get(r.incidentId);
+        return {
+          ...r,
+          vehicleAllocated: incident.vehicleAllocated || incident.vehicle_allocated || "",
+          reference: incident.referenceId || `Incident #${incident.id.slice(0, 4)}`,
+        };
+      });
+  }, [responders, liveIncidents]);
+
+  // Clicking a pin jumps the live list to that incident's page and highlights it.
+  const handleSelectPin = (incidentId) => {
+    setHighlightedIncidentId(incidentId);
+    const idx = liveIncidents.findIndex((i) => i.id === incidentId);
+    if (idx !== -1) setLivePage(Math.floor(idx / LIVE_PAGE_SIZE) + 1);
+  };
 
   // Realtime churn (or switching schemes) can shrink the list — clamp to a valid page.
   useEffect(() => {
@@ -160,6 +191,30 @@ const AdminLiveIncidentsPage = () => {
           </div>
         </div>
 
+        {/* Operators en route */}
+        <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+          <div className="mb-4 flex items-center gap-2">
+            <MapPin className="h-5 w-5 text-brand-500" />
+            <h2 className="text-lg font-semibold text-gray-800">Operators En Route</h2>
+            <span className="ml-auto rounded-full bg-brand-50 px-3 py-1 text-sm font-medium text-brand-600">
+              {pins.length} sharing location
+            </span>
+          </div>
+          <Suspense
+            fallback={
+              <div className="flex h-96 items-center justify-center sm:h-[36rem]">
+                <Loader2 className="h-6 w-6 animate-spin text-brand-500" />
+              </div>
+            }
+          >
+            <ResponderMap
+              pins={pins}
+              selectedIncidentId={highlightedIncidentId}
+              onSelect={handleSelectPin}
+            />
+          </Suspense>
+        </div>
+
         {loading ? (
           <div className="flex justify-center py-12">
             <span className="loading loading-spinner loading-lg text-brand-500"></span>
@@ -197,7 +252,11 @@ const AdminLiveIncidentsPage = () => {
                           <div
                             key={incident.id}
                             onClick={() => handleViewIncident(incident)}
-                            className="group flex cursor-pointer items-center gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all hover:border-red-200 hover:shadow-md"
+                            className={`group flex cursor-pointer items-center gap-3 rounded-xl border bg-white p-4 shadow-sm transition-all hover:border-red-200 hover:shadow-md ${
+                              incident.id === highlightedIncidentId
+                                ? 'border-sky-400 ring-2 ring-sky-200'
+                                : 'border-gray-100'
+                            }`}
                           >
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

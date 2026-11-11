@@ -73,6 +73,8 @@ export default defineConfig({
           // Only loaded by the dashboard's Excel export (dynamic import), so
           // keep it out of the shared vendor chunk every page downloads.
           if (id.includes('exceljs')) return 'excel'
+          // Only loaded by the admin Live Incidents map (lazy ResponderMap).
+          if (id.includes('leaflet')) return 'map'
           return 'vendor'
         },
       },

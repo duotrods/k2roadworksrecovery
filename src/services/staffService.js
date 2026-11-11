@@ -10,6 +10,7 @@ import { fromVehicleCheckRow, toVehicleCheckRow } from "../utils/vehicleCheckRow
 import { fromDailyAllocationRow, toDailyAllocationRow } from "../utils/dailyAllocationRowMapper";
 import { subscribeRealtimeList } from "../utils/realtimeSubscription";
 import { fromActivityRow, toActivityRow } from "../utils/activityRowMapper";
+import { fromResponderRow } from "../utils/responderTracking";
 
 // Form types whose data now lives in Supabase (not Firestore). Keyed by the
 // legacy Firestore collection name so existing call sites (which still pass
@@ -913,6 +914,53 @@ class StaffService {
   }
 
   // Generic delete report function for admin use.
+  // ============================================
+  // RESPONDER LOCATIONS (live en-route tracking)
+  // ============================================
+
+  // Upserts the operator's current position for a job — one live row per
+  // incident (unique incident_id). Called from useJobTracking only.
+  async upsertResponderLocation(incidentId, userId, operatorName, fix) {
+    const { error } = await supabase.from("incident_responder_locations").upsert(
+      {
+        incident_id: incidentId,
+        user_id: userId,
+        operator_name: operatorName || null,
+        lat: fix.lat,
+        lng: fix.lng,
+        heading: fix.heading ?? null,
+        speed: fix.speed ?? null,
+        accuracy: fix.accuracy ?? null,
+        recorded_at: new Date().toISOString(),
+      },
+      { onConflict: "incident_id" },
+    );
+    if (error) throw error;
+  }
+
+  // Removes the live row when tracking stops (arrival, stand-down, leaving
+  // the form). RLS limits this to the operator's own row.
+  async clearResponderLocation(incidentId) {
+    const { error } = await supabase
+      .from("incident_responder_locations")
+      .delete()
+      .eq("incident_id", incidentId);
+    if (error) throw error;
+  }
+
+  // Admin-only realtime list of every en-route operator. RLS ensures only
+  // admins receive rows, so `matches` can accept everything.
+  subscribeResponderLocations(callback, onError) {
+    return subscribeRealtimeList({
+      table: "incident_responder_locations",
+      initialFetch: () =>
+        supabase.from("incident_responder_locations").select("*"),
+      matches: () => true,
+      callback: (rows) => callback(rows.map(fromResponderRow)),
+      onError,
+    });
+  }
+
   async deleteReport(collectionName, reportId) {
     const supabaseTable = SUPABASE_BACKED_TABLES[collectionName]?.table;
     if (!supabaseTable) {

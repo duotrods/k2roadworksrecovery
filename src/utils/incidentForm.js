@@ -129,6 +129,17 @@ const VEHICLE_ALLOCATED_COLORS = {
 export const getVehicleAllocatedColors = (vehicleAllocated) =>
   VEHICLE_ALLOCATED_COLORS[vehicleAllocated] || VEHICLE_ALLOCATED_COLORS["Light Recovery"];
 
+// Hex equivalents of the badge colours above, for map pins (inline styles).
+const VEHICLE_ALLOCATED_HEX = {
+  "Light Recovery": "#2563eb",
+  "Heavy Recovery": "#9333ea",
+  RIPV: "#dc2626",
+  Motorbike: "#f97316",
+};
+
+export const getVehicleAllocatedHex = (vehicleAllocated) =>
+  VEHICLE_ALLOCATED_HEX[vehicleAllocated] || "#0d9488";
+
 export const VEHICLE_TRANSMISSION_OPTIONS = [
   "Manual",
   "Automatic",

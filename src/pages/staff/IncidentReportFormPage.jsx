@@ -21,6 +21,8 @@ import StepIndicator from "../../components/staff/incident/StepIndicator";
 import EditingBanner from "../../components/common/EditingBanner";
 import SignaturePad from "../../components/staff/incident/SignaturePad";
 import StandDownConfirmModal from "../../components/staff/incident/StandDownConfirmModal";
+import LocationSharingBanner from "../../components/staff/incident/LocationSharingBanner";
+import { useJobTracking } from "../../hooks/useJobTracking";
 import LongDurationConfirmModal from "../../components/staff/incident/LongDurationConfirmModal";
 import DriverDelayedModal from "../../components/staff/incident/DriverDelayedModal";
 import TimeClearedField from "../../components/staff/incident/TimeClearedField";
@@ -140,6 +142,9 @@ const IncidentReportFormPage = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isEditingLiveIncident, setIsEditingLiveIncident] = useState(false);
   const [liveIncidentId, setLiveIncidentId] = useState(null);
+  // False when a different staff member reopens someone else's live job —
+  // only the operator actually driving it may share their location.
+  const [isOwnJob, setIsOwnJob] = useState(true);
   const [existingReferenceId, setExistingReferenceId] = useState(null);
   const [showStandDownConfirm, setShowStandDownConfirm] = useState(false);
   const [showLongDurationConfirm, setShowLongDurationConfirm] = useState(false);
@@ -152,6 +157,21 @@ const IncidentReportFormPage = () => {
   // and Step 2's StepIndicator, handleStep2Next, and completeRipvJob all
   // need it.
   const isRipv = formData.vehicleAllocated === "RIPV";
+
+  // Share the operator's position with admins from Start Job until they tap
+  // "Click when on Scene" (which sets timeOfArrival). Admins editing a job
+  // through this same form must never broadcast their own location.
+  const { status: trackingStatus } = useJobTracking({
+    incidentId: editId || liveIncidentId,
+    userId: userProfile?.uid,
+    operatorName: userProfile?.displayName,
+    active:
+      !isAdmin &&
+      isOwnJob &&
+      isEditingLiveIncident &&
+      currentStep === 2 &&
+      !formData.timeOfArrival,
+  });
   const [sourceOtherMode, setSourceOtherMode] = useState(false);
   const [isRedrawingSignature, setIsRedrawingSignature] = useState(false);
   const signaturePadRef = useRef(null);
@@ -249,6 +269,7 @@ const IncidentReportFormPage = () => {
         if (report.status === "live") {
           setCurrentStep(report.currentStep || 2);
           setIsEditingLiveIncident(true);
+          setIsOwnJob(report.submittedBy === userProfile.uid);
         }
       } else {
         toast.error("Form not found");
@@ -1358,6 +1379,8 @@ const IncidentReportFormPage = () => {
             Fill in the details on arrival at the scene.
           </p>
         </div>
+
+        {!hasClockedOnScene && <LocationSharingBanner status={trackingStatus} />}
 
         {!hasClockedOnScene ? (
           <div className="flex flex-col items-center justify-center gap-4 py-16">
