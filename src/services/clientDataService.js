@@ -34,7 +34,7 @@ class ClientDataService {
       initialFetch: () =>
         supabase
           .from("incident_reports")
-          .select("id, reference_id, marker_post, time, created_at")
+          .select("id, reference_id, marker_post, time, created_at, vehicle_allocated")
           .overlaps("scheme_ids", [schemeId])
           .eq("status", "live")
           .order("created_at", { ascending: false })
