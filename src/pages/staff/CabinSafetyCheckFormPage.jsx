@@ -20,6 +20,7 @@ import { getSchemesForUser, extractSchemeId, isDemoScheme } from "../../utils/sc
 import { getStaffBasePath, USER_ROLES } from "../../utils/constants";
 import { compressImage } from "../../utils/imageCompression";
 import { generateReportPDF, blobToBase64 } from "../../utils/pdfGenerator";
+import { apiUrl } from "../../utils/apiUrl";
 
 const MAX_IMAGES = 10;
 
@@ -174,7 +175,7 @@ const CabinSafetyCheckFormPage = () => {
       data: { session },
     } = await supabase.auth.getSession();
 
-    const presignResponse = await fetch("/api/upload", {
+    const presignResponse = await fetch(apiUrl("/api/upload"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -343,7 +344,7 @@ const CabinSafetyCheckFormPage = () => {
         data: { session },
       } = await supabase.auth.getSession();
 
-      const response = await fetch("/api/send-report-email", {
+      const response = await fetch(apiUrl("/api/send-report-email"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

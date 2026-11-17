@@ -14,6 +14,7 @@ import { VEHICLE_CHECK_ITEMS } from "../../utils/vehicleCheckStats";
 import { generateReportPDF, blobToBase64 } from "../../utils/pdfGenerator";
 
 import chellanlogo from "../../assets/chellanpng.png";
+import { apiUrl } from "../../utils/apiUrl";
 
 const DAYS_OF_WEEK = [
   "monday",
@@ -227,7 +228,7 @@ const VehicleDailyCheckFormPage = () => {
         data: { session },
       } = await supabase.auth.getSession();
 
-      const response = await fetch("/api/send-report-email", {
+      const response = await fetch(apiUrl("/api/send-report-email"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -48,6 +48,7 @@ import {
   AFFECTED_LANES_OPTIONS,
   ACTUAL_TYPE_OPTIONS,
 } from "../../utils/incidentForm";
+import { apiUrl } from "../../utils/apiUrl";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -453,7 +454,7 @@ const IncidentReportFormPage = () => {
       data: { session },
     } = await supabase.auth.getSession();
 
-    const presignResponse = await fetch("/api/upload", {
+    const presignResponse = await fetch(apiUrl("/api/upload"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -862,7 +863,7 @@ const IncidentReportFormPage = () => {
         data: { session },
       } = await supabase.auth.getSession();
 
-      const response = await fetch("/api/send-report-email", {
+      const response = await fetch(apiUrl("/api/send-report-email"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

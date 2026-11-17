@@ -1,0 +1,13 @@
+{
+  "appId": "uk.co.k2roadworks.recovery",
+  "appName": "K2 Recovery",
+  "webDir": "dist",
+  "android": {
+    "useLegacyBridge": true
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase';
 import { AppError } from '../utils/errorHandling';
 import { USER_ROLES } from '../utils/constants';
+import { apiUrl } from "../utils/apiUrl";
 
 // Same row->camelCase shape as userService.getUserDocument, so
 // SchemeAssignment.jsx/StaffManagement.jsx need no changes beyond swapping
@@ -111,7 +112,7 @@ class UserAdminService {
         data: { session },
       } = await supabase.auth.getSession();
 
-      const response = await fetch('/api/delete-user-account', {
+      const response = await fetch(apiUrl("/api/delete-user-account"), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

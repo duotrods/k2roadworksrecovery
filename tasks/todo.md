@@ -79,3 +79,42 @@ Full plan (code per step): `docs/superpowers/plans/2026-11-09-admin-responder-ma
 ## Review
 - Scheme scope is hard-coded server-side (`EXTERNAL_SCHEME_ALLOWLIST`); callers cannot widen it.
 - Response omits operator name/user id; pin disappears when operator taps "on scene" (row deleted).
+
+---
+
+# Task: Background location tracking via Capacitor (Android only) — APPROVED 2026-11-17
+
+Goal: operator location keeps updating on the admin map when the app is locked / backgrounded.
+The PWA can't: `watchPosition` + wake lock are foreground-only.
+
+## Decisions
+- Capacitor wrapper of the existing React app, **Android only** (boss: iPhone out of scope; iOS can be added later)
+- Free plugin `@capacitor-community/background-geolocation` (switch to Transistorsoft only if testing shows dropped updates)
+- Tracking window: Start Job -> "On Scene" (unchanged; whole-shift is a boss decision, not in scope)
+- Distribution: signed APK/AAB direct or Play internal testing (check Google's current sideloading rules)
+
+## Plan
+- [x] 1. Install Capacitor + plugin; `capacitor.config.ts` (webDir `dist`); `npx cap add android`
+- [x] 2. `VITE_API_BASE_URL` helper (`src/utils/apiUrl.js`, unit-tested); use in all 5 `/api` fetches
+- [x] 3. CORS (+ OPTIONS) on `functions/api/*` for the native app origin
+- [x] 4. (dropped) offline queue — admin map only needs the latest point (one row per incident), so a failed send just retries on the next fix
+- [x] 5. Split `useJobTracking`: web path (unchanged) / native path (plugin) via `Capacitor.isNativePlatform()`
+- [x] 6. Manifest perms: supplied by the plugin (fine/coarse location, FGS location, notifications). No ACCESS_BACKGROUND_LOCATION needed — foreground service started while app is visible
+- [x] 7. `LocationSharingBanner` native states + Open settings button. (Battery-optimisation prompt: text/guide only for now — an in-app prompt needs another plugin)
+- [x] 8. Stop + clear live row on On Scene / sign-out (same as web)
+- [ ] 9. Lint + test + build + `cap sync`; USER builds in Android Studio and runs device matrix
+- [ ] 10. Device matrix (user): locked screen 10+ min, app switched, no signal then regain, permission denied
+
+## Needs from user
+- Android Studio + JDK to build the APK; a signing keystore (kept safe, never committed)
+- App id (default `uk.co.k2roadworks.recovery` unless told otherwise)
+- Supabase auth redirect URL for the app origin if OAuth/magic links are used
+
+## Progress notes
+- `capacitor.config.json`: `android.useLegacyBridge` (stops updates halting after 5 min in background) and
+  `CapacitorHttp.enabled` (WebView HTTP is throttled in background, so supabase/fetch go native).
+- `VITE_API_BASE_URL` must be set at build time for the Android build (e.g. the Cloudflare Pages origin).
+- `functions/api/_middleware.js` allows CORS only from `https://localhost` / `capacitor://localhost`.
+- Build: `npm run android:sync` then `npm run android:open` (Android Studio). Verified: lint clean on changed
+  files (7 pre-existing errors elsewhere), 87/87 tests, vite build OK, `cap add android` OK.
+- NOT verified: anything on a real device. Step 9/10 are the user's.
