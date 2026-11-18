@@ -62,15 +62,12 @@
   const HelpPage = lazy(() => import("./pages/HelpPage"));
   const UnauthorizedPage = lazy(() => import("./pages/UnauthorizedPage"));
 
+  import K2Loader from "./components/common/K2Loader";
   import { USER_ROLES } from "./utils/constants";
   import "./index.css";
 
   // Fallback shown while a lazy route chunk loads.
-  const PageLoader = () => (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
-      <span className="loading loading-spinner loading-lg text-brand-500"></span>
-    </div>
-  );
+  const PageLoader = () => <K2Loader />;
 
   const App = () => {
     return (

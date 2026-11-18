@@ -118,3 +118,11 @@ The PWA can't: `watchPosition` + wake lock are foreground-only.
 - Build: `npm run android:sync` then `npm run android:open` (Android Studio). Verified: lint clean on changed
   files (7 pre-existing errors elsewhere), 87/87 tests, vite build OK, `cap add android` OK.
 - NOT verified: anything on a real device. Step 9/10 are the user's.
+
+---
+
+# Task: Branded splash + loader (Android app)
+- [x] Native splash: static K2 mark (`splash_icon.png` in drawable-*dpi) on brand blue via `Theme.SplashScreen` attrs in `android/.../styles.xml`
+- [x] In-app animated loader `src/components/common/K2Loader.jsx(.css)` replaces `LoadingSpinner` + `PageLoader` in `App.jsx`
+- [x] Source art in `design/splash/` (preview HTML, mark PNG, 1152px splash icon); mark extracted from `public/icon-512.png` (512px source — swap in a vector/hi-res K2 logo if one exists)
+- [ ] USER: press Run in Android Studio, confirm splash + loader on emulator (not verified on device)
