@@ -9,7 +9,8 @@ import { SCHEMES } from '../../utils/schemes';
 import AdminSidebarLayout from '../../components/layout/AdminSidebarLayout';
 import { useResponderLocations } from '../../hooks/useResponderLocations';
 import { useStaffLocations } from '../../hooks/useStaffLocations';
-import { isOrphaned } from '../../utils/responderTracking';
+import { useLiveJobAssignments } from '../../hooks/useLiveJobAssignments';
+import { buildStaffPins } from '../../utils/responderTracking';
 
 // Leaflet is only needed on this page — keep it out of the main bundle.
 const ResponderMap = lazy(() => import('../../components/admin/ResponderMap'));
@@ -61,12 +62,13 @@ const AdminLiveIncidentsPage = () => {
   // jobs the moment they leave "live".
   const { responders } = useResponderLocations();
   const { staff: onDutyStaff } = useStaffLocations();
+  const { jobs: liveJobs } = useLiveJobAssignments();
   const [highlightedIncidentId, setHighlightedIncidentId] = useState(null);
 
-  const onDutyCount = useMemo(() => {
-    const enRoute = new Set(responders.map((r) => r.userId));
-    return onDutyStaff.filter((s) => !enRoute.has(s.userId) && !isOrphaned(s.recordedAt)).length;
-  }, [onDutyStaff, responders]);
+  const { onDutyCount, onJobCount } = useMemo(() => {
+    const onDuty = buildStaffPins(onDutyStaff, liveJobs);
+    return { onDutyCount: onDuty.length, onJobCount: onDuty.filter((s) => s.job).length };
+  }, [onDutyStaff, liveJobs]);
 
   const pins = useMemo(() => {
     const liveById = new Map(liveIncidents.map((i) => [i.id, i]));
@@ -205,7 +207,7 @@ const AdminLiveIncidentsPage = () => {
             <MapPin className="h-5 w-5 text-brand-500" />
             <h2 className="text-lg font-semibold text-gray-800">Staff Locations</h2>
             <span className="ml-auto rounded-full bg-brand-50 px-3 py-1 text-sm font-medium text-brand-600">
-              {pins.length} en route · {onDutyCount} on duty
+              {onDutyCount} on duty · {onJobCount} on a job
             </span>
           </div>
           <Suspense
@@ -218,6 +220,7 @@ const AdminLiveIncidentsPage = () => {
             <ResponderMap
               pins={pins}
               staff={onDutyStaff}
+              jobs={liveJobs}
               selectedIncidentId={highlightedIncidentId}
               onSelect={handleSelectPin}
             />

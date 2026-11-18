@@ -4,6 +4,7 @@ import {
   shouldSendLocation,
   isStale,
   fromResponderRow,
+  buildStaffPins,
 } from "../responderTracking";
 
 const HERE = { lat: 51.5, lng: -0.12 };
@@ -136,5 +137,56 @@ describe("isOrphaned", () => {
   });
   it("hides unreadable timestamps", () => {
     expect(isOrphaned("nope", now)).toBe(true);
+  });
+});
+
+describe("buildStaffPins", () => {
+  const NOW = Date.parse("2026-11-18T10:00:00Z");
+  const staff = (userId, ageMs = 5000) => ({
+    id: `s-${userId}`,
+    userId,
+    lat: 51,
+    lng: 0,
+    recordedAt: new Date(NOW - ageMs).toISOString(),
+  });
+  const job = (id, userId, createdAt = "2026-11-18T09:00:00Z") => ({
+    id,
+    userId,
+    vehicleAllocated: "Heavy Recovery",
+    createdAt,
+  });
+
+  it("leaves an on-duty member with no live job as job: null (green)", () => {
+    const [pin] = buildStaffPins([staff("u1")], [], NOW);
+    expect(pin.job).toBeNull();
+  });
+
+  it("attaches the member's live job (vehicle colour)", () => {
+    const [pin] = buildStaffPins([staff("u1")], [job("j1", "u1")], NOW);
+    expect(pin.job.id).toBe("j1");
+    expect(pin.job.vehicleAllocated).toBe("Heavy Recovery");
+  });
+
+  it("goes back to no job once the job is no longer live", () => {
+    expect(buildStaffPins([staff("u1")], [job("j1", "u1")], NOW)[0].job).not.toBeNull();
+    expect(buildStaffPins([staff("u1")], [], NOW)[0].job).toBeNull();
+  });
+
+  it("ignores jobs owned by someone else", () => {
+    const [pin] = buildStaffPins([staff("u1")], [job("j1", "u2")], NOW);
+    expect(pin.job).toBeNull();
+  });
+
+  it("uses the newest job when someone has several live", () => {
+    const [pin] = buildStaffPins(
+      [staff("u1")],
+      [job("old", "u1", "2026-11-18T08:00:00Z"), job("new", "u1", "2026-11-18T09:30:00Z")],
+      NOW,
+    );
+    expect(pin.job.id).toBe("new");
+  });
+
+  it("drops orphaned on-duty rows", () => {
+    expect(buildStaffPins([staff("u1", 60 * 60 * 1000)], [], NOW)).toHaveLength(0);
   });
 });

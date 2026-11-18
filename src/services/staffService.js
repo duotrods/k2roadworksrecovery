@@ -10,7 +10,11 @@ import { fromVehicleCheckRow, toVehicleCheckRow } from "../utils/vehicleCheckRow
 import { fromDailyAllocationRow, toDailyAllocationRow } from "../utils/dailyAllocationRowMapper";
 import { subscribeRealtimeList } from "../utils/realtimeSubscription";
 import { fromActivityRow, toActivityRow } from "../utils/activityRowMapper";
-import { fromResponderRow, fromStaffLocationRow } from "../utils/responderTracking";
+import {
+  fromResponderRow,
+  fromStaffLocationRow,
+  fromLiveJobRow,
+} from "../utils/responderTracking";
 
 // Form types whose data now lives in Supabase (not Firestore). Keyed by the
 // legacy Firestore collection name so existing call sites (which still pass
@@ -1001,6 +1005,25 @@ class StaffService {
       initialFetch: () => supabase.from("staff_locations").select("*"),
       matches: () => true,
       callback: (rows) => callback(rows.map(fromStaffLocationRow)),
+      onError,
+    });
+  }
+
+  // Admin map: every live job sheet across all schemes (who owns it + vehicle
+  // type), so an on-duty staff pin can take the colour of their live job.
+  subscribeLiveJobAssignments(callback, onError) {
+    return subscribeRealtimeList({
+      table: "incident_reports",
+      initialFetch: () =>
+        supabase
+          .from("incident_reports")
+          .select("id, reference_id, vehicle_allocated, submitted_by_user_id, created_at")
+          .eq("status", "live")
+          .order("created_at", { ascending: false })
+          .limit(100),
+      matches: (row) => row.status === "live",
+      limit: 100,
+      callback: (rows) => callback(rows.map(fromLiveJobRow)),
       onError,
     });
   }

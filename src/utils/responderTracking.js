@@ -70,3 +70,30 @@ export const isOrphaned = (recordedAt, nowMs = Date.now()) => {
   const t = new Date(recordedAt).getTime();
   return Number.isNaN(t) || nowMs - t > STAFF_HIDE_AFTER_MS;
 };
+
+// A live job sheet, reduced to what the map needs.
+export const fromLiveJobRow = (row) => ({
+  id: row.id,
+  referenceId: row.reference_id,
+  vehicleAllocated: row.vehicle_allocated,
+  userId: row.submitted_by_user_id,
+  createdAt: row.created_at,
+});
+
+// On-duty staff to draw, each tagged with their current live job sheet (or
+// null). One pin per person: the vehicle colour while a job sheet is live,
+// green once it is completed/stood down (it drops out of `jobs`). Orphaned
+// rows are dropped. If someone has several live jobs the newest wins.
+export const buildStaffPins = (staff, jobs, nowMs = Date.now()) => {
+  const latest = new Map();
+  for (const job of jobs) {
+    if (!job.userId) continue;
+    const prev = latest.get(job.userId);
+    if (!prev || new Date(job.createdAt) > new Date(prev.createdAt)) {
+      latest.set(job.userId, job);
+    }
+  }
+  return staff
+    .filter((s) => !isOrphaned(s.recordedAt, nowMs))
+    .map((s) => ({ ...s, job: latest.get(s.userId) || null }));
+};

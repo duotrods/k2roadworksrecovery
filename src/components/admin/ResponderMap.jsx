@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { isStale, isOrphaned } from "../../utils/responderTracking";
+import { isStale, buildStaffPins } from "../../utils/responderTracking";
 import { formatRelativeTime } from "../../utils/relativeTime";
 import {
   VEHICLE_ALLOCATED_OPTIONS,
@@ -30,21 +30,9 @@ const pinIcon = (stale, selected, color) =>
     }">${TRUCK_SVG}</div>`,
   });
 
-// Blue person badge for on-duty staff (not on a job), distinct from the
-// coloured truck badges used for operators en route.
-const PERSON_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>';
-
-const staffIcon = (stale) =>
-  L.divIcon({
-    className: "",
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    popupAnchor: [0, -15],
-    html: `<div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:9999px;border:2px solid #fff;background:${
-      stale ? "#9ca3af" : "#2563eb"
-    };box-shadow:0 0 0 1px rgba(0,0,0,.35)">${PERSON_SVG}</div>`,
-  });
+// Green = on duty with no live job sheet; the pin takes the vehicle colour
+// (VEHICLE_ALLOCATED_HEX) while their job sheet is live.
+const ON_DUTY_GREEN = "#16a34a";
 
 // Re-fits the view only when the *set* of operators changes, not on every GPS
 // update — otherwise the map would fight an admin who is panning around.
@@ -63,7 +51,7 @@ function FitBounds({ points, fitKey }) {
   return null;
 }
 
-const ResponderMap = ({ pins, staff = [], selectedIncidentId, onSelect }) => {
+const ResponderMap = ({ pins, staff = [], jobs = [], selectedIncidentId, onSelect }) => {
   // Tick so pins grey out on their own when updates stop arriving.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -71,27 +59,26 @@ const ResponderMap = ({ pins, staff = [], selectedIncidentId, onSelect }) => {
     return () => clearInterval(t);
   }, []);
 
-  // Staff already on a job are shown as truck pins — don't double-draw them.
-  const enRouteUserIds = useMemo(() => new Set(pins.map((p) => p.userId)), [pins]);
-  const visibleStaff = useMemo(
-    () =>
-      staff.filter(
-        (s) => !enRouteUserIds.has(s.userId) && !isOrphaned(s.recordedAt, now),
-      ),
-    [staff, enRouteUserIds, now],
+  // One pin per on-duty person (green, or their live job's colour). The
+  // per-job pins only fill in for operators who aren't sharing as on-duty.
+  const staffPins = useMemo(() => buildStaffPins(staff, jobs, now), [staff, jobs, now]);
+  const onDutyUserIds = useMemo(() => new Set(staffPins.map((s) => s.userId)), [staffPins]);
+  const jobPins = useMemo(
+    () => pins.filter((p) => !onDutyUserIds.has(p.userId)),
+    [pins, onDutyUserIds],
   );
 
   const points = useMemo(
-    () => [...pins, ...visibleStaff].map((p) => [p.lat, p.lng]),
-    [pins, visibleStaff],
+    () => [...jobPins, ...staffPins].map((p) => [p.lat, p.lng]),
+    [jobPins, staffPins],
   );
   const fitKey = useMemo(
     () =>
-      [...pins, ...visibleStaff]
+      [...jobPins, ...staffPins]
         .map((p) => p.id)
         .sort()
         .join(","),
-    [pins, visibleStaff],
+    [jobPins, staffPins],
   );
 
   return (
@@ -102,7 +89,7 @@ const ResponderMap = ({ pins, staff = [], selectedIncidentId, onSelect }) => {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <FitBounds points={points} fitKey={fitKey} />
-        {pins.map((pin) => {
+        {jobPins.map((pin) => {
           const stale = isStale(pin.recordedAt, now);
           return (
             <Marker
@@ -132,18 +119,30 @@ const ResponderMap = ({ pins, staff = [], selectedIncidentId, onSelect }) => {
             </Marker>
           );
         })}
-        {visibleStaff.map((member) => {
+        {staffPins.map((member) => {
           const stale = isStale(member.recordedAt, now);
+          const job = member.job;
+          const color = job ? getVehicleAllocatedHex(job.vehicleAllocated) : ON_DUTY_GREEN;
           return (
             <Marker
               key={member.id}
               position={[member.lat, member.lng]}
-              icon={staffIcon(stale)}
+              icon={pinIcon(stale, !!job && job.id === selectedIncidentId, color)}
+              eventHandlers={{ click: () => job && onSelect?.(job.id) }}
             >
               <Popup>
                 <div className="text-sm">
                   <p className="font-semibold">{member.operatorName || "Staff"}</p>
-                  <p>On duty</p>
+                  {job ? (
+                    <>
+                      <p>{job.referenceId || "Job sheet in progress"}</p>
+                      {job.vehicleAllocated && (
+                        <p style={{ color }}>{job.vehicleAllocated}</p>
+                      )}
+                    </>
+                  ) : (
+                    <p style={{ color: ON_DUTY_GREEN }}>On duty · no job sheet</p>
+                  )}
                   <p className={stale ? "text-gray-500" : "text-emerald-600"}>
                     Last seen {formatRelativeTime(member.recordedAt, new Date(now)) || "—"}
                   </p>
@@ -155,8 +154,8 @@ const ResponderMap = ({ pins, staff = [], selectedIncidentId, onSelect }) => {
       </MapContainer>
       <div className="absolute bottom-3 left-3 z-1000 flex flex-col gap-1 rounded-lg bg-white/90 px-3 py-2 text-xs shadow">
         <div className="flex items-center gap-2">
-          <span className="inline-block h-3 w-3 rounded-full bg-blue-600" />
-          On duty (no job)
+          <span className="inline-block h-3 w-3 rounded-full" style={{ background: ON_DUTY_GREEN }} />
+          On duty (no job sheet)
         </div>
         {VEHICLE_ALLOCATED_OPTIONS.map((v) => (
           <div key={v} className="flex items-center gap-2">
@@ -168,7 +167,7 @@ const ResponderMap = ({ pins, staff = [], selectedIncidentId, onSelect }) => {
           </div>
         ))}
       </div>
-      {pins.length === 0 && visibleStaff.length === 0 && (
+      {jobPins.length === 0 && staffPins.length === 0 && (
         <div className="pointer-events-none absolute inset-0 z-1000 flex items-center justify-center">
           <p className="rounded-lg bg-white/90 px-4 py-2 text-sm font-medium text-gray-500 shadow">
             No staff on duty or en route right now
