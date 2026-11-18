@@ -93,3 +93,48 @@ describe("fromResponderRow", () => {
     });
   });
 });
+
+import { fromStaffLocationRow } from "../responderTracking";
+
+describe("fromStaffLocationRow", () => {
+  it("maps snake_case columns to camelCase", () => {
+    expect(
+      fromStaffLocationRow({
+        id: "a",
+        user_id: "u1",
+        operator_name: "Sam",
+        lat: 1,
+        lng: 2,
+        heading: null,
+        speed: 3,
+        accuracy: 4,
+        recorded_at: "2026-01-01T00:00:00Z",
+      }),
+    ).toEqual({
+      id: "a",
+      userId: "u1",
+      operatorName: "Sam",
+      lat: 1,
+      lng: 2,
+      heading: null,
+      speed: 3,
+      accuracy: 4,
+      recordedAt: "2026-01-01T00:00:00Z",
+    });
+  });
+});
+
+import { isOrphaned, STAFF_HIDE_AFTER_MS } from "../responderTracking";
+
+describe("isOrphaned", () => {
+  const now = Date.parse("2026-01-01T12:00:00Z");
+  it("keeps recent rows", () => {
+    expect(isOrphaned(new Date(now - 60000).toISOString(), now)).toBe(false);
+  });
+  it("hides rows older than the cutoff", () => {
+    expect(isOrphaned(new Date(now - STAFF_HIDE_AFTER_MS - 1).toISOString(), now)).toBe(true);
+  });
+  it("hides unreadable timestamps", () => {
+    expect(isOrphaned("nope", now)).toBe(true);
+  });
+});

@@ -8,6 +8,8 @@ import { staffService } from '../../services/staffService';
 import { SCHEMES } from '../../utils/schemes';
 import AdminSidebarLayout from '../../components/layout/AdminSidebarLayout';
 import { useResponderLocations } from '../../hooks/useResponderLocations';
+import { useStaffLocations } from '../../hooks/useStaffLocations';
+import { isOrphaned } from '../../utils/responderTracking';
 
 // Leaflet is only needed on this page — keep it out of the main bundle.
 const ResponderMap = lazy(() => import('../../components/admin/ResponderMap'));
@@ -58,7 +60,13 @@ const AdminLiveIncidentsPage = () => {
   // scheme's live incidents are shown, which also drops stood-down/completed
   // jobs the moment they leave "live".
   const { responders } = useResponderLocations();
+  const { staff: onDutyStaff } = useStaffLocations();
   const [highlightedIncidentId, setHighlightedIncidentId] = useState(null);
+
+  const onDutyCount = useMemo(() => {
+    const enRoute = new Set(responders.map((r) => r.userId));
+    return onDutyStaff.filter((s) => !enRoute.has(s.userId) && !isOrphaned(s.recordedAt)).length;
+  }, [onDutyStaff, responders]);
 
   const pins = useMemo(() => {
     const liveById = new Map(liveIncidents.map((i) => [i.id, i]));
@@ -195,9 +203,9 @@ const AdminLiveIncidentsPage = () => {
         <div className="bg-white rounded-xl shadow-md p-6 mb-6">
           <div className="mb-4 flex items-center gap-2">
             <MapPin className="h-5 w-5 text-brand-500" />
-            <h2 className="text-lg font-semibold text-gray-800">Operators En Route</h2>
+            <h2 className="text-lg font-semibold text-gray-800">Staff Locations</h2>
             <span className="ml-auto rounded-full bg-brand-50 px-3 py-1 text-sm font-medium text-brand-600">
-              {pins.length} sharing location
+              {pins.length} en route · {onDutyCount} on duty
             </span>
           </div>
           <Suspense
@@ -209,6 +217,7 @@ const AdminLiveIncidentsPage = () => {
           >
             <ResponderMap
               pins={pins}
+              staff={onDutyStaff}
               selectedIncidentId={highlightedIncidentId}
               onSelect={handleSelectPin}
             />

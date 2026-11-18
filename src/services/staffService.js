@@ -10,7 +10,7 @@ import { fromVehicleCheckRow, toVehicleCheckRow } from "../utils/vehicleCheckRow
 import { fromDailyAllocationRow, toDailyAllocationRow } from "../utils/dailyAllocationRowMapper";
 import { subscribeRealtimeList } from "../utils/realtimeSubscription";
 import { fromActivityRow, toActivityRow } from "../utils/activityRowMapper";
-import { fromResponderRow } from "../utils/responderTracking";
+import { fromResponderRow, fromStaffLocationRow } from "../utils/responderTracking";
 
 // Form types whose data now lives in Supabase (not Firestore). Keyed by the
 // legacy Firestore collection name so existing call sites (which still pass
@@ -957,6 +957,50 @@ class StaffService {
         supabase.from("incident_responder_locations").select("*"),
       matches: () => true,
       callback: (rows) => callback(rows.map(fromResponderRow)),
+      onError,
+    });
+  }
+
+  // ============================================
+  // STAFF LOCATIONS (on-duty tracking, not tied to an incident)
+  // ============================================
+
+  // Upserts the on-duty staff member's position — one live row per user.
+  // Called from ShiftTrackingContext only.
+  async upsertStaffLocation(userId, operatorName, fix) {
+    const { error } = await supabase.from("staff_locations").upsert(
+      {
+        user_id: userId,
+        operator_name: operatorName || null,
+        lat: fix.lat,
+        lng: fix.lng,
+        heading: fix.heading ?? null,
+        speed: fix.speed ?? null,
+        accuracy: fix.accuracy ?? null,
+        recorded_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    );
+    if (error) throw error;
+  }
+
+  // Removes the live row when the user goes off duty. RLS limits this to
+  // their own row.
+  async clearStaffLocation(userId) {
+    const { error } = await supabase
+      .from("staff_locations")
+      .delete()
+      .eq("user_id", userId);
+    if (error) throw error;
+  }
+
+  // Admin-only realtime list of every on-duty staff member.
+  subscribeStaffLocations(callback, onError) {
+    return subscribeRealtimeList({
+      table: "staff_locations",
+      initialFetch: () => supabase.from("staff_locations").select("*"),
+      matches: () => true,
+      callback: (rows) => callback(rows.map(fromStaffLocationRow)),
       onError,
     });
   }

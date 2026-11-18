@@ -4,6 +4,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { authService } from "../../services/authService";
 import { staffService } from "../../services/staffService";
+import { useShift } from "../../hooks/useShift";
+import DutyToggle from "../staff/DutyToggle";
 import {
   LayoutDashboard,
   LogOut,
@@ -23,6 +25,7 @@ import { getStaffBasePath } from "../../utils/constants";
 
 const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) => {
   const { userProfile } = useAuth();
+  const { setOnDuty } = useShift();
   const location = useLocation();
   const navigate = useNavigate();
   const [formsOpen, setFormsOpen] = useState(() =>
@@ -46,6 +49,8 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
         staffGroup: "internal",
       });
     }
+    // Stop sharing location (and delete the live row) while still signed in.
+    await setOnDuty(false);
     await authService.signOut();
     navigate("/");
   };
@@ -254,6 +259,7 @@ const StaffSidebarLayoutInner = ({ children, basePath = '/dashboard/staff' }) =>
           <img src={k2logo} alt="Lens by Chellan" className="h-7" />
         </div>
         <main className="flex-1 overflow-y-auto bg-gray-50 px-5 py-5 md:px-10 md:py-6 lg:p-8">
+          <DutyToggle />
           {children}
         </main>
       </div>

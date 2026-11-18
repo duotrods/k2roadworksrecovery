@@ -6,6 +6,10 @@ export const MAX_SEND_INTERVAL_MS = 30000; // heartbeat even when stationary
 export const MIN_MOVE_METERS = 25; // ignore GPS jitter below this
 export const STALE_AFTER_MS = 60000; // admin greys a pin after this long
 
+// On-duty rows are deleted when staff go off duty, but a crashed/killed app
+// can leave one behind — stop showing it after this long without an update.
+export const STAFF_HIDE_AFTER_MS = 10 * 60 * 1000;
+
 const toRad = (deg) => (deg * Math.PI) / 180;
 
 // Great-circle distance in metres between two { lat, lng } points.
@@ -48,3 +52,21 @@ export const fromResponderRow = (row) => ({
   accuracy: row.accuracy,
   recordedAt: row.recorded_at,
 });
+
+export const fromStaffLocationRow = (row) => ({
+  id: row.id,
+  userId: row.user_id,
+  operatorName: row.operator_name,
+  lat: row.lat,
+  lng: row.lng,
+  heading: row.heading,
+  speed: row.speed,
+  accuracy: row.accuracy,
+  recordedAt: row.recorded_at,
+});
+
+// True when an on-duty row has gone quiet for so long it's probably orphaned.
+export const isOrphaned = (recordedAt, nowMs = Date.now()) => {
+  const t = new Date(recordedAt).getTime();
+  return Number.isNaN(t) || nowMs - t > STAFF_HIDE_AFTER_MS;
+};

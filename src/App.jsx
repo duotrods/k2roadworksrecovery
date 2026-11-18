@@ -3,6 +3,7 @@
   import { Toaster } from "react-hot-toast";
   import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
   import { AuthProvider } from "./context/AuthContext";
+  import { ShiftTrackingProvider } from "./context/ShiftTrackingContext";
   import ErrorBoundary from "./components/common/ErrorBoundary";
   import ProtectedRoute from "./components/auth/ProtectedRoute";
   import InstallAppButton from "./components/common/InstallAppButton";
@@ -75,6 +76,7 @@
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>
             <AuthProvider>
+            <ShiftTrackingProvider>
               <Toaster position="top-right" />
               <InstallAppButton />
 
@@ -421,6 +423,7 @@
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
               </Suspense>
+            </ShiftTrackingProvider>
             </AuthProvider>
           </BrowserRouter>
         </QueryClientProvider>
