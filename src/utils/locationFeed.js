@@ -21,7 +21,17 @@ export const isLocationSupported = () =>
 //
 // `onFix({ lat, lng, heading, speed, accuracy })` fires for every fix;
 // `onDenied()` fires when the user has refused location permission.
-export function startLocationFeed({ onFix, onDenied, backgroundTitle, backgroundMessage }) {
+//
+// `distanceFilter` (native only, metres): the watcher stays silent until the
+// phone has moved this far. Keep it at 0 when a stationary device must still
+// send heartbeats (on-duty tracking), otherwise admins see it go stale.
+export function startLocationFeed({
+  onFix,
+  onDenied,
+  backgroundTitle,
+  backgroundMessage,
+  distanceFilter = 10,
+}) {
   if (Capacitor.isNativePlatform()) {
     let watcherId = null;
     let stopped = false;
@@ -41,7 +51,7 @@ export function startLocationFeed({ onFix, onDenied, backgroundTitle, background
             backgroundMessage,
             requestPermissions: true,
             stale: false,
-            distanceFilter: 10,
+            distanceFilter,
           },
           (location, error) => {
             if (error) {

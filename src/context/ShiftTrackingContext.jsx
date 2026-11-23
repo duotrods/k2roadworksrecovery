@@ -91,6 +91,8 @@ export const ShiftTrackingProvider = ({ children }) => {
       onDenied: () => setDenied(true),
       backgroundTitle: "On duty",
       backgroundMessage: "Control can see your location while you're on duty.",
+      // Report even when stationary so the admin map doesn't grey the pin.
+      distanceFilter: 0,
     });
 
     return () => {
