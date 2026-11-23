@@ -971,7 +971,7 @@ class StaffService {
 
   // Upserts the on-duty staff member's position — one live row per user.
   // Called from ShiftTrackingContext only.
-  async upsertStaffLocation(userId, operatorName, fix) {
+  async upsertStaffLocation(userId, operatorName, fix, source) {
     const { error } = await supabase.from("staff_locations").upsert(
       {
         user_id: userId,
@@ -981,6 +981,7 @@ class StaffService {
         heading: fix.heading ?? null,
         speed: fix.speed ?? null,
         accuracy: fix.accuracy ?? null,
+        source: source ?? null,
         recorded_at: new Date().toISOString(),
       },
       { onConflict: "user_id" },

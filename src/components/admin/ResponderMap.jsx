@@ -17,13 +17,18 @@ const UK_CENTER = [52.5, -1.5];
 const TRUCK_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>';
 
-const pinIcon = (stale, selected, color) =>
+// `isWeb` = position came from the browser/PWA, which only reports while the
+// page is open and awake — shown with a dashed ring so control can see at a
+// glance it's less reliable than the Android app's background fixes.
+const pinIcon = (stale, selected, color, isWeb = false) =>
   L.divIcon({
     className: "",
     iconSize: [34, 34],
     iconAnchor: [17, 17],
     popupAnchor: [0, -18],
-    html: `<div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:9999px;border:3px solid #fff;background:${
+    html: `<div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:9999px;border:3px ${
+      isWeb ? "dashed" : "solid"
+    } #fff;background:${
       stale ? "#9ca3af" : color
     };box-shadow:0 0 0 ${selected ? 4 : 1}px ${
       selected ? "#0ea5e9" : "rgba(0,0,0,.35)"
@@ -127,7 +132,12 @@ const ResponderMap = ({ pins, staff = [], jobs = [], selectedIncidentId, onSelec
             <Marker
               key={member.id}
               position={[member.lat, member.lng]}
-              icon={pinIcon(stale, !!job && job.id === selectedIncidentId, color)}
+              icon={pinIcon(
+                stale,
+                !!job && job.id === selectedIncidentId,
+                color,
+                member.source === "web",
+              )}
               eventHandlers={{ click: () => job && onSelect?.(job.id) }}
             >
               <Popup>
@@ -146,6 +156,13 @@ const ResponderMap = ({ pins, staff = [], jobs = [], selectedIncidentId, onSelec
                   <p className={stale ? "text-gray-500" : "text-emerald-600"}>
                     Last seen {formatRelativeTime(member.recordedAt, new Date(now)) || "—"}
                   </p>
+                  <p className="text-gray-600">
+                    {member.source === "app"
+                      ? "Android app · keeps reporting with the screen locked"
+                      : member.source === "web"
+                        ? "Browser · only while the page is open and awake"
+                        : "Source unknown"}
+                  </p>
                 </div>
               </Popup>
             </Marker>
@@ -156,6 +173,10 @@ const ResponderMap = ({ pins, staff = [], jobs = [], selectedIncidentId, onSelec
         <div className="flex items-center gap-2">
           <span className="inline-block h-3 w-3 rounded-full" style={{ background: ON_DUTY_GREEN }} />
           On duty (no job sheet)
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="inline-block h-3 w-3 rounded-full border-2 border-dashed border-gray-500" />
+          Dashed ring = browser (foreground only)
         </div>
         {VEHICLE_ALLOCATED_OPTIONS.map((v) => (
           <div key={v} className="flex items-center gap-2">

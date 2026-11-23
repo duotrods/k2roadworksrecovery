@@ -57,6 +57,7 @@ export const fromStaffLocationRow = (row) => ({
   id: row.id,
   userId: row.user_id,
   operatorName: row.operator_name,
+  source: row.source ?? null,
   lat: row.lat,
   lng: row.lng,
   heading: row.heading,

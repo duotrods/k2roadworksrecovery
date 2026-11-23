@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { staffService } from "../services/staffService";
 import { shouldSendLocation } from "../utils/responderTracking";
-import { isLocationSupported, startLocationFeed } from "../utils/locationFeed";
+import { isLocationSupported, locationSource, startLocationFeed } from "../utils/locationFeed";
 import { USER_ROLES } from "../utils/constants";
 import { ShiftContext } from "./shift-context";
 
@@ -79,7 +79,7 @@ export const ShiftTrackingProvider = ({ children }) => {
       const sentMark = { lat: fix.lat, lng: fix.lng, sentAt: now };
       lastSent = sentMark;
       pending = pending
-        .then(() => staffService.upsertStaffLocation(uid, operatorName, fix))
+        .then(() => staffService.upsertStaffLocation(uid, operatorName, fix, locationSource()))
         .catch((err) => {
           console.error("Failed to share staff location:", err);
           if (lastSent === sentMark) lastSent = null;

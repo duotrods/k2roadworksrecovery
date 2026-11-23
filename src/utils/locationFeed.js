@@ -3,6 +3,11 @@ import { LocalNotifications } from "@capacitor/local-notifications";
 
 const BackgroundGeolocation = registerPlugin("BackgroundGeolocation");
 
+// Where a fix comes from, stored with on-duty rows so admins can judge how
+// much to trust it: the native app keeps reporting with the screen locked,
+// the browser only while the page is open.
+export const locationSource = () => (Capacitor.isNativePlatform() ? "app" : "web");
+
 export const isLocationSupported = () =>
   Capacitor.isNativePlatform() ||
   (typeof navigator !== "undefined" && "geolocation" in navigator);
