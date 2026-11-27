@@ -94,7 +94,7 @@ export const VEHICLE_CONDITION_SECTIONS = [
 export const CHECK_ITEMS = [
   { key: "propRemoved", label: "Prop Removed" },
   { key: "halfShaftRemoved", label: "Half Shaft Removed" },
-  { key: "propOrHalfShaftsRemoved", label: "Prop/Half Shaft(s) Removed" },
+  { key: "propOrHalfShaftsRemoved", label: "Prop/Half Shaft(s) Refitted" },
   { key: "rearLift", label: "Rear Lift" },
   { key: "keys", label: "Keys" },
   { key: "keysWithDriver", label: "Keys with Driver" },

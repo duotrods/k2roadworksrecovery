@@ -222,7 +222,9 @@ const VehicleDailyCheckFormPage = () => {
     if (!schemeId || isDemoScheme(schemeId)) return;
 
     try {
-      const pdfBlob = await generateReportPDF(data, "vehicle-check", { asBlob: true });
+      // Use the saved record: form data has no createdAt, so dates print wrong.
+      const report = await staffService.getVehicleDailyCheckById(checkId);
+      const pdfBlob = await generateReportPDF(report, "vehicle-check", { asBlob: true });
       const pdfBase64 = await blobToBase64(pdfBlob);
       const {
         data: { session },

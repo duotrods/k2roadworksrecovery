@@ -338,7 +338,9 @@ const CabinSafetyCheckFormPage = () => {
     if (!schemeId || isDemoScheme(schemeId)) return;
 
     try {
-      const pdfBlob = await generateReportPDF(data, "cabin-safety", { asBlob: true });
+      // Use the saved record: form data has no createdAt, so dates print N/A.
+      const report = await staffService.getCabinHealthSafetyCheckById(checkId);
+      const pdfBlob = await generateReportPDF(report, "cabin-safety", { asBlob: true });
       const pdfBase64 = await blobToBase64(pdfBlob);
       const {
         data: { session },

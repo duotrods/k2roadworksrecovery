@@ -126,3 +126,10 @@ The PWA can't: `watchPosition` + wake lock are foreground-only.
 - [x] In-app animated loader `src/components/common/K2Loader.jsx(.css)` replaces `LoadingSpinner` + `PageLoader` in `App.jsx`
 - [x] Source art in `design/splash/` (preview HTML, mark PNG, 1152px splash icon); mark extracted from `public/icon-512.png` (512px source — swap in a vector/hi-res K2 logo if one exists)
 - [ ] USER: press Run in Android Studio, confirm splash + loader on emulator (not verified on device)
+
+---
+
+# Task: Emailed PDFs show N/A / wrong Report Date
+Cause: the three `sendReportCopyEmail` functions built the PDF from form data (no `createdAt`).
+- [x] Generate the emailed PDF from the saved record (`staffService.get…ById`) in the incident, cabin and vehicle forms
+- [ ] USER: submit one of each on a real account and check the emailed Report Date / Time

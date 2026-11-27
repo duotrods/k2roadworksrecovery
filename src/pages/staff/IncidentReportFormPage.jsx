@@ -183,6 +183,12 @@ const IncidentReportFormPage = () => {
     }
   }, [editId]);
 
+  // Steps swap in place inside the layout's scrolling <main>, which would
+  // otherwise keep the previous step's scroll position (bottom, on mobile).
+  useEffect(() => {
+    document.querySelector("main")?.scrollTo(0, 0);
+  }, [currentStep]);
+
   const loadFormData = async () => {
     try {
       setLoading(true);
@@ -681,9 +687,7 @@ const IncidentReportFormPage = () => {
 
     if (isRipv) {
       // RIPV's shortened On Scene form: no checkboxes, no Arrival Images, no
-      // Fault to validate — just its own 4 fields. Also enforces "Cleared"
-      // (unlike the non-RIPV branch below, where timeCompleted is visually
-      // marked required but intentionally left unenforced — see that branch).
+      // Fault to validate — just its own 4 fields.
       if (
         !formData.timeOfArrival ||
         !formData.markerPost ||
@@ -698,7 +702,8 @@ const IncidentReportFormPage = () => {
         !formData.timeOfArrival ||
         !formData.markerPost ||
         !formData.track ||
-        !formData.affectedLanes
+        !formData.affectedLanes ||
+        !formData.timeCompleted
       ) {
         toast.error("Please fill in all required fields for On Scene");
         return;
@@ -857,7 +862,9 @@ const IncidentReportFormPage = () => {
     if (!EMAIL_RE.test(customerEmail)) return;
 
     try {
-      const pdfBlob = await generateReportPDF(data, "incident", { asBlob: true });
+      // Use the saved record: form data has no createdAt, so dates print wrong.
+      const report = await staffService.getIncidentReportById(incidentId);
+      const pdfBlob = await generateReportPDF(report, "incident", { asBlob: true });
       const pdfBase64 = await blobToBase64(pdfBlob);
       const {
         data: { session },
@@ -1660,6 +1667,7 @@ const IncidentReportFormPage = () => {
                   arrivalTime={formData.timeOfArrival}
                   onChange={handleChange}
                   hint="Record when the scene is cleared."
+                  required
                   className="w-full md:w-1/3"
                 />
               </>
