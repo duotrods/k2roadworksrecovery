@@ -10,6 +10,12 @@
   white-space: nowrap;
 }
 
+/* DaisyUI outlines a focused field in its own theme colour (teal for
+   input-accent, purple for input-primary, near-black otherwise). Use K2 blue. */
+:is(.input, .select, .textarea):is(:focus, :focus-within) {
+  --input-color: var(--color-brand-500);
+}
+
 :root {
   font-family: "Poppins", system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
